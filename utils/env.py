@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from utils.Shell import *
-from utils.RatEnvironment import make_rat_env
+from examples.RatEnvironment import make_rat_env
 
 
 

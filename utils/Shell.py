@@ -184,8 +184,7 @@ class FaramaMinigridShell(GymMinigridShell):
         super().__init__(env, act_enc)
         
     def render(self, highlight=True, mode='human'):
-        # Change and test: env.get_wrapper_attr('get_frame')?
-        return self.env.get_wrapper_attr('get_frame')
+        return self.env.get_frame()
     
     def reset(self, seed=False):
         if seed:

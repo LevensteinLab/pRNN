@@ -7,7 +7,7 @@ Created on Wed Mar  2 17:35:12 2022
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.general import delaydist,fit_exp_linear,kl_divergence
+from prnn.utils.general import delaydist,fit_exp_linear,kl_divergence
 
 def calculateCoverage(trajectory, envbounds, showFig=False, mask=None):
     """

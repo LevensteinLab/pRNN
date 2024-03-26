@@ -1,17 +1,17 @@
 import pynapple as nap
-import analysis.trajectoryAnalysis as trajectoryAnalysis
+import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
 import numpy as np
 import copy
-from analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis as OTA
+from prnnanalysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis as OTA
 from scipy.stats import spearmanr
 from scipy.spatial import distance
-from utils.agent import RandomActionAgent
+from prnn.utils.agent import RandomActionAgent
 import torch
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import time
-from analysis.OfflineTrajectoryAnalysis import makeAdaptingNet
+from prnn.analysis.OfflineTrajectoryAnalysis import makeAdaptingNet
 
 
 class ExperienceReplayAnalysis:

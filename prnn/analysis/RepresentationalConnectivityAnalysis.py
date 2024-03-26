@@ -2,9 +2,9 @@ import numpy as np
 from scipy.signal import correlate2d
 from scipy.stats import gmean
 import pandas as pd
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
-from analysis.SpatialTuningAnalysis import SpatialTuningAnalysis
+from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis
 import time
 
 class RepresentationalConnectivityAnalysis:

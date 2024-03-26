@@ -19,15 +19,15 @@ import time
 
 import pynapple as nap
 
-from utils.general import saveFig
-from utils.general import delaydist
+from prnn.utils.general import saveFig
+from prnn.utils.general import delaydist
 
-from utils.LinearDecoder import linearDecoder
+from prnn.utils.LinearDecoder import linearDecoder
 
-from utils.lossFuns import LPLLoss, predMSE
+from prnn.utils.lossFuns import LPLLoss, predMSE
 
-from analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
-from analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
+from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
+from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 
 
 

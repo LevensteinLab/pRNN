@@ -6,16 +6,16 @@ Created on Wed Mar  2 17:35:12 2022
 @author: dl2820
 """
 import numpy as np
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist, squareform
-from utils.agent import RandomActionAgent
+from prnn.utils.agent import RandomActionAgent
 from sklearn import manifold
 from scipy.stats.mstats import spearmanr as spearmanr_m
 from scipy.stats import spearmanr
 import copy
 from scipy.linalg import toeplitz
-from utils.ActionEncodings import OneHot
+from prnn.utils.ActionEncodings import OneHot
 
 defaultMetric = 'cosine'
 maxNtimesteps = 4000

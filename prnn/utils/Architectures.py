@@ -13,9 +13,9 @@ import torch
 import numpy as np
 from scipy.linalg import toeplitz
 from scipy.stats import norm
-from utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell
+from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell
 
-from utils.pytorchInits import CANN_
+from prnn.utils.pytorchInits import CANN_
 
 
 class pRNN(nn.Module):

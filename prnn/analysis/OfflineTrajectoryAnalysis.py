@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.agent import RandomActionAgent, RandomHDAgent
-import analysis.trajectoryAnalysis as trajectoryAnalysis
-from utils.general import saveFig, savePkl, loadPkl
+from prnn.utils.agent import RandomActionAgent, RandomHDAgent
+import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
+from prnn.utils.general import saveFig, savePkl, loadPkl
 from sklearn import manifold
 from sklearn.linear_model import LinearRegression
 import copy
-from utils.general import state2nap
+from prnn.utils.general import state2nap
 from scipy.stats import entropy
-from utils.general import delaydist
+from prnn.utils.general import delaydist
 from torch import tensor, zeros_like
 from scipy.stats import spearmanr
 

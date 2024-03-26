@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 from torch import nn
 import torch
-from utils.pytorchInits import CANN_, init_
-from utils.predictiveNet import PredictiveNet
+from prnn.utils.pytorchInits import CANN_, init_
+from prnn.utils.predictiveNet import PredictiveNet
 from scipy.spatial.distance import cdist
 import numpy as np
 

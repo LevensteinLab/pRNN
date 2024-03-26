@@ -6,13 +6,13 @@ Created on Wed Mar  2 17:35:12 2022
 @author: dl2820
 """
 import numpy as np
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
-from utils.agent import RandomActionAgent
-from analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as rg
-import analysis.trajectoryAnalysis as trajectoryAnalysis
-from utils.general import state2nap
-from analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
+from prnn.utils.agent import RandomActionAgent
+from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as rg
+import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
+from prnn.utils.general import state2nap
+from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 compareSW = OfflineTrajectoryAnalysis.compareSW
 makeDiffusion = OfflineTrajectoryAnalysis.makeDiffusion
 calculateDiffusionFit = OfflineTrajectoryAnalysis.calculateDiffusionFit

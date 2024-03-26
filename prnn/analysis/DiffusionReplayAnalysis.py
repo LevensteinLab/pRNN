@@ -1,14 +1,14 @@
-from utils.general import delaydist
+from prnn.utils.general import delaydist
 import numpy as np
-from utils.agent import RandomActionAgent, RandomHDAgent
+from prnn.utils.agent import RandomActionAgent, RandomHDAgent
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
-from utils.general import state2nap
-import analysis.trajectoryAnalysis as trajectoryAnalysis
+from prnn.utils.general import state2nap
+import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
 from matplotlib import cm
 import copy
-from utils.general import saveFig
-from analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as rg
+from prnn.utils.general import saveFig
+from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as rg
 
 
 class DiffusionReplayAnalysis:

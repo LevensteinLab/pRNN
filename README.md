@@ -63,3 +63,28 @@ module load python/3.7/cuda/10.1/cudnn/7.6/pytorch/1.5.0
 if [[ $- == *i* ]]; then . ~/.bashrc; fi # Load .bashrc if the shell is interactive
 ```
 
+## Install package with pip install
+
+
+Firsly, load the relevant modules:
+```
+module purge
+module load python/3.9
+module load cuda/10.1/cudnn/7.6 
+module load python/3.7/cuda/10.1/cudnn/7.6/pytorch/1.5.0
+```
+
+Install pRNN package (with torch):
+
+```
+pip install -e . 
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
+```
+
+
+You can omit the flag ```-e```, if you don't intend on editing the package. 
+
+To test if the package installation is successful, run:
+
+    python test/test_imports.py
+

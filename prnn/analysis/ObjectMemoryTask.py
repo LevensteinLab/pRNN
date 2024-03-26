@@ -1,9 +1,9 @@
-from utils.env import make_env
+from prnn.utils.env import make_env
 import copy
-from utils.agent import RandomActionAgent
+from prnn.utils.agent import RandomActionAgent
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 
 
 

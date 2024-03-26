@@ -7,9 +7,9 @@ Created on Tue Jan 18 16:15:54 2022
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.general import saveFig
-from utils.general import delaydist
-import analysis.trajectoryAnalysis as trajectoryAnalysis
+from prnn.utils.general import saveFig
+from prnn.utils.general import delaydist
+import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
 
 
 def TrainingFigure(predictiveNet,

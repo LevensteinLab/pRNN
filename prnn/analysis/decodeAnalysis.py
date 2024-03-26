@@ -1,5 +1,5 @@
 import numpy as np
-from utils.agent import RandomActionAgent
+from prnn.utils.agent import RandomActionAgent
 import torch
 
 

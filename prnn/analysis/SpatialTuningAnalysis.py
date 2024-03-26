@@ -1,8 +1,8 @@
-from utils.agent import RandomActionAgent
+from prnn.utils.agent import RandomActionAgent
 import numpy as np
 from scipy.stats import spearmanr
 import matplotlib.pyplot as plt
-from utils.general import saveFig
+from prnn.utils.general import saveFig
 from copy import deepcopy
 
 class SpatialTuningAnalysis:

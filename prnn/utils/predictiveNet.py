@@ -16,6 +16,7 @@ import pandas as pd
 import pickle
 import json
 import time
+import random
 
 import pynapple as nap
 
@@ -176,7 +177,7 @@ class PredictiveNet:
         self.phase = 0
         self.phase_k = len(self.pRNN.inMask)
 
-    def predict(self, obs, act, state=torch.tensor([]), mask=None):
+    def predict(self, obs, act, state=torch.tensor([]), mask=None, randInit=True):
         """
         Generate predicted observation sequence from an observation and action
         sequence batch. Obs_pred is for the next timestep. 
@@ -194,6 +195,10 @@ class PredictiveNet:
             timesteps = obs.size(1)
             noise_t = noise[0] + noise[1]*torch.randn((k+1,timesteps,self.hidden_size),
                                                                     device=device)
+            if randInit and len(state) == 0:
+                state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size),
+                                                            device=device)
+                state = self.pRNN.rnn.cell.actfun(state)
         else:
             noise_t = torch.tensor([])
         
@@ -227,8 +232,12 @@ class PredictiveNet:
         _, self.state, _ = self.pRNN(obs, act, noise_t=noise_t, state=self.state, single=True)
         return self.state
     
-    def reset_state(self):
+    def reset_state(self, randInit=True):
         self.state = torch.tensor([])
+        if randInit:
+                noise = self.trainNoiseMeanStd
+                self.state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size))
+                self.state = self.pRNN.rnn.cell.actfun(self.state)
         self.phase = 0
 
 
@@ -396,12 +405,18 @@ class PredictiveNet:
 
     def collectObservationSequence(self, env, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
-                                   discretize=False, inv_x=False, inv_y=False):
+                                   discretize=False, inv_x=False, inv_y=False,
+                                   seed = None):
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
         Note: batches not implemented yet...
         """
+        if seed is not None:
+            torch.manual_seed(seed)
+            random.seed(seed)
+            np.random.seed(seed)
+        
         for bb in range(batch_size):
             obs, act, state, render = agent.getObservations(env,tsteps,
                                                      includeRender=includeRender,
@@ -421,10 +436,12 @@ class PredictiveNet:
     def trainingEpoch(self, env, agent,
                             sequence_duration=2000, num_trials=100,
                             with_homeostat=False,
-                            learningRate=None):
+                            learningRate=None,
+                            forceDevice=None):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        #device = "cpu"
+        if forceDevice is not None:
+            device = forceDevice
         self.pRNN.to(device)
         print(f'Training pRNN on {device}...')
 
@@ -574,7 +591,7 @@ class PredictiveNet:
                                        saveTrainingData=False, trainDecoder=False,
                                        trainHDDecoder = False,
                                        numBatches=5000, inputControl=False,
-                                       calculatesRSA = False, bitsec=True,
+                                       calculatesRSA = False, bitsec=False,
                                        sleepstd = 0.1, onsetTransient=20,
                                        activeTimeThreshold=200):
         """
@@ -782,12 +799,14 @@ class PredictiveNet:
 
     def calculateDecodingPerformance(self,env,agent,decoder,timesteps = 2000,
                                      savefolder=None,savename=None,saveTrainingData=False,
-                                     showFig=True, trajectoryWindow=100):
+                                     showFig=True, trajectoryWindow=100,
+                                     seed = None):
 
         obs,act,state,render = self.collectObservationSequence(env,agent,
                                                                         timesteps,
                                                                         includeRender=True,
-                                                                        discretize=True
+                                                                        discretize=True,
+                                                                        seed=seed
                                                                         )
         obs_pred, obs_next, h  = self.predict(obs,act)
         

@@ -70,12 +70,13 @@ class RandomActionAgent:
     
  
 class RandomHDAgent:
-    def __init__(self, action_space, default_action_probability=None):
+    def __init__(self, action_space, default_action_probability=None, constantAction=-1):
         
         self.action_space = action_space
         self.default_action_probability = default_action_probability
         if default_action_probability is None:
             self.default_action_probability = np.ones_like(self.action_space)/self.action_space.n
+        self.constantAction = constantAction
         
         
     def generateActionSequence(self, tsteps, action_probability=None):
@@ -116,7 +117,7 @@ class RandomHDAgent:
             if includeRender:
                 render[aa+1] = env.render(mode=None)
                 
-        act = -np.ones_like(act)
+        act = np.ones_like(act) * self.constantAction
 
         return obs, act, state, render
     

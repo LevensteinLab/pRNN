@@ -2,7 +2,7 @@ import pynapple as nap
 import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
 import numpy as np
 import copy
-from prnnanalysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis as OTA
+from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis as OTA
 from scipy.stats import spearmanr
 from scipy.spatial import distance
 from prnn.utils.agent import RandomActionAgent
@@ -21,7 +21,7 @@ class ExperienceReplayAnalysis:
                  sleepNoiseStd = 0.1, sleepAgent = None,
                  lowExampleThresh = 0.05, hiExampleThresh = 0.3, exampleLRthresh = 1,
                  resetOptimizer=False, lrgroups=[0,1,2],
-                 withAdapt=False, b_adapt = 0.4, tau_adapt=5):
+                 withAdapt=False, b_adapt = 0.3, tau_adapt=8):
         
         self.pN = predictiveNet
         self.lowExampleThresh = lowExampleThresh
@@ -266,7 +266,8 @@ class ExperienceReplayAnalysis:
                 pN_post.optimizer.param_groups[lgroup]['lr'] *= lr
             
             #Annoying device issue...
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            #device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cpu"
             pN_post.pRNN.to(device)
             obs,act = obs.to(device),act.to(device)
             
@@ -385,24 +386,49 @@ class ExperienceReplayAnalysis:
                                     timeMarker=True, showOccupancy=True)
             plt.title(f"Replay: {self.HiExample['occupancyCorr']:.2f}")
         
-        plt.subplot(2,1,2)
-        self.plotLRPanel(self.LRpanel, self.lrs, meanLR = self.meanSWcorr)
+        plt.subplot(3,2,5)
+        self.plotLRPanel(self.SWcorr, self.lrs)
+        plt.subplot(3,2,6)
+        #self.plotLRPanel(self.LRpanel, self.lrs, meanLR = self.meanSWcorr, metric = 'Replay Score')
+        self.plotLRPanel(self.LRpanel, self.lrs,  metric = 'Replay Score')
         
+        plt.subplot(3,2,4)
+        self.plotReplayScorePanel(self.meanpWake,self.meanpVisited,self.lrs)
+
+        #plt.tight_layout()
         if netname is not None:
             saveFig(plt.gcf(),netname+'_LRReplayPanel',savefolder,
                     filetype='pdf')
             
         plt.show()
-        
-    def plotLRPanel(self, occ_overlap, lrs, meanLR=None):
+    
+    def plotLRPanel(self, occ_overlap, lrs, meanLR=None, metric='Trial-Sleep Corr.',showxlabel=True):
         
         if meanLR is not None:
            plt.plot(np.arange(len(lrs))+1,meanLR,'--',color='grey',linewidth=0.5)
             #plt.plot(np.arange(len(lrs))+1,meanLR[:,0],'-',color='black',linewidth=0.5)
-        plt.boxplot(occ_overlap,labels = np.log10(lrs),showfliers=False,whis=[5,95])
+        plt.boxplot(occ_overlap,labels = lrs.astype(int),showfliers=False,whis=[5,95])
+
         plt.plot(plt.xlim(),[0,0],'k--')
-        plt.xlabel('Learning Rate During Wake Trial (*Train)')
-        plt.ylabel('Trial-Sleep Correlation')
+        if showxlabel:
+            plt.xlabel('LR During Trial (*Train)')
+        plt.ylabel(metric)
+        
+    def plotLRPanel_violin(self, occ_overlap, lrs, meanLR=None, metric='Trial-Sleep Corr.',showxlabel=True):
+        
+        plt.violinplot(occ_overlap, showextrema=False)
+
+        plt.plot(plt.xlim(),[0,0],'k--')
+        if showxlabel:
+            plt.xlabel('LR During Trial (*Train)')
+        plt.ylabel(metric)
+        
+    def plotReplayScorePanel(self, meanpWake, meanpVisited, lrs):
+            plt.plot(np.arange(len(lrs))+1,np.mean(meanpWake,axis=1),label='P[Time] in Wake Locs')
+            plt.plot(np.arange(len(lrs))+1,np.mean(meanpVisited,axis=1),label='P[Wake Locs] visited')
+            plt.legend()
+        
+        
         
     def plotTrajectoryPanel(self, traj, coverage, trajRange=None,
                             onsetTransient = 0, timeMarker=False, showOccupancy=True,

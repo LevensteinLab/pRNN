@@ -37,10 +37,11 @@ class decodeAnalysis:
             a['state']['agent_pos'] = a['state']['agent_pos'][:h.size(dim=1)+1,:]
         if theta == 'expand':
             k = h.size(dim=0)
+            nt = h.size(dim=1)
             h = h.transpose(0,1).reshape((-1,1,h.size(dim=2))).swapaxes(0,1)
             a['obs_pred'] = a['obs_pred'].transpose(0,1).reshape((-1,1,a['obs_pred'].size(dim=2))).swapaxes(0,1)
             obs_temp = torch.zeros_like(a['obs_pred'])
-            obs_temp[:,::k,:]=a['obs'][:,:-k,:]
+            obs_temp[:,::k,:]=a['obs'][:,:nt,:]
             a['obs'] = obs_temp
             a['state']['agent_pos'] = np.repeat( a['state']['agent_pos'], k, axis=0)
             a['state']['agent_pos'] = a['state']['agent_pos'][:h.size(dim=1)+1,:]
@@ -52,7 +53,8 @@ class decodeAnalysis:
         a['h'] = h
         return a
     
-    def decodeSequenceFigure(self, netname=None, savefolder=None):
+    def decodeSequenceFigure(self, netname=None, savefolder=None, 
+                             timesteps = 2002,trajectoryWindow=100):
         obs = self.WAKEactivity['obs']
         render = None
         obs_pred = self.WAKEactivity['obs_pred']
@@ -60,8 +62,6 @@ class decodeAnalysis:
         p = self.p
         decoded = self.decoded
         decoder = self.decoder
-        timesteps = 2002
-        trajectoryWindow=100
         
         self.pN.plotObservationSequence(obs, render, obs_pred, state,
                                          p_decode=p, decoded=decoded, mask=decoder.mask,

@@ -20,6 +20,7 @@ from prnn.utils.ActionEncodings import OneHot
 defaultMetric = 'cosine'
 maxNtimesteps = 4000
 
+
 def randSubSample(h, maxN, axis=0):
     #pick random N of timesteps if bigger than maxN timesteps
     nT = np.size(h,axis)
@@ -32,7 +33,8 @@ def randSubSample(h, maxN, axis=0):
 class representationalGeometryAnalysis:
     def __init__(self, predictiveNet, timesteps_wake = 15000,
                  noisemag = 0, noisestd = 0.1, timesteps_sleep = 1000,
-                 withIsomap = False, SIdependence=True, spacemetric = 'euclidean',
+                 withIsomap = False, n_neighbors=150,
+                 SIdependence=True, spacemetric = 'euclidean',
                  actRSA = True, obsRSA=True, HDRSA = True, theta = 'expand',
                  agent = False, start_pos = 1, mapcenter = [18,18],
                  discretize = False, inv_x = False, inv_y = False):
@@ -90,7 +92,8 @@ class representationalGeometryAnalysis:
         
         self.Isomap = withIsomap
         if self.Isomap:
-            self.Isomap = self.fitIsomap(self.WAKEactivity, self.SLEEPactivity)
+            self.Isomap = self.fitIsomap(self.WAKEactivity, self.SLEEPactivity,
+                                         n_neighbors = n_neighbors)
 
             
     def calculateRSA_action(self,WAKEactivity, metric=defaultMetric):
@@ -117,12 +120,12 @@ class representationalGeometryAnalysis:
     def actionDistancePanel(self,RSA):
         RSA, hist2, rbins, sbins, dists, actsort, numacts = RSA
         actionlabels = ['Rotate L','Rotate R','Move Forward','Hold']
-        vmin = np.mean(dists)-2*np.std(dists)
-        vmax = np.mean(dists)+2*np.std(dists)
-
+        vmin = np.mean(dists)-1*np.std(dists)
+        vmax = np.mean(dists)+1*np.std(dists)
+        
         ndists = squareform(dists)
-        plt.imshow(ndists[np.ix_(actsort,actsort)])#,
-                  #vmin=vmin, vmax=vmax)
+        plt.imshow(ndists[np.ix_(actsort,actsort)],
+                   vmin=vmin, vmax=vmax)
 
         drawGroupLines(numacts,actionlabels)
         clb = plt.colorbar()
@@ -205,7 +208,7 @@ class representationalGeometryAnalysis:
         a['h'] = np.squeeze(h_t.detach().numpy())
         return a
         
-    def fitIsomap(self,WAKEactivity, SLEEPactivity, usecells=None):
+    def fitIsomap(self,WAKEactivity, SLEEPactivity, usecells=None, n_neighbors=150):
         print('Fitting Isomap')
         #X = self.WAKEactivity['h']
         h_wake = WAKEactivity['h']
@@ -219,7 +222,7 @@ class representationalGeometryAnalysis:
             
         X = np.concatenate((h_wake,h_sleep))
         #method = manifold.Isomap(n_neighbors=50, n_components=2,p=1)
-        method = manifold.Isomap(n_neighbors=150, n_components=2, metric='cosine')
+        method = manifold.Isomap(n_neighbors=n_neighbors, n_components=2, metric='cosine')
         method.fit(X)
         return method
     
@@ -602,7 +605,7 @@ class representationalGeometryAnalysis:
             else:
                 color = self.WAKEactivity['act']
             
-        maxplotpoints = 15000    
+        maxplotpoints = 10000    
         X, keepIDX = randSubSample(X, maxplotpoints, axis=0)
         color = color[keepIDX]
             
@@ -621,7 +624,6 @@ class representationalGeometryAnalysis:
         #ax.set_title(colorvar)
         return
     
-
     def keyPanel(self):
         pos = self.WAKEactivity['state']['agent_pos']
         color = np.arctan((pos[:-1,0]-self.mapcenter[0])/
@@ -701,7 +703,8 @@ class representationalGeometryAnalysis:
             clb = plt.colorbar()
             clb.ax.set_ylabel('P[neural|space]')
         
-    def WakeSleepFigure(self, netname, savefolder=None, isomapRotation=(0,0), withKey =True):
+    def WakeSleepFigure(self, netname, savefolder=None, 
+                        isomapRotation=(0,0), withKey =True):
         
         plt.figure()
         # plt.subplot(3,8,3)

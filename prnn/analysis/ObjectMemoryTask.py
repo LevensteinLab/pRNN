@@ -85,9 +85,9 @@ class ObjectMemoryTask:
             oldlr[lidx] = pN_post.optimizer.param_groups[lgroup]['lr']
             pN_post.optimizer.param_groups[lgroup]['lr'] = oldlr[lidx] * lr_trials[lidx]
 
-        pN_post.trainingEpoch(env_object, agent, num_trials=num_trials,
-                              sequence_duration = sequence_duration,
-                              learningRate = None)
+        pN_post.trainingEpoch(env_object,agent, num_trials=num_trials,
+                             sequence_duration = sequence_duration,
+                             learningRate = None,forceDevice="cpu")
 
         #Return the learning rate
         for lidx, lgroup in enumerate(lrgroups):

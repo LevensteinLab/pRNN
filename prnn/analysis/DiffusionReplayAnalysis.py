@@ -9,11 +9,12 @@ from matplotlib import cm
 import copy
 from prnn.utils.general import saveFig
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as rg
+from prnn.analysis.OfflineTrajectoryAnalysis import calculateSpatialCoherence
 
 
 class DiffusionReplayAnalysis:
     def __init__(self, predictiveNet, noisemag = 0, noisestd=0.05,
-                 timesteps_sleep=300, num_trials = 15, decoder = 'train', 
+                 timesteps_sleep=300, num_trials = 15, dtmax=15, decoder = 'train', 
                  actionAgent=None, sleepOnsetTransient=10, 
                  decoderbatches = 10000, compareWake=False, wakeAgent=None, 
                  withAdapt=False, b_adapt = 0.4, tau_adapt=5):
@@ -40,19 +41,22 @@ class DiffusionReplayAnalysis:
         else:
             self.decoder = decoder
             
-        (self.msd, self.delays,
-        self.delay_dist, self.coverage) = self.runOfflineTrials(num_trials, noisemag, noisestd, 
-                                                 timesteps_sleep, actionAgent, sleepOnsetTransient)
+        (self.msd, self.delays, 
+         self.delay_dist, self.coverage,
+         self.coherence,self.extent) = self.runOfflineTrials(num_trials, noisemag, noisestd, 
+                                                 timesteps_sleep, actionAgent, sleepOnsetTransient,
+                                                           dtmax=dtmax)
         self.diffusionFit = self.calculateDiffusionFit(self.msd, self.delays)
         
         self.compareWake = compareWake
         if compareWake:
             (self.msd_WAKE, _, 
              self.delay_dist_WAKE,
-            self.coverage_WAKE) = self.runOfflineTrials(num_trials, noisemag, noisestd, 
+            self.coverage_WAKE,_,_) = self.runOfflineTrials(num_trials, noisemag, noisestd, 
                                                            timesteps_sleep, actionAgent, 
                                                            sleepOnsetTransient,
-                                                           wakeControl = True)
+                                                           wakeControl = True,
+                                                           dtmax=dtmax)
             self.diffusionFit_WAKE = self.calculateDiffusionFit(self.msd_WAKE, self.delays)
 
 
@@ -67,15 +71,19 @@ class DiffusionReplayAnalysis:
             'msd'       : [[] for x in noisestds],
             'delay_dist': [[] for x in noisestds],
             'coverage': [[] for x in noisestds],
+            'coherence': [[] for x in noisestds],
+            'extent': [[] for x in noisestds],
         }
         
         for nidx, noise in enumerate(noisestds):
             print(nidx)
-            msd, delays, delay_dist, coverage = self.runOfflineTrials(self.num_trials, 
+            (msd, delays, delay_dist, coverage, 
+            coherence, extent) = self.runOfflineTrials(self.num_trials, 
                                                 self.noisemag, noise,
                                                 self.timesteps_sleep, 
                                                 self.actionAgent, 
-                                                self.sleepOnsetTransient)
+                                                self.sleepOnsetTransient,
+                                                dtmax=self.delays.size)
             diffusionFit = self.calculateDiffusionFit(msd, delays)
             STDPanel['alpha'][nidx] = diffusionFit['alpha']
             STDPanel['r_sq'][nidx] = diffusionFit['r_sq']
@@ -83,6 +91,8 @@ class DiffusionReplayAnalysis:
             STDPanel['msd'][nidx] = msd
             STDPanel['delay_dist'][nidx] = delay_dist
             STDPanel['coverage'][nidx] = coverage
+            STDPanel['coherence'][nidx] = coherence
+            STDPanel['extent'][nidx] = extent
         self.STDPanel = STDPanel
         
     
@@ -92,28 +102,38 @@ class DiffusionReplayAnalysis:
                          dtmax=15, wakeControl=False):
         msd = np.zeros((num_trials,dtmax))
         delays = np.arange(1,dtmax+1)
+        cohere = []
+        extent = []
         #print('Running Sleep Trials')
         for trial in range(num_trials):
             if wakeControl:
                 activity = self.runWAKE(timesteps_sleep)
                 decoded = state2nap(activity['state'])
+                spatialCoherence = {'cohere':None,
+                                   'extent': None}
             else:
                 actvity = self.runSLEEP(noisemag, noisestd,
                                         timesteps_sleep, actionAgent,
                                         suppressPrint = True,
                                         onsetTransient = sleepOnsetTransient)
                 decoded = self.decodeSLEEP(actvity['h'],self.decoder)
+                spatialCoherence = calculateSpatialCoherence(decoded)
                 decoded = decoded[0]
             
             
             delay_dist, msd[trial,:] = delaydist(decoded.values,dtmax, sqdist=True,
                                                 dist='euclidian')
+            cohere.append(spatialCoherence['cohere'])
+            extent.append(spatialCoherence['extent'])
+        
+        cohere = np.vstack(cohere)
+        extent = np.vstack(extent)
             
         coverage = trajectoryAnalysis.calculateCoverage(decoded,
                                                         [0,self.decoder.gridheight,
                                                          0,self.decoder.gridwidth])
-            
-        return msd, delays, delay_dist, coverage
+        
+        return msd, delays, delay_dist, coverage, cohere, extent
         
     def trainDecoder(self, numbatches = 10000):
         env = self.pN.EnvLibrary[0]
@@ -149,6 +169,10 @@ class DiffusionReplayAnalysis:
             env = self.pN.EnvLibrary[0]
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
             actionAgent = RandomHDAgent(env.action_space,action_probability)
+        if actionAgent == 'RandHDForward':
+            env = self.pN.EnvLibrary[0]
+            action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
+            actionAgent = RandomHDAgent(env.action_space,action_probability,constantAction=2)
         if actionAgent == 'OneHDForward':
             env = self.pN.EnvLibrary[0]
             action_probability = np.array([0,0,1,0,0,0,0])
@@ -215,7 +239,7 @@ class DiffusionReplayAnalysis:
     
     
     
-    def DiffusionFigure(self, netname=None, savefolder=None):
+    def DiffusionFigure(self, netname=None, savefolder=None, halflims=True):
         msd_wake = None
         if self.compareWake is not False:
             msd_wake = self.msd_WAKE
@@ -224,7 +248,10 @@ class DiffusionReplayAnalysis:
         
         plt.subplot(2,2,1)
         self.diffusionFitPanel(self.delays, self.msd, self.diffusionFit, msd_wake,
-                              showTrialPoints=False)
+                              showTrialPoints=False, halflims=halflims)
+        
+        #plt.subplot(2,4,1)
+        #self.extentPanel
         
         if netname is not None:
             saveFig(plt.gcf(),netname+'_DiffusionFigure',savefolder,
@@ -236,7 +263,7 @@ class DiffusionReplayAnalysis:
                           showTrialPoints=True, color='k', halflims = True, errorshade=False):
         
         mean_msd = np.mean(np.log10(msd),axis=0, where=msd>0)
-        std_msd = np.nanstd(np.log10(msd[msd>0]))
+        std_msd = np.nanstd(np.log10(msd), where=msd>0)
         
         if msd_wake is not None:
             mean_msd_W = np.mean(np.log10(msd_wake),axis=0)
@@ -255,7 +282,7 @@ class DiffusionReplayAnalysis:
 
         if showTrialPoints:
             plt.plot(np.log10(delays),np.log10(msd.T),'.',color='lightgrey')
-            
+        
         if errorshade:
             plt.fill_between(np.log10(delays), mean_msd-std_msd, mean_msd+std_msd,
                                 color=color, alpha=0.1)
@@ -311,6 +338,15 @@ class DiffusionReplayAnalysis:
         plt.ylabel('alpha')
         
         
+        #plt.subplot(3,3,9)
+        #plt.plot(np.log10(self.STDPanel['noisestds']),self.STDPanel['r_sq'],'grey')
+        #plt.scatter(np.log10(self.STDPanel['noisestds']),self.STDPanel['r_sq'],
+        #            c= np.arange(numnoise))
+        #plt.ylim([0,1])
+        #plt.xlabel('log(noise)')
+        #plt.ylabel('R^2')
+        
+        
         plt.subplot(3,3,9)
         plt.plot(np.log10(self.STDPanel['noisestds']),self.STDPanel['intercept'],'grey')
         plt.plot(np.log10(self.STDPanel['noisestds']),
@@ -323,16 +359,35 @@ class DiffusionReplayAnalysis:
         plt.ylabel('Intercept')
         
         
+        extents = [i.flatten() for i in self.STDPanel['extent']]
+        plt.subplot(3,3,7)
+        plt.plot(np.log10(self.STDPanel['noisestds']),np.mean(extents,axis=1),'grey')
+        #plt.plot(np.log10(self.STDPanel['noisestds']),
+        #         self.diffusionFit_WAKE['extent']*np.ones(numnoise),'k')
+        plt.scatter(np.log10(self.STDPanel['noisestds']),np.mean(extents,axis=1),
+                    c= np.arange(numnoise))
+        #plt.boxplot(extents,
+        #           labels=np.log10(self.STDPanel['noisestds']).round(decimals=2),
+        #           showfliers=False)
+        #plt.plot(np.log10(wakeNoise),self.diffusionFit_WAKE['extent'],'k^')
+        #plt.ylim([0,1])
+        plt.xlabel('log(noise)')
+        plt.ylabel('extent')
+        
+        
         
                        
-        plt.subplot(3,3,7)
+        plt.subplot(3,3,3)
         self.diffusionFitPanel(self.delays, self.STDPanel['msd'][0],
                                None, msd_wake, showTrialPoints=False,
-                               color=cmap(0/numnoise))
+                               color=cmap(0/numnoise),
+                              halflims = False)
         for sidx,std in enumerate(self.STDPanel['msd']):
-            self.diffusionFitPanel(self.delays, self.STDPanel['msd'][sidx], 
-                                   None, None, showTrialPoints=False,
-                                   color=cmap(sidx/numnoise))
+            if sidx in [4,6,8]:
+                self.diffusionFitPanel(self.delays, self.STDPanel['msd'][sidx], 
+                                       None, None, showTrialPoints=False,
+                                       color=cmap(sidx/numnoise),
+                                      halflims = False)
             
             
         plt.subplot(6,numnoise, 1)
@@ -381,9 +436,11 @@ class DiffusionReplayAnalysis:
             plt.xticks([])
             plt.yticks([])
             plt.axis('off')
-
-
-
+            
+            
+            
+            
+            
 def makeAdaptingNet(pN, b, tau_a):
     from utils.thetaRNN import LayerNormRNNCell, AdaptingLayerNormRNNCell, RNNCell, AdaptingRNNCell
     from torch.nn import Parameter

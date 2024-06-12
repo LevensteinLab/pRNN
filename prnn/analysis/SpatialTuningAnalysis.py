@@ -2,7 +2,7 @@ from prnn.utils.agent import RandomActionAgent
 import numpy as np
 from scipy.stats import spearmanr
 import matplotlib.pyplot as plt
-from prnn.utils.general import saveFig
+from prnn.utils.general import saveFig, savePkl, loadPkl
 from copy import deepcopy
 
 class SpatialTuningAnalysis:
@@ -48,17 +48,17 @@ class SpatialTuningAnalysis:
         
         if self.untrainedControl:
             print('Running Untrained Control')
-            pNControl = self.makeUntrainedNet(self.pN, env, agent, ratenorm = ratenorm)
-            self.untrainedFields = pNControl.TrainingSaver['place_fields'].values[-1]
-            self.untrainedSI = pNControl.TrainingSaver['SI'].values[-1]
-            WAKEactivity = self.runWAKE(pNControl, env, agent, timesteps_wake)
-            FAKEuntraineddata = self.makeFAKEdata(WAKEactivity, self.untrainedFields, start_pos=start_pos)
+            self.pNControl = makeUntrainedNet(self.pN,env,agent, ratenorm = ratenorm)
+            self.untrainedFields = self.pNControl.TrainingSaver['place_fields'].values[-1]
+            self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
+            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake)
+            FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
         #Run WAKE
         self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake)
-        print('Calculating EV_s')        
+        print('Calculating EV_s')
         self.FAKEactivity, self.TCreliability = self.calculateTuningCurveReliability(self.WAKEactivity,self.tuning_curves)
         
         if inputControl:
@@ -99,17 +99,7 @@ class SpatialTuningAnalysis:
         return FAKEactivity, TCreliability
     
     
-    def makeUntrainedNet(self,pN, env, agent, ratenorm=True):
-        pNControl = deepcopy(pN)
-        pNControl.pRNN.__init__(pNControl.obs_size, pNControl.act_size,
-                               pNControl.hidden_size,
-                               neuralTimescale=pNControl.trainArgs.ntimescale,
-                               dropp=pNControl.trainArgs.dropout,
-                               f=pNControl.trainArgs.sparsity)
-        _,_,_ = pNControl.calculateSpatialRepresentation(env,agent,
-                                                         saveTrainingData=True,
-                                                         bitsec= not(ratenorm))
-        return pNControl
+
     
     
     def makeNoRecNet(self, pN):
@@ -133,6 +123,8 @@ class SpatialTuningAnalysis:
                                          noRec_fields[tc_key][PFmask_idx])
             
         return reccorr
+        
+        
     
     @staticmethod
     def makeFAKEdata(WAKEactivity, tuning_curves, useMstats=False, metric='EVspace', inputCells=False, start_pos=1):
@@ -396,6 +388,24 @@ class SpatialTuningAnalysis:
             print("Analysis Loaded from pathname")
         return analysis
 
+    
+def makeUntrainedNet(pN, env, agent, ratenorm=True, decodeError=False, calculatesRSA = False):
+    pNControl = deepcopy(pN)
+    pNControl.pRNN.__init__(pNControl.obs_size, pNControl.act_size,
+                           pNControl.hidden_size,
+                           neuralTimescale=pNControl.trainArgs.ntimescale,
+                           dropp=pNControl.trainArgs.dropout,
+                           f=pNControl.trainArgs.sparsity)
+    _,_,decoder = pNControl.calculateSpatialRepresentation(env,agent,
+                                                    saveTrainingData=True,
+                                                           trainDecoder=decodeError,
+                                                     calculatesRSA = calculatesRSA,
+                                                    bitsec= not(ratenorm))
+    if decodeError:
+        pNControl.calculateDecodingPerformance(env,agent,decoder,
+                                            saveTrainingData=True,
+                                              showFig=False)
+    return pNControl
 
 def randScatterPoints(xy,n):
     # Calculate the range of the x and y values

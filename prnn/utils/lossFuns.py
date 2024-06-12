@@ -51,7 +51,7 @@ class LPLLoss(nn.Module):
     
 
 class predMSE(nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(predMSE,self).__init__()
         self.loss_fn = nn.MSELoss()
         
@@ -59,6 +59,19 @@ class predMSE(nn.Module):
         loss = self.loss_fn(obs_pred,obs_next)
         return loss
 
+#Note - will need to update predMSE to match output (total,pred)
+class predMSE_reg(nn.Module):
+    def __init__(self, beta_energy=0, **kwargs):
+        super(predMSE, self).__init__()
+        
+        self.beta_energy = beta_energy
+        self.loss_fn = nn.MSELoss()
+    
+    def forward(self, obs_pred,obs_next,z):
+        predloss = self.loss_fn(obs_pred,obs_next) 
+        energyloss = self.beta_energy*torch.linalg.vector_norm(z).sum() #Check dimension here
+        totalloss = predloss+energyloss
+        return totalloss, predloss
 
 #https://arxiv.org/pdf/2105.04906.pdf
 class VICReg(nn.Module):

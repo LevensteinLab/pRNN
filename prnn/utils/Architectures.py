@@ -767,11 +767,12 @@ class AutoencoderPred_LN(pRNN):
         
 class AutoencoderFFPred_LN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0, f=0.5):
         super(AutoencoderFFPred_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
-                          predOffset=1, actOffset=0,
-                          inMask=[True], outMask=[True], actMask=None)
+                                                    cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, 
+                                                    dropp=dropp,f=f,
+                                                    predOffset=1, actOffset=0,
+                                                    inMask=[True], outMask=[True], actMask=None)
         self.W.requires_grad_(False)
         self.W.zero_()
 

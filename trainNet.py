@@ -200,14 +200,8 @@ if predictiveNet.numTrainingTrials == -1:
     print('Calculating Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
-                                                  bitsec= False, trainHDDecoder = True,
+                                                  bitsec= False,
                                                   calculatesRSA = True, sleepstd=0.03)
-    print('delete this...')
-    OTA = OfflineTrajectoryAnalysis(predictiveNet, noisestd=0.03,
-                               decoder=decoder, calculateViewSimilarity=True,
-                               wakeAgent=agent, withAdapt=True,
-                               b_adapt = 0.3, tau_adapt=8)
-    OTA.SpontTrajectoryFigure(savename+'_adapt',figfolder)
     predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
     print('Calculating Decoding Performance...')
     predictiveNet.calculateDecodingPerformance(env,agent,decoder,
@@ -268,4 +262,4 @@ TrainingFigure(predictiveNet,savename=savename,savefolder=figfolder)
 #If the user doesn't want to save all that training data, delete it except the last one
 if args.saveTrainData is False:
     predictiveNet.TrainingSaver = predictiveNet.TrainingSaver.drop(predictiveNet.TrainingSaver.index[:-1])
-    predictiveNet.saveNet(args.savefolder+'/'+savename)
+    predictiveNet.saveNet(args.savefolder+savename)

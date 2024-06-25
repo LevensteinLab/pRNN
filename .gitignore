@@ -6,3 +6,9 @@
 *.pkl
 
 slurm*
+
+Data/*
+nets/*
+
+test.ipynb
+train_example_net.sh

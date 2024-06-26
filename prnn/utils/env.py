@@ -8,8 +8,8 @@ Created on Tue Nov  9 22:00:57 2021
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.Shell import *
-from examples.RatEnvironment import make_rat_env
+from prnn.utils.Shell import *
+from prnn.examples.RatEnvironment import make_rat_env
 
 
 

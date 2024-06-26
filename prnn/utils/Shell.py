@@ -6,8 +6,8 @@ from ratinabox.Agent import Agent
 from ratinabox.Neurons import *
 from ratinabox.contribs.FieldOfViewNeurons import FieldOfViewNeurons
 
-from utils.ActionEncodings import *
-from utils.general import saveFig
+from prnn.utils.ActionEncodings import *
+from prnn.utils.general import saveFig
 
 actionOptions = {'OnehotHD' : OneHotHD ,
                  'SpeedHD' : SpeedHD ,

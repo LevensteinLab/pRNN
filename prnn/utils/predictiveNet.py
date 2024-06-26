@@ -35,7 +35,7 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 #import timeit
 
 
-from utils.Architectures import *
+from prnn.utils.Architectures import *
 
 netOptions = {'vRNN' : vRNN,
               'RNN2L' : RNN2L,

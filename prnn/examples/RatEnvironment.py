@@ -32,6 +32,7 @@ plus = shapegrid['plus'].nonzero()
 tri = shapegrid['triangle'].nonzero()
 
 def make_rat_env(key):
+    # TODO: think about how to make this more general
     if key == 'RiaB-LRoom':
         # Create the L-shaped environment
         Env = Environment(
@@ -65,10 +66,6 @@ def make_rat_env(key):
                 Env.add_object([arr[x[0][n]+2],arr[x[1][n]+1]], type='new')
             else:
                 Env.add_object([arr[x[0][n]+2],arr[x[1][n]+1]], type='same')
-
-        # for n in range(x[0].size):
-        #     Env.add_object([arr[x[0][n]+2],arr[x[1][n]+1]], type=0)
-        #     Env.add_object([arr[x[0][n]+2],arr[x[1][n]+1]], type=1)
     
     return Env
 

@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 import numpy as np
 
 #from utils.LayerNormRNN import RNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell
-from utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell
+from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell
 
 
 class CANNnet(PredictiveNet):

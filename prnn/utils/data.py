@@ -53,7 +53,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
 
     # If the generated trajectories are shorter than the desired length,
     # start from the last state and generate the rest of the trajectory
-    if length_generated < seq_length:
+    if length_generated and length_generated < seq_length:
         print('Sequence length is shorter than desired, generating more data...')
         for child in top_dir.iterdir():
             if child.is_dir():

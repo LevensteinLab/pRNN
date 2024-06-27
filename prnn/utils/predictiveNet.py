@@ -123,14 +123,14 @@ class PredictiveNet:
                 those that are not. How to deal with.... HD (action? But keep
                                                              in mind t vs t+1)
     """
-    def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=300,
-                 learningRate=3e-3, bias_lr=1,
+    def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
+                 learningRate=2e-3, bias_lr=0.1,
                  regLambda=0, regOrder=1,
                  weight_decay=0, losstype='predMSE', bptttrunc=100,
                  neuralTimescale=2, f=0.5,
-                 dropp=0, trainNoiseMeanStd=(0,0),
+                 dropp=0.15, trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
-                 trainBias=False, identityInit=False, dataloader=False):
+                 trainBias=True, identityInit=False, dataloader=False):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space

@@ -2,8 +2,9 @@
 *.egg-info/
 
 .DS_Store
-*/__pycache__/*
+__pycache__/
 *.pkl
+*.ipynb_checkpoints/
 
 slurm*
 

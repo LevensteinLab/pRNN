@@ -8,8 +8,8 @@ Created on Tue Nov  9 22:00:57 2021
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.Shell import *
-from examples.RatEnvironment import make_rat_env
+from prnn.utils.Shell import *
+from prnn.examples.RatEnvironment import make_rat_env
 
 
 
@@ -26,7 +26,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         else:
             env = gym.make(env_key)
         env.reset()
-        env = GymMinigridShell(env, act_enc)
+        env = GymMinigridShell(env, act_enc, env_key)
 
     elif package=='farama-minigrid':
         import gymnasium as gym
@@ -37,15 +37,15 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         else:
             env = gym.make(env_key)
         env.reset(seed=seed)
-        env = FaramaMinigridShell(env, act_enc)
+        env = FaramaMinigridShell(env, act_enc, env_key)
 
     elif package=='ratinabox':        
         env = make_rat_env(env_key)
-        env = RatInABoxShell(env, act_enc, speed, thigmotaxis, HDbins)
+        env = RatInABoxShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
-        env = RiaBRemixColorsShell(env, act_enc, speed, thigmotaxis, HDbins)
+        env = RiaBRemixColorsShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

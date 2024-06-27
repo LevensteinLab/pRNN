@@ -66,7 +66,7 @@ class ObjectMemoryTask:
             print('continuing training')
             pN_post = pN
         else:
-            pN_post = copy.deepcopy(pN)
+            pN_post = pN.copy()
             
         if resetOptimizer:
             print('resetting optimizer')

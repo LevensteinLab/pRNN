@@ -17,7 +17,7 @@ def init_(tensor, weights):
     
         
 
-from utils.CANNtools import multiCANNmatrix
+from prnn.utils.CANNtools import multiCANNmatrix
 def CANN_(tensor, size, Nmaps, selfconnect=False, width=1, peak=None, inh=0):
     Ncells = tensor.size(0)
     if peak is None:

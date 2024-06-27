@@ -1,13 +1,14 @@
 import torch
 import numpy as np
 import matplotlib
+import random
 
 from ratinabox.Agent import Agent
 from ratinabox.Neurons import *
 from ratinabox.contribs.FieldOfViewNeurons import FieldOfViewNeurons
 
-from utils.ActionEncodings import *
-from utils.general import saveFig
+from prnn.utils.ActionEncodings import *
+from prnn.utils.general import saveFig
 
 actionOptions = {'OnehotHD' : OneHotHD ,
                  'SpeedHD' : SpeedHD ,
@@ -29,9 +30,64 @@ HDmap = {0: 270,
         }
 
 class Shell:
-    def __init__(self, env, act_enc):
+    def __init__(self, env, act_enc, env_key):
         self.env = env
+        self.name = env_key
         self.encodeAction = actionOptions[act_enc]
+        self.dataLoader = None
+        self.DL_iterator = None
+
+    def addDataLoader(self, dataloader):
+        self.dataLoader = dataloader
+        self.DL_iterator = iter(self.dataLoader)
+
+    def killIterator(self):
+        iterator = self.DL_iterator
+        self.DL_iterator = None
+        return iterator
+
+    def collectObservationSequence(self, agent, tsteps, batch_size=1,
+                                   obs_format='pred', includeRender=False,
+                                   discretize=False, inv_x=False, inv_y=False,
+                                   seed=None, dataloader=False, reset=True):
+        """
+        Use an agent (action generator) to collect an observation/action sequence
+        In tensor format for feeding to the predictive net
+        Note: batches are implemented only for pre-generated data
+        """
+        if seed is not None:
+            torch.manual_seed(seed)
+            random.seed(seed)
+            np.random.seed(seed)
+        
+        if dataloader:
+            if not self.DL_iterator:
+                self.DL_iterator = iter(self.dataLoader)
+            try:
+                obs, act = next(self.DL_iterator)
+            except StopIteration:
+                self.DL_iterator = iter(self.dataLoader)
+                obs, act = next(self.DL_iterator)
+            obs = obs[:,:tsteps+1]
+            act = act[:,:tsteps]
+            state = None
+            render = None
+        else:
+            for bb in range(batch_size):
+                obs, act, state, render = agent.getObservations(self,tsteps,
+                                                        includeRender=includeRender,
+                                                        discretize=discretize,
+                                                        inv_x=inv_x,
+                                                        inv_y=inv_y,
+                                                        reset=reset)
+                if obs_format == 'pred': # to train right away
+                    obs, act = self.env2pred(obs, act)
+                elif obs_format == 'npgrid': # to save as numpy array
+                    obs, act = self.env2np(obs, act)
+                elif obs_format is None:
+                    continue
+
+        return obs, act, state, render
 
     def dir2deg(self, dir):
         raise NotImplementedError('Environment-specific "Shell" class should be used')
@@ -44,6 +100,12 @@ class Shell:
         L: timestamps
         H: input_size
         https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
+        """
+        raise NotImplementedError('Environment-specific "Shell" class should be used')
+    
+    def env2np(self, **kwargs):
+        """
+        Convert observation input from environment format to np.array
         """
         raise NotImplementedError('Environment-specific "Shell" class should be used')
 
@@ -85,8 +147,8 @@ class Shell:
 
 
 class GymMinigridShell(Shell):
-    def __init__(self, env, act_enc, **kwargs):
-        super().__init__(env, act_enc)
+    def __init__(self, env, act_enc, env_key, **kwargs):
+        super().__init__(env, act_enc, env_key)
         self.obs_shape = self.env.observation_space['image'].shape
         self.numHDs = 4
         self.height = self.env.unwrapped.grid.height
@@ -104,13 +166,28 @@ class GymMinigridShell(Shell):
     def env2pred(self, obs, act=None):
         hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
         if act is not None:
-            act = self.encodeAction(act=act, obs=hd, numSuppObs=self.numHDs, numActs=self.action_space.n)
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    numSuppObs=self.numHDs,
+                                    numActs=self.action_space.n)
 
         obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
         obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
         obs = torch.unsqueeze(obs, dim=0)
         obs = obs/255 #normalize image
 
+        return obs, act
+    
+    def env2np(self, obs, act=None):
+        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             numSuppObs=self.numHDs,
+                                             numActs=self.action_space.n))
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
+        obs = obs/255
         return obs, act
 
     def pred2np(self, obs, whichPhase=0):
@@ -157,6 +234,19 @@ class GymMinigridShell(Shell):
         
         return obs['image']/255
     
+    def load_state(self, state):
+        self.set_agent_pos(state[:2])
+        self.set_agent_dir(state[2])
+    
+    def save_state(self, act, state):
+        return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
+    
+    def set_agent_pos(self, pos):
+        self.env.unwrapped.agent_pos = pos
+    
+    def set_agent_dir(self, hd):
+        self.env.unwrapped.agent_dir = hd
+    
     def show_state(self, render, t, **kwargs):
         plt.imshow(render[t])
     
@@ -180,8 +270,8 @@ class GymMinigridShell(Shell):
     
 
 class FaramaMinigridShell(GymMinigridShell):
-    def __init__(self, env, act_enc, **kwargs):
-        super().__init__(env, act_enc)
+    def __init__(self, env, act_enc, env_key, **kwargs):
+        super().__init__(env, act_enc, env_key)
         
     def render(self, highlight=True, mode='human'):
         return self.env.get_frame()
@@ -199,8 +289,8 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class RatInABoxShell(Shell):
-    def __init__(self, env, act_enc, speed, thigmotaxis, HDbins):
-        super().__init__(env, act_enc)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+        super().__init__(env, act_enc, env_key)
         "For ratinabox==1.7.1, for other versions you may have to update the code."
 
         # Create the agent
@@ -263,6 +353,17 @@ class RatInABoxShell(Shell):
         obs = obs.reshape(obs.shape[:-2]+(-1,))
         obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
         obs = torch.unsqueeze(obs, dim=0)
+
+        return obs, act
+    
+    def env2np(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.HDbins)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_means
+        act = np.array(act)
+
+        obs = obs.clip(max=1)[None]
+        obs = obs.reshape(obs.shape[:-2]+(-1,))
 
         return obs, act
     
@@ -337,6 +438,20 @@ class RatInABoxShell(Shell):
                 0, self.height)
         return self.width, self.height, minmax
     
+    def load_state(self, state):
+        self.set_agent_pos(state[:2])
+        self.set_agent_dir(state[2:])
+    
+    def save_state(self, act, state):
+        # TODO: check this
+        return np.array([state['agent_pos'][-1], act[-1,1:]])
+    
+    def set_agent_pos(self, pos):
+        self.ag.pos = pos
+    
+    def set_agent_dir(self, vel):
+        self.ag.save_velocity = vel
+    
     def show_state(self, t, fig, ax, **kwargs):
         start_t = self.ag.history["t"][t-1]
         end_t = self.ag.history["t"][t]
@@ -353,16 +468,18 @@ class RatInABoxShell(Shell):
         for obj in range(self.env.n_object_types):
             self.vision[1].display_manifold(fig, ax, t=end_t, object_type=obj)
     
-    def reset(self, pos=np.zeros(2), hd=None, seed=False):
+    def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
 
         self.ag.reset_history()
         self.vision[0].reset_history()
         self.vision[1].reset_history()
+        
+        if keep_state:
+            vel = self.ag.vel
+            pos = self.ag.pos
 
-        if hd:
-            self.ag.pos = pos * self.env.dx
-            vel = [np.cos(2*np.pi*hd/12)*self.ag.speed_mean,
-                   np.sin(2*np.pi*hd/12)*self.ag.speed_mean]
+        if vel:
+            self.ag.pos = pos
         else:
             vel = [0,0]
 
@@ -374,8 +491,8 @@ class RatInABoxShell(Shell):
 
 # TODO: colormapping as argument
 class RiaBRemixColorsShell(RatInABoxShell):
-    def __init__(self, env, act_enc, speed, thigmotaxis, HDbins):
-        super().__init__(env, act_enc, speed, thigmotaxis, HDbins)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
     def env2pred(self, obs, act=None):
         """
@@ -403,6 +520,26 @@ class RiaBRemixColorsShell(RatInABoxShell):
         obs = obs.reshape(obs.shape[:-2]+(-1,))
         obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
         obs = torch.unsqueeze(obs, dim=0)
+
+        return obs, act
+
+    def env2pred(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+        act = np.array(act)
+
+        remix = np.zeros((*obs.shape[:-1],3))
+        remix += np.tile(obs[...,0,None],3)*100/255
+        remix[...,2] += obs[...,1]
+        remix[...,0] += obs[...,2]
+        remix[...,0] += obs[...,3]
+        remix[...,1] += obs[...,3]
+        obs = remix
+
+
+        obs = obs.clip(max=1)
+        obs = obs.reshape(obs.shape[:-2]+(-1,))[None]
 
         return obs, act
     

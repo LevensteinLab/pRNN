@@ -641,11 +641,11 @@ def delayCorr(a, b, maxDelay=15):
         
         
 def makeAdaptingNet(pN, b, tau_a):
-    from utils.thetaRNN import LayerNormRNNCell, AdaptingLayerNormRNNCell, RNNCell, AdaptingRNNCell
+    from prnn.utils.thetaRNN import LayerNormRNNCell, AdaptingLayerNormRNNCell, RNNCell, AdaptingRNNCell
     from torch.nn import Parameter
     import torch
     
-    adapting_pN = copy.deepcopy(pN)
+    adapting_pN = pN.copy()
 
     input_size = pN.pRNN.rnn.cell.input_size
     hidden_size = pN.pRNN.rnn.cell.hidden_size

@@ -254,7 +254,7 @@ class ExperienceReplayAnalysis:
         
         for wakeIDX in range(numWakeRepeats):
             #Copy the network
-            pN_post = copy.deepcopy(pN)
+            pN_post = pN.copy()
             
             if resetOptimizer:
                 #print('resetting optimizer')

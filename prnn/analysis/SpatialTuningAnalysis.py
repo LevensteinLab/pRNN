@@ -104,7 +104,7 @@ class SpatialTuningAnalysis:
     
     def makeNoRecNet(self, pN):
         from torch import no_grad
-        pN_noRec = deepcopy(pN)
+        pN_noRec = pN.copy()
         #pN_noRec.pRNN.W.requres_grad = False
         with no_grad():
             pN_noRec.pRNN.W.subtract_(pN_noRec.pRNN.W)
@@ -390,7 +390,7 @@ class SpatialTuningAnalysis:
 
     
 def makeUntrainedNet(pN, env, agent, ratenorm=True, decodeError=False, calculatesRSA = False):
-    pNControl = deepcopy(pN)
+    pNControl = pN.copy()
     pNControl.pRNN.__init__(pNControl.obs_size, pNControl.act_size,
                            pNControl.hidden_size,
                            neuralTimescale=pNControl.trainArgs.ntimescale,

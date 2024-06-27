@@ -11,12 +11,13 @@ Created on Tue Jun 14 22:07:04 2022
 
 
 #%%
-from utils.predictiveNet import PredictiveNet
-from utils.agent import create_agent
-from utils.env import make_env
-from utils.figures import TrainingFigure
-from utils.figures import SpontTrajectoryFigure
-from analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
+from prnn.utils.predictiveNet import PredictiveNet
+from prnn.utils.agent import create_agent
+from prnn.utils.data import create_dataloader
+from prnn.utils.env import make_env
+from prnn.utils.figures import TrainingFigure
+from prnn.utils.figures import SpontTrajectoryFigure
+from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
 
 #TODO: get rid of these dependencies
@@ -66,8 +67,8 @@ parser.add_argument("--numepochs",
 parser.add_argument("--seqdur", default=500, type=int,
                     help="how long is each behavioral sequence? (Default: 500")
 
-parser.add_argument("--numtrials", default=1000, type=int,
-                    help="many trials in an eqpoch? (Default: 1000")
+parser.add_argument("--numtrials", default=1024, type=int,
+                    help="How many trials in an epoch? Best if divisible by batch size (Default: 1024")
 
 parser.add_argument("--hiddensize", default=500, type=int,
                     help="how many hidden units? (Default: 500")
@@ -133,6 +134,24 @@ parser.add_argument("--actenc",
 parser.add_argument('--saveTrainData', action='store_true', default=True)
 parser.add_argument('--no-saveTrainData', dest='saveTrainData', action='store_false')
 
+parser.add_argument('--withDataLoader', action='store_true', default=True)
+parser.add_argument('--noDataLoader', dest='withDataLoader', action='store_false')
+
+parser.add_argument("--datadir",
+                    default='Data',
+                    help="Top-level folder to save the data for DataLoader (the sub-folders will be \
+                        created automatically for each individual env name)")
+
+parser.add_argument("--dataNtraj", default=10240, type=int,
+                    help="Number of trajectories in the DataLoader (Default: 10240)")
+
+parser.add_argument("--batchsize", default=1, type=int,
+                    help="Number of trajectories in the DataLoader output batch (Default: 1)")
+
+parser.add_argument("--numworkers", default=1, type=int,
+                    help="Number of dataloader workers (Default: 1)")
+
+
 args = parser.parse_args()
 
 
@@ -155,25 +174,28 @@ if args.contin:
         env = predictiveNet.loadEnvironment(args.load_env)
         predictiveNet.addEnvironment(env)
     else:
-        env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed, args.thigmotaxis, args.HDbins)
+        env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed,
+                       args.thigmotaxis, args.HDbins)
         predictiveNet.addEnvironment(env)
     agent = create_agent(args.env, env, args.agent)
 else:
-    env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed, args.thigmotaxis, args.HDbins)
+    env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed,
+                   args.thigmotaxis, args.HDbins)
     agent = create_agent(args.env, env, args.agent)
     predictiveNet = PredictiveNet(env,
-                                  hidden_size=args.hiddensize,
-                                  pRNNtype=args.pRNNtype,
+                                  hidden_size = args.hiddensize,
+                                  pRNNtype = args.pRNNtype,
                                   learningRate = args.lr,
                                   bptttrunc = args.bptttrunc,
                                   weight_decay = args.weight_decay,
                                   neuralTimescale = args.ntimescale,
-                                  dropp=args.dropout,
-                                  trainNoiseMeanStd= (args.noisemean,args.noisestd),
+                                  dropp = args.dropout,
+                                  trainNoiseMeanStd = (args.noisemean,args.noisestd),
                                   f = args.sparsity,
                                   trainBias = args.trainBias,
                                   bias_lr = args.bias_lr,
-                                  identityInit = args.identityInit)
+                                  identityInit = args.identityInit,
+                                  dataloader = args.withDataLoader,)
     predictiveNet.seed = args.seed
     predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(env,agent,
@@ -183,20 +205,33 @@ else:
     predictiveNet.savename = savename
 
 
+    if args.withDataLoader:
+        # Separate Data Loader should be created for every environment
+        create_dataloader(env, agent, args.dataNtraj, args.seqdur,
+                          args.datadir, args.batchsize, args.numworkers)
+        predictiveNet.useDataLoader = args.withDataLoader
+
+
 
 #%% Training Epoch
 #Consider these as "trainingparameters" class/dictionary
 numepochs = args.numepochs
 sequence_duration = args.seqdur
 num_trials = args.numtrials
+if args.withDataLoader:
+    batchsize = args.batchsize
+else:
+    batchsize = 1
 
 predictiveNet.trainingCompleted = False
 if predictiveNet.numTrainingTrials == -1:
     #Calculate initial spatial metrics etc
     print('Training Baseline')
+    predictiveNet.useDataLoader = False
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,
                             num_trials=1)
+    predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
@@ -218,7 +253,8 @@ while predictiveNet.numTrainingEpochs<numepochs:
     print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,
-                            num_trials=num_trials)
+                            num_trials=num_trials,
+                            batch_size=batchsize)
     print('Calculating Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                  trainDecoder=True, trainHDDecoder = True,

@@ -45,11 +45,15 @@ class RandomActionAgent:
         act = self.generateActionSequence(tsteps)
 
         render = False
-        if reset is False:
-            raise ValueError('Reset=False not implemented yet...')
+        # if reset is False:
+        #     raise ValueError('Reset=False not implemented yet...')
             
         obs = [None for t in range(tsteps+1)]
-        obs[0] = env.reset()
+        if reset:
+            obs[0] = env.reset()
+        else:
+            o = env.env.gen_obs()
+            obs[0] = env.env.observation(o)
         state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), 
                  'agent_dir': env.get_agent_dir()
                 }
@@ -96,11 +100,15 @@ class RandomHDAgent:
         act = self.generateActionSequence(tsteps)
 
         render = False
-        if reset is False:
-            raise ValueError('Reset=False not implemented yet...')
+        # if reset is False:
+        #     raise ValueError('Reset=False not implemented yet...')
             
         obs = [None for t in range(tsteps+1)]
-        obs[0] = env.reset()
+        if reset:
+            obs[0] = env.reset()
+        else:
+            o = env.env.gen_obs()
+            obs[0] = env.env.observation(o)
         state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), 
                  'agent_dir': env.get_agent_dir()
                 }
@@ -135,9 +143,10 @@ class RatInABoxAgent:
         """
 
         render = False # Placeholder for compatibility, actual render is in the Shell's 'show_state(_traj)' function
-        if reset is False:
-            raise ValueError('Reset=False not implemented yet...')
-        shell.reset()
+        if reset:
+            shell.reset()
+        else:
+            shell.reset(keep_state=True)
 
         for aa in range(tsteps):
             shell.ag.update()

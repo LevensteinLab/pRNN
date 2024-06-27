@@ -20,6 +20,8 @@ import random
 
 import pynapple as nap
 
+from copy import deepcopy
+
 from prnn.utils.general import saveFig
 from prnn.utils.general import delaydist
 
@@ -128,7 +130,7 @@ class PredictiveNet:
                  neuralTimescale=2, f=0.5,
                  dropp=0, trainNoiseMeanStd=(0,0),
                  target_rate=None, target_sparsity=None, decorrelate=False,
-                 trainBias=False, identityInit=False):
+                 trainBias=False, identityInit=False, dataloader=False):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -146,7 +148,8 @@ class PredictiveNet:
         self.env_shell = env
         self.act_size = env.getActSize()
         self.obs_size = env.getObsSize()
-        self.addEnvironment(env) 
+        self.addEnvironment(env)
+        self.useDataLoader = dataloader
 
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
@@ -190,6 +193,7 @@ class PredictiveNet:
             k= self.pRNN.k
             
         #NOTE: this should be done in Architectures.
+        #TODO: make batched
         if hasattr(self,'trainNoiseMeanStd') and self.trainNoiseMeanStd != (0,0):
             noise = self.trainNoiseMeanStd
             timesteps = obs.size(1)
@@ -406,29 +410,16 @@ class PredictiveNet:
     def collectObservationSequence(self, env, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed = None):
+                                   seed = None, dataloader=False):
         """
-        Use an agent (action generator) to collect an observation/action sequence
-        In tensor format for feeding to the predictive net
-        Note: batches not implemented yet...
+        A placeholder for backward compatibility, actual function is moved to Shell
         """
-        if seed is not None:
-            torch.manual_seed(seed)
-            random.seed(seed)
-            np.random.seed(seed)
-        
-        for bb in range(batch_size):
-            obs, act, state, render = agent.getObservations(env,tsteps,
-                                                     includeRender=includeRender,
-                                                     discretize=discretize,
-                                                     inv_x=inv_x,
-                                                     inv_y=inv_y)
-            if obs_format == 'pred':
-                obs, act = self.env_shell.env2pred(obs, act)
-            elif obs_format == 'npgrid':
-                obs = np.array([np.reshape(obs[t]['image'],(-1)) for t in range(len(obs))])
-            elif obs_format is None:
-                continue
+        obs, act, state, render = self.env_shell.collectObservationSequence(agent, tsteps,
+                                                                            batch_size, obs_format,
+                                                                            includeRender,
+                                                                            discretize, inv_x, inv_y,
+                                                                            seed,
+                                                                            dataloader=dataloader)
 
         return obs, act, state, render
 
@@ -437,7 +428,8 @@ class PredictiveNet:
                             sequence_duration=2000, num_trials=100,
                             with_homeostat=False,
                             learningRate=None,
-                            forceDevice=None):
+                            forceDevice=None,
+                            batch_size=1):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if forceDevice is not None:
@@ -445,18 +437,21 @@ class PredictiveNet:
         self.pRNN.to(device)
         print(f'Training pRNN on {device}...')
 
-        for bb in range(num_trials):
+        for bb in range(num_trials//batch_size):
             tic = time.time()
             obs,act,_,_ = self.collectObservationSequence(env, 
                                                           agent, 
-                                                          sequence_duration)
+                                                          sequence_duration,
+                                                          dataloader=self.useDataLoader)
             obs,act = obs.to(device),act.to(device)
             steploss, sparsity, meanrate = self.trainStep(obs,act, 
                                                           with_homeostat,
                                                           learningRate=learningRate)
             #self.addTrainingData('sequence_duration',sequence_duration)
             #self.addTrainingData('clocktime',time.time()-tic)
-            if (100*bb /num_trials) % 10 == 0 or bb==num_trials-1:
+            c=100
+            if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
+                c-=100
                 print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb:>5d}\{num_trials:>5d}]")
         
         self.numTrainingEpochs +=1
@@ -523,6 +518,8 @@ class PredictiveNet:
         """
         Add an environment to the library. If it's not environment 0, check
         that it's Observation/Action space matches environment 0.
+        Generate trajectories if DataLoader is used
+        and they are not generated already.
         """
         self.EnvLibrary.append(env)
         return
@@ -564,10 +561,27 @@ class PredictiveNet:
             self.pRNN.bias.requires_grad = False
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self,savename,savefolder=None):
+        # Collect the iterators that cannot be pickled
+        iterators = [env.killIterator() for env in self.EnvLibrary]
+        # Save the net
         filename = 'nets/'+savename+'.pkl'
         with open(filename,'wb') as f:
             pickle.dump(self, f)
+        # Restore the iterators
+        for i,env in enumerate(self.EnvLibrary):
+            env.DL_iterator = iterators[i]
         print("Net Saved to pathname")
+
+    def copy(self):
+        """
+        Create a copy of the current net,
+        except for the Data Loader iterators which cannot be copied
+        """
+        iterators = [env.killIterator() for env in self.EnvLibrary]
+        clone = deepcopy(self)
+        for i,env in enumerate(self.EnvLibrary):
+            env.DL_iterator = iterators[i]
+        return clone
 
 
     def loadNet(savename, savefolder=None, suppressText=False):
@@ -576,7 +590,7 @@ class PredictiveNet:
         with open(filename,'rb') as f:
             predAgent = pickle.load(f)
         if not hasattr(predAgent, "env_shell"): # backward compatibility for the nets trained before Shell update
-            from utils.Shell import GymMinigridShell
+            from prnn.utils.Shell import GymMinigridShell
             for i in range(len(predAgent.EnvLibrary)):
                 predAgent.EnvLibrary[i] = GymMinigridShell(predAgent.EnvLibrary[i],
                                                             predAgent.encodeAction.__name__)

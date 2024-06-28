@@ -48,8 +48,17 @@ class LPLLoss(nn.Module):
         return loss
     
     
-    
+class predRMSE(nn.Module):
+    def __init__(self, eps=1e-8, **kwargs):
+        super(predRMSE,self).__init__()
+        self.mse = nn.MSELoss()
+        self.eps = eps
+        
+    def forward(self, obs_pred,obs_next,z):
+        loss = torch.sqrt(self.mse(obs_pred,obs_next)+self.eps)
+        return loss
 
+    
 class predMSE(nn.Module):
     def __init__(self, **kwargs):
         super(predMSE,self).__init__()

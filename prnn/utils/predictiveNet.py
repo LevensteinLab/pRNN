@@ -27,7 +27,7 @@ from prnn.utils.general import delaydist
 
 from prnn.utils.LinearDecoder import linearDecoder
 
-from prnn.utils.lossFuns import LPLLoss, predMSE
+from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
@@ -126,7 +126,7 @@ class PredictiveNet:
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
                  learningRate=2e-3, bias_lr=0.1,
                  regLambda=0, regOrder=1,
-                 weight_decay=0, losstype='predMSE', bptttrunc=100,
+                 weight_decay=3e-3, losstype='predMSE', bptttrunc=100,
                  neuralTimescale=2, f=0.5,
                  dropp=0.15, trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,

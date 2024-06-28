@@ -17,6 +17,8 @@ import pickle
 import json
 import time
 import random
+from pathlib import Path    
+
 
 import pynapple as nap
 
@@ -562,11 +564,12 @@ class PredictiveNet:
         else:
             self.pRNN.bias.requires_grad = False
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder=None):
+    def saveNet(self,savename,savefolder=''):
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Save the net
-        filename = 'nets/'+savename+'.pkl'
+        filename = savefolder+'nets/'+savename+'.pkl'
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
         with open(filename,'wb') as f:
             pickle.dump(self, f)
         # Restore the iterators
@@ -586,9 +589,9 @@ class PredictiveNet:
         return clone
 
 
-    def loadNet(savename, savefolder=None, suppressText=False):
+    def loadNet(savename, savefolder='', suppressText=False):
         #TODO Load in init... from filename
-        filename = 'nets/'+savename+'.pkl'
+        filename = savefolder+'nets/'+savename+'.pkl'
         with open(filename,'rb') as f:
             predAgent = pickle.load(f)
         if not hasattr(predAgent, "env_shell"): # backward compatibility for the nets trained before Shell update

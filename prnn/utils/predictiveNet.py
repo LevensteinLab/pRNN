@@ -123,14 +123,14 @@ class PredictiveNet:
                 those that are not. How to deal with.... HD (action? But keep
                                                              in mind t vs t+1)
     """
-    def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=300,
-                 learningRate=3e-3, bias_lr=1,
+    def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
+                 learningRate=2e-3, bias_lr=0.1,
                  regLambda=0, regOrder=1,
                  weight_decay=0, losstype='predMSE', bptttrunc=100,
                  neuralTimescale=2, f=0.5,
-                 dropp=0, trainNoiseMeanStd=(0,0),
+                 dropp=0.15, trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
-                 trainBias=False, identityInit=False, dataloader=False):
+                 trainBias=True, identityInit=False, dataloader=False):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -414,12 +414,12 @@ class PredictiveNet:
         """
         A placeholder for backward compatibility, actual function is moved to Shell
         """
-        obs, act, state, render = self.env_shell.collectObservationSequence(agent, tsteps,
-                                                                            batch_size, obs_format,
-                                                                            includeRender,
-                                                                            discretize, inv_x, inv_y,
-                                                                            seed,
-                                                                            dataloader=dataloader)
+        obs, act, state, render = env.collectObservationSequence(agent, tsteps,
+                                                                batch_size, obs_format,
+                                                                includeRender,
+                                                                discretize, inv_x, inv_y,
+                                                                seed,
+                                                                dataloader=dataloader)
 
         return obs, act, state, render
 
@@ -450,7 +450,9 @@ class PredictiveNet:
             #self.addTrainingData('sequence_duration',sequence_duration)
             #self.addTrainingData('clocktime',time.time()-tic)
             c=100
-            if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
+            #Until batch is implemented....
+            #if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
+            if (100*bb /num_trials) % 10 == 0 or bb==num_trials-1:
                 c-=100
                 print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb:>5d}\{num_trials:>5d}]")
         
@@ -632,9 +634,9 @@ class PredictiveNet:
                              d = h.squeeze().detach().numpy()[onsetTransient:,:], time_units = 's')
         
 
-        width = self.env_shell.width
-        height = self.env_shell.height
-        nb_bins_x, nb_bins_y, minmax = self.env_shell.get_map_bins()
+        width = env.width
+        height = env.height
+        nb_bins_x, nb_bins_y, minmax = env.get_map_bins()
 
         place_fields,xy = nap.compute_2d_tuning_curves_continuous(rates,position,
                                                                   ep=rates.time_support,
@@ -670,8 +672,8 @@ class PredictiveNet:
             }
             #sRSA
             (sRSA,_),_,_,_ = RGA.calculateRSA_space(RGA,WAKEactivity,
-                                    cont=self.env_shell.continuous,
-                                    max_dist=self.env_shell.max_dist)
+                                    cont=env.continuous,
+                                    max_dist=env.max_dist)
             
             #SW Distance
             noisemag = 0
@@ -724,12 +726,12 @@ class PredictiveNet:
            # decoder.mask_p = #here:use pos_decoder to build mask
         
             if trainHDDecoder:
-                numHDs = self.env_shell.numHDs
+                numHDs = env.numHDs
                 HDdecoder = linearDecoder(self.hidden_size, numHDs)
                 #Reformat inputs
                 pos_decoder = np.array(state['agent_dir'][:h_decoder.size(0)])                     
                 pos_decoder = torch.tensor(pos_decoder)
-                if self.env_shell.continuous:
+                if env.continuous:
                     pos_decoder = (pos_decoder*numHDs).long()
                     pos_decoder = torch.clamp(pos_decoder, 0, numHDs-1)
 

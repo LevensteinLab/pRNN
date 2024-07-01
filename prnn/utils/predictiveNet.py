@@ -17,6 +17,8 @@ import pickle
 import json
 import time
 import random
+from pathlib import Path    
+
 
 import pynapple as nap
 
@@ -27,7 +29,7 @@ from prnn.utils.general import delaydist
 
 from prnn.utils.LinearDecoder import linearDecoder
 
-from prnn.utils.lossFuns import LPLLoss, predMSE
+from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
@@ -126,7 +128,7 @@ class PredictiveNet:
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
                  learningRate=2e-3, bias_lr=0.1,
                  regLambda=0, regOrder=1,
-                 weight_decay=0, losstype='predMSE', bptttrunc=100,
+                 weight_decay=3e-3, losstype='predMSE', bptttrunc=100,
                  neuralTimescale=2, f=0.5,
                  dropp=0.15, trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
@@ -562,11 +564,12 @@ class PredictiveNet:
         else:
             self.pRNN.bias.requires_grad = False
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder=None):
+    def saveNet(self,savename,savefolder=''):
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Save the net
-        filename = 'nets/'+savename+'.pkl'
+        filename = savefolder+'nets/'+savename+'.pkl'
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
         with open(filename,'wb') as f:
             pickle.dump(self, f)
         # Restore the iterators
@@ -586,9 +589,9 @@ class PredictiveNet:
         return clone
 
 
-    def loadNet(savename, savefolder=None, suppressText=False):
+    def loadNet(savename, savefolder='', suppressText=False):
         #TODO Load in init... from filename
-        filename = 'nets/'+savename+'.pkl'
+        filename = savefolder+'nets/'+savename+'.pkl'
         with open(filename,'rb') as f:
             predAgent = pickle.load(f)
         if not hasattr(predAgent, "env_shell"): # backward compatibility for the nets trained before Shell update

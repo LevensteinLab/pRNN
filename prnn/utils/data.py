@@ -1,4 +1,6 @@
 import numpy as np
+from numpy.random import randint
+import copy
 import torch
 
 from pathlib import Path
@@ -7,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 class TrajDataset(Dataset):
     def __init__(self, folder: str, seq_length: int, n_trajs: int):
         self._data_dir = folder
-        self.path = Path(folder)
+        #self.path = Path(folder)
         self.n_trajs = n_trajs
         self.seq_length = seq_length
         # self.transform = ToTensor()
@@ -93,3 +95,30 @@ def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, nu
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
 
     
+
+    
+    
+class MergedTrajDataset(TrajDataset):
+    def __getitem__(self, index):
+        whichDataset = randint(len(self._data_dir))
+        # act = self.acts[index]
+        # obs = self.obss[index]
+        act = np.load(self._data_dir[whichDataset] + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
+        obs = np.load(self._data_dir[whichDataset] + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
+        act = torch.tensor(act, dtype=torch.int64)
+        obs = torch.tensor(obs, dtype=torch.float32)
+        return obs, act
+
+def mergeDatasets(envs):
+    datafolders = [env.dataLoader.dataset._data_dir for env in envs]
+    seq_length = [env.dataLoader.dataset.seq_length for env in envs]
+    n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
+    datasetMerged = MergedTrajDataset(datafolders, seq_length[0], n_trajs[0])
+
+    iterators = [env.killIterator() for env in envs]
+    envMerged = copy.deepcopy(envs[0])
+    for i,env in enumerate(envs):
+        env.DL_iterator = iterators[i]
+        
+    envMerged.addDataLoader(DataLoader(datasetMerged, batch_size=1, shuffle=True, num_workers=0))
+    return envMerged

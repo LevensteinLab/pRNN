@@ -238,11 +238,11 @@ class PredictiveNet:
         _, self.state, _ = self.pRNN(obs, act, noise_t=noise_t, state=self.state, single=True)
         return self.state
     
-    def reset_state(self, randInit=True):
-        self.state = torch.tensor([])
+    def reset_state(self, randInit=True, device='cpu'):
+        self.state = torch.tensor([], device=device)
         if randInit:
                 noise = self.trainNoiseMeanStd
-                self.state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size))
+                self.state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size), device=device)
                 self.state = self.pRNN.rnn.cell.actfun(self.state)
         self.phase = 0
 

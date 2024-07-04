@@ -79,8 +79,9 @@ class thetaRNNLayer(nn.Module):
             out, state = self.cell(torch.unsqueeze(inputs[i][0,:],0), 
                                    internals[i][0,:], state)
             # If the mask at next step = 0, the state is not forwarded. Clunky but works with RL algo
+            # TODO: remove? is it needed? will it work with theta?
             if mask and not mask[i+1]:
-                state = torch.tensor([])
+                state[0][0]=state[0][0]*0
                 
             state_th = state
             out = [out]

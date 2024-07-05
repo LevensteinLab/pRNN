@@ -12,22 +12,11 @@ class TrajDataset(Dataset):
         #self.path = Path(folder)
         self.n_trajs = n_trajs
         self.seq_length = seq_length
-        # self.transform = ToTensor()
-
-        # acts = []
-        # obss = []
-        # for i in range(self.n_trajs):
-        #     acts.append(np.load(self._data_dir + '/' + str(i+1) + "/act.npy")[:seq_length])
-        #     obss.append(np.load(self._data_dir + '/' + str(i+1) + "/obs.npy")[:seq_length+1])
-        # self.acts = np.concatenate(acts, axis=0)
-        # self.obss = np.concatenate(obss, axis=0)
 
     def __len__(self):
         return self.n_trajs
 
     def __getitem__(self, index):
-        # act = self.acts[index]
-        # obs = self.obss[index]
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
         obs = np.load(self._data_dir + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
         act = torch.tensor(act, dtype=torch.int64)
@@ -99,26 +88,32 @@ def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, nu
     
     
 class MergedTrajDataset(TrajDataset):
+    def __len__(self):
+        return sum(self.n_trajs)
     def __getitem__(self, index):
-        whichDataset = randint(len(self._data_dir))
-        # act = self.acts[index]
-        # obs = self.obss[index]
-        act = np.load(self._data_dir[whichDataset] + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
-        obs = np.load(self._data_dir[whichDataset] + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
-        act = torch.tensor(act, dtype=torch.int64)
-        obs = torch.tensor(obs, dtype=torch.float32)
+        #Try finding the traj in the folder, if the index is higher than n_trajs for that folder, go to the next one
+        for i, n in enumerate(self.n_trajs):
+            try:
+                act = np.load(self._data_dir[i] + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
+                obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
+                act = torch.tensor(act, dtype=torch.int64)
+                obs = torch.tensor(obs, dtype=torch.float32)
+                break
+            except FileNotFoundError:
+                index-=n
         return obs, act
 
-def mergeDatasets(envs):
+def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0):
     datafolders = [env.dataLoader.dataset._data_dir for env in envs]
     seq_length = [env.dataLoader.dataset.seq_length for env in envs]
     n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
-    datasetMerged = MergedTrajDataset(datafolders, seq_length[0], n_trajs[0])
+    datasetMerged = MergedTrajDataset(datafolders, min(seq_length), n_trajs)
 
     iterators = [env.killIterator() for env in envs]
     envMerged = copy.deepcopy(envs[0])
     for i,env in enumerate(envs):
         env.DL_iterator = iterators[i]
         
-    envMerged.addDataLoader(DataLoader(datasetMerged, batch_size=1, shuffle=True, num_workers=0))
+    envMerged.addDataLoader(DataLoader(datasetMerged, batch_size=batch_size,
+                                       shuffle=shuffle, num_workers=num_workers))
     return envMerged

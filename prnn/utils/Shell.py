@@ -252,7 +252,8 @@ class GymMinigridShell(Shell):
     
     def show_state_traj(self, start, end, state, render, **kwargs):
         trajectory_ts = np.arange(start, end)
-        plt.imshow(render[trajectory_ts[-1]])
+        if render is not None:
+            plt.imshow(render[trajectory_ts[-1]])
         plt.plot((state['agent_pos'][trajectory_ts,0]+0.5)*512/16,
                     (state['agent_pos'][trajectory_ts,1]+0.5)*512/16,color='r')
         

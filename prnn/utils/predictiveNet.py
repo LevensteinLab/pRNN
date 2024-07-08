@@ -816,9 +816,11 @@ class PredictiveNet:
         dshuffle = np.sum(np.abs(randpos.values - state.values), axis=1)
         return derror, dshuffle
 
-    def calculateDecodingPerformance(self,env,agent,decoder,timesteps = 2000,
+    def calculateDecodingPerformance(self,env,agent,decoder,
+                                     timesteps = 2000, trajectoryWindow=100,
+                                     rolloutdim='mean',
                                      savefolder=None,savename=None,saveTrainingData=False,
-                                     showFig=True, trajectoryWindow=100,
+                                     showFig=True, 
                                      seed = None):
 
         obs,act,state,render = self.collectObservationSequence(env,agent,
@@ -829,13 +831,14 @@ class PredictiveNet:
                                                                         )
         obs_pred, obs_next, h  = self.predict(obs,act)
         
-        #for now: take only the 0th theta window...
-        #THETA UPDATE NEEDED
         k=0
         if hasattr(self.pRNN,'k'):
             k= self.pRNN.k
         state['agent_pos'] = state['agent_pos'][:h.shape[1]+1,:]
-        h = h[0:1,:,:]
+        if rolloutdim=='first':
+            h = h[0:1,:,:]
+        elif rolloutdim=='mean':
+            h = torch.mean(h,dim=0,keepdims=True)
         obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
         ##FIX ABOVE HERE FOR K
@@ -995,6 +998,8 @@ class PredictiveNet:
         obs = self.env_shell.pred2np(obs[:,timesteps,...])
         if obs_pred is not None:
             obs_pred = self.env_shell.pred2np(obs_pred[:,timesteps,...])
+        if obs_next is not None:
+            obs_next = self.env_shell.pred2np(obs_next[:,timesteps,...])
         #obs_next = self.pred2np(obs_next[:,timesteps,...])
 
         #figure bigger, get rid of axis numbers, add labels
@@ -1025,11 +1030,12 @@ class PredictiveNet:
             plt.yticks([])
 
         for tt in range(numtimesteps):
-            ax = plt.subplot(6,numtimesteps,tt+1+2*numtimesteps)
-            self.env_shell.show_state(render=render,
-                                      t=timesteps[tt],
-                                      fig=fig,
-                                      ax=ax)
+            if render is not None:
+                ax = plt.subplot(6,numtimesteps,tt+1+2*numtimesteps)
+                self.env_shell.show_state(render=render,
+                                        t=timesteps[tt],
+                                        fig=fig,
+                                        ax=ax)
             if tt==0:
                 plt.ylabel('State')
             plt.xticks([])
@@ -1051,7 +1057,7 @@ class PredictiveNet:
                 plt.yticks([])
 
             if obs_next is not None:
-                plt.subplot(6,numtimesteps,3*numtimesteps+tt+1+2*numtimesteps)
+                plt.subplot(6,numtimesteps,0*numtimesteps+tt+1+2*numtimesteps)
                 plt.imshow(obs_next[tt,:,:,:])
                 if tt==0:
                     plt.ylabel('obs_next')

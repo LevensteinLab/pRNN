@@ -261,7 +261,7 @@ class GymMinigridShell(Shell):
         return self.env.step(action)
     
     # TODO: Do we use mode='human' anywhere? Remove?
-    def render(self, highlight=True, mode='human'):
+    def render(self, highlight=True, mode=None):
         return self.env.render(mode=mode, highlight=highlight)
     
     def reset(self, seed=False):

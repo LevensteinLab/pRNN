@@ -98,6 +98,7 @@ class thetaRNNLayer(nn.Module):
                     out_th, state_th = self.cell(inputs[i][th+1,:].permute(1,0),
                                                  internals[i][th+1,:].permute(1,0),
                                                  state_th)
+                    out_th = out_th.unsqueeze(1)
                     out_th = out_th.permute(*[i for i in range(1,len(out_th.size()))],0)
                 else:
                     out_th, state_th = self.cell(torch.unsqueeze(inputs[i][th+1,:],0), 

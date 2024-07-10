@@ -103,7 +103,7 @@ class MergedTrajDataset(TrajDataset):
                 index-=n
         return obs, act
 
-def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0):
+def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, interleaved_trial=False):
     datafolders = [env.dataLoader.dataset._data_dir for env in envs]
     seq_length = [env.dataLoader.dataset.seq_length for env in envs]
     n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
@@ -113,7 +113,58 @@ def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0):
     envMerged = copy.deepcopy(envs[0])
     for i,env in enumerate(envs):
         env.DL_iterator = iterators[i]
-        
-    envMerged.addDataLoader(DataLoader(datasetMerged, batch_size=batch_size,
-                                       shuffle=shuffle, num_workers=num_workers))
+    
+    if interleaved_trial:
+        indices = num_to_indices(n_trajs)
+        batch_sampler = GroupedBatchRandomSampler(indices, batch_size)
+        envMerged.addDataLoader(DataLoader(datasetMerged, batch_sampler=batch_sampler,
+                                        num_workers=num_workers))
+    else:
+        envMerged.addDataLoader(DataLoader(datasetMerged, batch_size=batch_size,
+                                        shuffle=shuffle, num_workers=num_workers))
     return envMerged
+
+
+def num_to_indices(n_trajs):
+    indices_list = []
+    start_index = 0
+    for length in n_trajs:
+        indices = list(range(start_index, start_index + length))
+        indices_list.append(indices)
+        start_index += length
+    return indices_list
+
+from torch.utils.data.sampler import Sampler
+import random
+class GroupedBatchRandomSampler(Sampler):
+    """Samples elements randomly from a given list of indices, without replacement.
+
+    Args:
+        indices (sequence): a sequence of indices
+        generator (Generator): Generator used in sampling.
+    """
+
+    def __init__(self, indices, batch_size, generator=None) -> None:
+        #indices: list of lists of indices (groups)
+        self.indices = indices
+        self.generator = generator
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        #Random permute each group of indices
+        indices = [random.sample(inds,len(inds)) for inds in self.indices]
+        #Break each list into groups of size batch_size
+        indices = [[inds[i:i + self.batch_size] for i in range(0, len(inds), self.batch_size)] for inds in indices]
+        #Merge and Randomly permute the lists
+        indices = sum(indices, [])
+        random.shuffle(indices)
+
+        for i in torch.randperm(len(indices), generator=self.generator):
+            #If it's smaller than batch size, drop it and continue
+            if len(indices[i])==self.batch_size:
+                yield indices[i]
+
+    def __len__(self) -> int:
+        numbatches = [len(i) // self.batch_size for i in self.indices]
+        return sum(numbatches)
+

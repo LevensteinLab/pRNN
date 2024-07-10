@@ -197,13 +197,13 @@ class PredictiveNet:
         else:
             shape = (1, 1, self.hidden_size)
             
-        if hasattr(self,'trainNoiseMeanStd') and randInit and len(state) == 0:
+        if randInit and len(state) == 0:
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
         
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
                                           state=state, mask=mask, batched=batched)
-        #TODO: option to put current h0, and predict forward
+
         return obs_pred, obs_next, h
     
     def predict_single(self, obs, act):

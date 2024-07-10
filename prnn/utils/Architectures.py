@@ -230,7 +230,7 @@ class pRNN_th(pRNN):
         self.k = k
         self.actionTheta = actionTheta
         self.obspad=(0,0,0,0,0,k)
-        self.obspad=(0,0,0,0,0,0,0,k)
+        self.batched_obspad=(0,0,0,0,0,0,0,k)
         
     def restructure_inputs(self, obs, act, batched=False):
         """

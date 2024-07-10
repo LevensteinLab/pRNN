@@ -17,8 +17,8 @@ class TrajDataset(Dataset):
         return self.n_trajs
 
     def __getitem__(self, index):
-        act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
-        obs = np.load(self._data_dir + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
+        act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
+        obs = np.load(self._data_dir + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
         act = torch.tensor(act, dtype=torch.int64)
         obs = torch.tensor(obs, dtype=torch.float32)
         return obs, act
@@ -94,8 +94,8 @@ class MergedTrajDataset(TrajDataset):
         #Try finding the traj in the folder, if the index is higher than n_trajs for that folder, go to the next one
         for i, n in enumerate(self.n_trajs):
             try:
-                act = np.load(self._data_dir[i] + '/' + str(index+1) + "/act.npy")[0,:self.seq_length]
-                obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[0,:self.seq_length+1]
+                act = np.load(self._data_dir[i] + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
+                obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
                 act = torch.tensor(act, dtype=torch.int64)
                 obs = torch.tensor(obs, dtype=torch.float32)
                 break

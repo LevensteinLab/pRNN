@@ -50,13 +50,15 @@ class thetaRNNLayer(nn.Module):
         if theta is None:
             theta = self.theta
         
+        assert not(input.size(0)==0 and internal.size(0)==0), "RNN should be driven by input and/or noise."
+
         if input.size(0)==0:
             input = torch.zeros(internal.size(0),internal.size(1),self.cell.input_size,
                                 device=self.cell.weight_hh.device)
         if state.size(0)==0:
             state = torch.zeros(internal.size(0),1,self.cell.hidden_size,
                                 device=self.cell.weight_hh.device)
-        if internal.size(0)==0: # TODO: check this
+        if internal.size(0)==0:
             internal = torch.zeros(theta+1,input.size(1),self.cell.hidden_size,
                                    device=self.cell.weight_hh.device)
         
@@ -98,6 +100,7 @@ class thetaRNNLayer(nn.Module):
                     out_th, state_th = self.cell(inputs[i][th+1,:].permute(1,0),
                                                  internals[i][th+1,:].permute(1,0),
                                                  state_th)
+                    out_th = out_th.unsqueeze(1)
                     out_th = out_th.permute(*[i for i in range(1,len(out_th.size()))],0)
                 else:
                     out_th, state_th = self.cell(torch.unsqueeze(inputs[i][th+1,:],0), 

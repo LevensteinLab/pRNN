@@ -130,7 +130,7 @@ class pRNN(nn.Module):
         if noise_params != (0,0):
             noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
         else:
-            noise = torch.tensor([])
+            noise = torch.zeros(shape, device=self.W.device)
 
         return noise
 
@@ -230,7 +230,7 @@ class pRNN_th(pRNN):
         self.k = k
         self.actionTheta = actionTheta
         self.obspad=(0,0,0,0,0,k)
-        self.obspad=(0,0,0,0,0,0,0,k)
+        self.batched_obspad=(0,0,0,0,0,0,0,k)
         
     def restructure_inputs(self, obs, act, batched=False):
         """

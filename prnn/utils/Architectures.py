@@ -93,7 +93,8 @@ class pRNN(nn.Module):
         if batched:
             noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
         else:
-            noise_shape = (k+1, obs.size(1), self.hidden_size)
+            noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)
+            #^^^for backwards compadiblity. change to self.hidden_size later
 
         noise_t = self.generate_noise(noise_params, noise_shape)
 
@@ -247,6 +248,8 @@ class pRNN_th(pRNN):
             obspad = self.batched_obspad
         else:
             act = self.actpad(act)
+            if ~hasattr(self,'obspad'):   #For backwards compadibility - remove later
+                self.obspad = (0,0,0,0,0,self.k)
             obspad = self.obspad
         obs_target = obs[:,self.predOffset:,:]
         

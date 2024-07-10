@@ -46,6 +46,7 @@ class pRNN(nn.Module):
         self.predOffset = predOffset
         self.actOffset = actOffset
         self.actpad = nn.ConstantPad1d((0,0,self.actOffset,0),0)
+        self.batched_actpad = nn.ConstantPad1d((0,0,0,0,self.actOffset,0),0)
         self.inMask = inMask
         if outMask is None:
             outMask = [True for i in inMask]
@@ -53,6 +54,7 @@ class pRNN(nn.Module):
             actMask = [True for i in inMask]
         self.outMask = outMask
         self.actMask = actMask
+        self.hidden_size = hidden_size
         
         self.droplayer = nn.Dropout(p=dropp)
         #self.droplayer_act = nn.Dropout(p=dropp_act)
@@ -82,18 +84,36 @@ class pRNN(nn.Module):
             self.W.add_(torch.eye(hidden_size).mul_(1-1/self.neuralTimescale))
 
 
-    def forward(self, obs, act, noise_t=torch.tensor([]), state=torch.tensor([]), theta=None,
-                single=False, mask=None):
+    def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
+                single=False, mask=None, batched=False):
+        #Determine the noise shape
+        k=0
+        if hasattr(self,'k'):
+            k= self.k
+        if batched:
+            noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
+        else:
+            noise_shape = (k+1, obs.size(1), self.hidden_size)
+
+        noise_t = self.generate_noise(noise_params, noise_shape)
+
         if single:
             x_t = torch.cat((obs,act), 2)
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
             y_t = None
             obs_target = None
         else:
-            x_t, obs_target, outmask = self.restructure_inputs(obs,act)
+            x_t, obs_target, outmask = self.restructure_inputs(obs,act,batched)
             #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
-            h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta, mask=mask)
-            allout = self.outlayer(h_t)
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
+                             theta=theta, mask=mask, batched=batched)
+            if batched:
+                h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
+                allout = self.outlayer(h_t)
+                allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
+                h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
+            else:
+                allout = self.outlayer(h_t)
 
             #Apply the mask to the output
             y_t = torch.zeros_like(allout)
@@ -106,7 +126,15 @@ class pRNN(nn.Module):
         y_t = self.outlayer(h_t)
         return y_t, h_t
 
-    def restructure_inputs(self, obs, act):
+    def generate_noise(self, noise_params, shape):
+        if noise_params != (0,0):
+            noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
+        else:
+            noise = torch.tensor([])
+
+        return noise
+
+    def restructure_inputs(self, obs, act, batched=False):
         """
         Join obs and act into a single input tensor shape (N,L,H)
         N: Batch size
@@ -117,7 +145,10 @@ class pRNN(nn.Module):
         """
 
         #Apply the action and prediction offsets
-        act = self.actpad(act)
+        if batched:
+            act = self.batched_actpad(act)
+        else:
+            act = self.actpad(act)
         obs_target = obs[:,self.predOffset:,:]
 
         #Make everything the same size
@@ -146,6 +177,42 @@ class pRNN(nn.Module):
         return x_t, obs_target_out, outmask
 
 
+    def spontaneous(self, timesteps, noisemean, noisestd, wgain=1,
+                    agent=None, randInit=True, env=None):
+        device = self.W.device
+        #Noise
+        noise_params = (noisemean,noisestd)
+        noise_shape = (1,timesteps,self.hidden_size)
+        noise_t = self.generate_noise(noise_params, noise_shape)
+        if randInit:
+            noise_shape = (1,1,self.hidden_size)
+            state = self.generate_noise(noise_params, noise_shape)
+            state = self.rnn.cell.actfun(state)
+        else:
+            state = torch.tensor([])
+                
+        #Weight Gain
+        with torch.no_grad():
+            offdiags = self.W.mul(1-torch.eye(self.hidden_size))
+            self.W.add_(offdiags*(wgain-1))
+            
+        #Action
+        if agent is not None:
+            obs,act,_,_ = env.collectObservationSequence(agent, timesteps)
+            obs,act = obs.to(device),act.to(device)
+            obs = torch.zeros_like(obs)
+            
+            obs_pred, h_t, _ = self.forward(obs, act, noise_t=noise_t, state=state, theta=0)
+            noise_t = (noise_t,act)
+        else:
+            obs_pred,h_t = self.internal(noise_t, state=state)
+        
+        with torch.no_grad():
+            self.W.subtract_(offdiags*(wgain-1))
+            
+        return obs_pred,h_t,noise_t
+
+
 
 class pRNN_th(pRNN):    
     def __init__(self, obs_size, act_size, k, hidden_size=500,
@@ -162,9 +229,10 @@ class pRNN_th(pRNN):
         
         self.k = k
         self.actionTheta = actionTheta
+        self.obspad=(0,0,0,0,0,k)
+        self.obspad=(0,0,0,0,0,0,0,k)
         
-        
-    def restructure_inputs(self, obs, act):
+    def restructure_inputs(self, obs, act, batched=False):
         """
         Join obs and act into a single input tensor shape (N,L,H)
         N: Batch size/Theta Size
@@ -174,7 +242,12 @@ class pRNN_th(pRNN):
         after the last action
         """
         #Apply the action and prediction offsets
-        act = self.actpad(act)
+        if batched:
+            act = self.batched_actpad(act)
+            obspad = self.batched_obspad
+        else:
+            act = self.actpad(act)
+            obspad = self.obspad
         obs_target = obs[:,self.predOffset:,:]
         
         #Apply the theta prediction for target observation
@@ -185,8 +258,10 @@ class pRNN_th(pRNN):
         obs_target = torch.squeeze(obs_target,0)
         
         if self.actionTheta == 'hold':
-            act = act.expand(self.k+1,-1,-1)
-            obs = nn.functional.pad(input=obs, pad=(0,0,0,0,0,self.k), 
+            size = [x for x in act.size()] # So it works with batched and non-batched
+            size[0] = self.k+1
+            act = act.expand(*size)
+            obs = nn.functional.pad(input=obs, pad=obspad, 
                                     mode='constant', value=0)
 
 
@@ -196,7 +271,7 @@ class pRNN_th(pRNN):
             theta_idx = theta_idx[:,self.k:,]
             act = act[:,theta_idx.copy()]
             act = torch.squeeze(act,0)
-            obs = nn.functional.pad(input=obs, pad=(0,0,0,0,0,self.k), 
+            obs = nn.functional.pad(input=obs, pad=obspad, 
                                     mode='constant', value=0)
             
         
@@ -211,9 +286,9 @@ class pRNN_th(pRNN):
         obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
         outmask = True
         
-        obs_out[:,:,:] = obs[:,:,:]
-        act_out[:,:,:] = act[:,:,:]
-        obs_target_out[:,:,:] = obs_target[:,:,:]
+        obs_out[:] = obs[:]
+        act_out[:] = act[:]
+        obs_target_out[:] = obs_target[:]
 
         obs = self.droplayer(obs) #dropout without action
         

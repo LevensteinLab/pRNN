@@ -182,33 +182,27 @@ class PredictiveNet:
         self.phase = 0
         self.phase_k = len(self.pRNN.inMask)
 
-    def predict(self, obs, act, state=torch.tensor([]), mask=None, randInit=True):
+    def predict(self, obs, act, state=torch.tensor([]),
+                mask=None, randInit=True, batched=False):
         """
         Generate predicted observation sequence from an observation and action
         sequence batch. Obs_pred is for the next timestep. 
         Note: state input is used for CANN control in internal functions
         """
-        device = self.pRNN.W.device
-        
-        k=0
-        if hasattr(self.pRNN,'k'):
-            k= self.pRNN.k
+        if batched:
+            obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
+            act = act.permute(*[i for i in range(1,len(act.size()))],0)
+            shape = (obs.size(-1), 1, self.hidden_size)
             
-        #NOTE: this should be done in Architectures.
-        #TODO: make batched
-        if hasattr(self,'trainNoiseMeanStd') and self.trainNoiseMeanStd != (0,0):
-            noise = self.trainNoiseMeanStd
-            timesteps = obs.size(1)
-            noise_t = noise[0] + noise[1]*torch.randn((k+1,timesteps,self.hidden_size),
-                                                                    device=device)
-            if randInit and len(state) == 0:
-                state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size),
-                                                            device=device)
-                state = self.pRNN.rnn.cell.actfun(state)
         else:
-            noise_t = torch.tensor([])
+            shape = (1, 1, self.hidden_size)
+            
+        if hasattr(self,'trainNoiseMeanStd') and randInit and len(state) == 0:
+            state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
+            state = self.pRNN.rnn.cell.actfun(state)
         
-        obs_pred, h, obs_next = self.pRNN(obs, act, noise_t=noise_t, state=state, mask=mask)
+        obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
+                                          state=state, mask=mask, batched=batched)
         #TODO: option to put current h0, and predict forward
         return obs_pred, obs_next, h
     
@@ -217,85 +211,39 @@ class PredictiveNet:
         Generate pRNN activation from single observation and action.
         There is no dropout step here, so the output will be different from predict().
         """
-        device = self.pRNN.W.device
-        
-        k=0
-        if hasattr(self.pRNN,'k'):
-            k= self.pRNN.k
-            
-        if hasattr(self,'trainNoiseMeanStd') and self.trainNoiseMeanStd != (0,0):
-            noise = self.trainNoiseMeanStd
-            noise_t = noise[0] + noise[1]*torch.randn((k+1,1,self.hidden_size),
-                                                                    device=device)
-        else:
-            noise_t = torch.tensor([])
-
         # Mask observations and actions according to current phase
         obs = obs * self.pRNN.inMask[self.phase]
         act = act * self.pRNN.actMask[self.phase]
         self.phase = (self.phase + 1) % self.phase_k
         
-        _, self.state, _ = self.pRNN(obs, act, noise_t=noise_t, state=self.state, single=True)
+        _, self.state, _ = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
+                                     state=self.state, single=True)
         return self.state
     
-    def reset_state(self, randInit=True):
-        self.state = torch.tensor([])
+    def reset_state(self, randInit=True, device='cpu'):
+        self.state = torch.tensor([], device=device)
         if randInit:
                 noise = self.trainNoiseMeanStd
-                self.state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size))
+                self.state = noise[0] + noise[1]*torch.randn((1,1,self.hidden_size), device=device)
                 self.state = self.pRNN.rnn.cell.actfun(self.state)
         self.phase = 0
 
 
     def spontaneous(self, timesteps, noisemean, noisestd, wgain=1, agent=None, randInit=True):
-        device = self.pRNN.W.device
-        #Noise
-        #NOTE: this should be done in Architectures. 
-        #TODO Future update: move noise to pRNN.forward, pRNN.internal as parameters,
-        #                    move theta dimension to dim=3, to allow for batched input
-        noise_t = noisemean + noisestd*torch.randn((1,timesteps,self.hidden_size),
-                                                   device=device)
-        if randInit:
-            state = noisemean + noisestd*torch.randn((1,1,self.hidden_size),
-                                                       device=device)
-            state = self.pRNN.rnn.cell.actfun(state)
-        else:
-            state = torch.tensor([])
-                
-        #Weight Gain
-        with torch.no_grad():
-            offdiags = self.pRNN.W.mul(1-torch.eye(self.hidden_size))
-            self.pRNN.W.add_(offdiags*(wgain-1)) 
-            
-        #Action. This should be done separately, similar to self.predict...
-        if agent is not None:
-            env = self.EnvLibrary[-1]
-            obs,act,_,_ = self.collectObservationSequence(env, 
-                                                          agent, 
-                                                          timesteps)
-            obs,act = obs.to(device),act.to(device)
-            obs = torch.zeros_like(obs)
-            
-            obs_pred, h_t, _ = self.pRNN(obs, act, noise_t=noise_t, state=state, theta=0)
-            noise_t = (noise_t,act)
-        else:
-            obs_pred,h_t = self.pRNN.internal(noise_t, state=state)
-        
-        with torch.no_grad():
-            self.pRNN.W.subtract_(offdiags*(wgain-1))
-            
-        return obs_pred,h_t,noise_t
+        return self.pRNN.spontaneous(timesteps, noisemean, noisestd, wgain,
+                                     agent, randInit, env=self.EnvLibrary[-1])
 
     def trainStep(self, obs, act, 
                   with_homeostat = False,
                   learningRate=None,
-                  mask=None):
+                  mask=None,
+                  batched=False):
         """
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
         """
 
-        obs_pred, obs_next, h = self.predict(obs, act, mask=mask)
+        obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
         if with_homeostat:
@@ -438,8 +386,9 @@ class PredictiveNet:
             device = forceDevice
         self.pRNN.to(device)
         print(f'Training pRNN on {device}...')
-
-        for bb in range(num_trials//batch_size):
+            
+        # c=100
+        for bb in range(num_trials):
             tic = time.time()
             obs,act,_,_ = self.collectObservationSequence(env, 
                                                           agent, 
@@ -448,15 +397,16 @@ class PredictiveNet:
             obs,act = obs.to(device),act.to(device)
             steploss, sparsity, meanrate = self.trainStep(obs,act, 
                                                           with_homeostat,
-                                                          learningRate=learningRate)
+                                                          learningRate=learningRate,
+                                                          batched=self.useDataLoader)
             #self.addTrainingData('sequence_duration',sequence_duration)
             #self.addTrainingData('clocktime',time.time()-tic)
-            c=100
             #Until batch is implemented....
-            #if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
+            # if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
             if (100*bb /num_trials) % 10 == 0 or bb==num_trials-1:
-                c-=100
+                # c-=100
                 print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb:>5d}\{num_trials:>5d}]")
+                # print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb*batch_size:>5d}\{num_trials:>5d}]")
         
         self.numTrainingEpochs +=1
         self.pRNN.to('cpu')

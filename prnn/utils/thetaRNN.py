@@ -44,7 +44,8 @@ class thetaRNNLayer(nn.Module):
                 internal: Tensor=torch.tensor([]),
                 state: Tensor=torch.tensor([]),
                 theta=None,
-                mask=None) -> Tuple[Tensor, Tensor]:
+                mask=None,
+                batched=False) -> Tuple[Tensor, Tensor]:
         
         if theta is None:
             theta = self.theta
@@ -53,20 +54,24 @@ class thetaRNNLayer(nn.Module):
             input = torch.zeros(internal.size(0),internal.size(1),self.cell.input_size,
                                 device=self.cell.weight_hh.device)
         if state.size(0)==0:
-            state = torch.zeros(1,1,self.cell.hidden_size, #1 beacuse no batches...
+            state = torch.zeros(internal.size(0),1,self.cell.hidden_size,
                                 device=self.cell.weight_hh.device)
         if internal.size(0)==0: # TODO: check this
             internal = torch.zeros(theta+1,input.size(1),self.cell.hidden_size,
                                    device=self.cell.weight_hh.device)
         
-        if input.size(0)<theta+1:
-            input = nn.functional.pad(input=input, pad=(0,0,0,0,0,theta), 
+        if input.size(0)<theta+1: # For "first-only" action inputs
+            if batched:
+                pad=(0,0,0,0,0,0,0,theta)
+            else:
+                pad=(0,0,0,0,0,theta)
+            input = nn.functional.pad(input=input, pad=pad, 
                                     mode='constant', value=0)   
         
         #Consider unbind twice, rather than indexing later...
         inputs = input.unbind(1)
         internals = internal.unbind(1)
-        state = (torch.squeeze(state,0),0) #To match RNN builtin
+        state = (torch.squeeze(state,1),0) #To match RNN builtin
         #outputs = torch.jit.annotate(List[Tensor], [])
         outputs = []
         
@@ -75,24 +80,33 @@ class thetaRNNLayer(nn.Module):
             if np.mod(n,self.trunc)==0 and n>0:
                 #state = (state[0].detach(),) #Truncated BPTT
                 state = [i.detach() for i in state]
-                
-            out, state = self.cell(torch.unsqueeze(inputs[i][0,:],0), 
-                                   internals[i][0,:], state)
-            # If the mask at next step = 0, the state is not forwarded. Clunky but works with RL algo
-            # TODO: remove? is it needed? will it work with theta?
-            if mask and not mask[i+1]:
-                state[0][0]=state[0][0]*0
+
+            if batched:
+                out, state = self.cell(inputs[i][0,:].permute(1,0), 
+                                       internals[i][0,:].permute(1,0),
+                                       state)
+                out = out.unsqueeze(1)
+                out = out.permute(*[i for i in range(1,len(out.size()))],0)
+            else:
+                out, state = self.cell(torch.unsqueeze(inputs[i][0,:],0), 
+                                       internals[i][0,:], state)
                 
             state_th = state
             out = [out]
-            for th in range(theta):
-                out_th, state_th = self.cell(torch.unsqueeze(inputs[i][th+1,:],0), 
-                                             internals[i][th+1,:], state_th)
+            for th in range(theta): # Theta-cycle inside the sequence (1 timestep)
+                if batched:
+                    out_th, state_th = self.cell(inputs[i][th+1,:].permute(1,0),
+                                                 internals[i][th+1,:].permute(1,0),
+                                                 state_th)
+                    out_th = out_th.permute(*[i for i in range(1,len(out_th.size()))],0)
+                else:
+                    out_th, state_th = self.cell(torch.unsqueeze(inputs[i][th+1,:],0), 
+                                                 internals[i][th+1,:], state_th)
                 out += [out_th]
             out = torch.cat(out,0)
             
             if hasattr(self,'continuousTheta') and self.continuousTheta:
-                state = state_th
+                state = state_th # Theta state is inherited at the next timestep
                 
             outputs += [out]
             n += 1

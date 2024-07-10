@@ -131,7 +131,7 @@ class pRNN(nn.Module):
         if noise_params != (0,0):
             noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
         else:
-            noise = torch.tensor([])
+            noise = torch.zeros(shape, device=self.W.device)
 
         return noise
 

@@ -233,16 +233,16 @@ if predictiveNet.numTrainingTrials == -1:
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
-    place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                                  trainDecoder=True,saveTrainingData=True,
-                                                  bitsec= False,
-                                                  calculatesRSA = True, sleepstd=0.03)
-    predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    print('Calculating Decoding Performance...')
-    predictiveNet.calculateDecodingPerformance(env,agent,decoder,
-                                                savename=savename, savefolder=figfolder,
-                                                saveTrainingData=True)
-    #predictiveNet.plotDelayDist(env, agent, decoder)
+    # place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
+    #                                               trainDecoder=True,saveTrainingData=True,
+    #                                               bitsec= False,
+    #                                               calculatesRSA = True, sleepstd=0.03)
+    # predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
+    # print('Calculating Decoding Performance...')
+    # predictiveNet.calculateDecodingPerformance(env,agent,decoder,
+    #                                             savename=savename, savefolder=figfolder,
+    #                                             saveTrainingData=True)
+    # predictiveNet.plotDelayDist(env, agent, decoder)
 
 #TODO: Put in time counter here and ETA...
 #TODO: take this out later. for backwards compatibility

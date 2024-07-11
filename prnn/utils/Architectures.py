@@ -183,10 +183,11 @@ class pRNN(nn.Module):
         device = self.W.device
         #Noise
         noise_params = (noisemean,noisestd)
-        noise_shape = (1,timesteps,self.hidden_size)
+        #for backwards compadibility. change to self.hidden_size later
+        noise_shape = (1,timesteps,self.rnn.cell.hidden_size) 
         noise_t = self.generate_noise(noise_params, noise_shape)
         if randInit:
-            noise_shape = (1,1,self.hidden_size)
+            noise_shape = (1,1,self.rnn.cell.hidden_size)
             state = self.generate_noise(noise_params, noise_shape)
             state = self.rnn.cell.actfun(state)
         else:
@@ -194,7 +195,7 @@ class pRNN(nn.Module):
                 
         #Weight Gain
         with torch.no_grad():
-            offdiags = self.W.mul(1-torch.eye(self.hidden_size))
+            offdiags = self.W.mul(1-torch.eye(self.rnn.cell.hidden_size))
             self.W.add_(offdiags*(wgain-1))
             
         #Action

@@ -113,6 +113,7 @@ netOptions = {'vRNN' : vRNN,
 
 
 lossOptions = {'predMSE'    :   predMSE,
+               'predRMSE'   :   predRMSE,
                'LPL'        :   LPLLoss}
 
 class PredictiveNet:

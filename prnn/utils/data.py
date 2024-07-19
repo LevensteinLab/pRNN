@@ -103,7 +103,7 @@ class MergedTrajDataset(TrajDataset):
                 index-=n
         return obs, act
 
-def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, interleaved_trial=False):
+def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, mixed_batch=True):
     datafolders = [env.dataLoader.dataset._data_dir for env in envs]
     seq_length = [env.dataLoader.dataset.seq_length for env in envs]
     n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
@@ -114,7 +114,7 @@ def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, interleaved_t
     for i,env in enumerate(envs):
         env.DL_iterator = iterators[i]
     
-    if interleaved_trial:
+    if not mixed_batch:
         indices = num_to_indices(n_trajs)
         batch_sampler = GroupedBatchRandomSampler(indices, batch_size)
         envMerged.addDataLoader(DataLoader(datasetMerged, batch_sampler=batch_sampler,

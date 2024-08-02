@@ -31,9 +31,9 @@ class thetaRNNLayer(nn.Module):
     internal [theta x sequence x neuron] (optional if input provided)
     state [DL fill this in] (optional)
     """
-    def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False):
+    def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False, **cell_kwargs):
         super(thetaRNNLayer, self).__init__()
-        self.cell = cell(*cell_args)
+        self.cell = cell(*cell_args,**cell_kwargs)
         self.trunc = trunc
         self.theta = defaultTheta
         self.continuousTheta = continuousTheta
@@ -256,6 +256,52 @@ class AdaptingLayerNormRNNCell(nn.Module):
         hy = self.actfun(x + internal - ax)
         return hy, (hy,ay)
 
+
+#TODO: put musig after sparse size/beta, pass through with args or kwargs
+class SparseGatedRNNCell(nn.Module):
+    def __init__(self, input_size, hidden_size, 
+                 musig=[0,1], sparse_size=1000, sparse_beta=1,
+                 lambda_direct=1, lambda_context=1):
+        super(SparseGatedRNNCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.sparse_size = sparse_size
+        self.sparse_beta = sparse_beta
+        self.lambda_direct = lambda_direct
+        self.lambda_context = lambda_context
+        
+        #Pytorch Initalization ("goodbug") with input scaling
+        rootk_h = np.sqrt(1./hidden_size)
+        rootk_i = np.sqrt(1./input_size)
+        rootk_s = np.sqrt(1./sparse_size)
+        self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
+        self.weight_is = Parameter(torch.rand(sparse_size, input_size)*2*rootk_i-rootk_i)
+        self.weight_sh = Parameter(torch.rand(hidden_size, sparse_size)*2*rootk_s-rootk_s)
+        self.weight_hh = Parameter(torch.rand(hidden_size, hidden_size)*2*rootk_h-rootk_h)
+        self.weight_hs = Parameter(torch.rand(sparse_size, hidden_size)*2*rootk_h-rootk_h)
+        
+        self.layernorm = LayerNorm(hidden_size,musig)
+        
+        self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
+        self.bias = self.layernorm.mu
+
+        self.actfun = torch.nn.ReLU()
+        self.sparselayer = nn.Softmax(dim=1)
+    
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tensor:
+        hx = state[0]
+
+        i_input = torch.mm(input, self.weight_is.t())
+        h_input = torch.mm(hx, self.weight_hs.t())
+        sy = self.sparselayer((i_input + h_input*self.lambda_context)/self.sparse_beta)
+
+        i_input = torch.mm(input, self.weight_ih.t())
+        h_input = torch.mm(hx, self.weight_hh.t())
+        s_input = torch.mm(sy, self.weight_sh.t())        
+        x = self.layernorm(s_input + h_input + i_input*self.lambda_direct)
+        hy = self.actfun(x + internal)
+        #return torch.cat([hy,sy],1), (hy,)
+        return hy, (hy,)
 
 
 #class LayerNorm(jit.ScriptModule):

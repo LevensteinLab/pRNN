@@ -42,7 +42,6 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 from prnn.utils.Architectures import *
 
 netOptions = {'vRNN' : vRNN,
-              'RNN2L' : RNN2L,
               'vRNN_LayerNorm' : vRNN_LayerNorm,
               'thRNN_LayerNorm': thRNN_LayerNorm,
               'vRNN_LayerNormAdapt' : vRNN_LayerNormAdapt,
@@ -109,6 +108,7 @@ netOptions = {'vRNN' : vRNN,
               'thRNN_4win_noLN' : thRNN_4win_noLN,
               'thRNN_5win_noLN' : thRNN_5win_noLN,
               'thRNN_6win_noLN' : thRNN_6win_noLN,
+              'sgpRNN_5win'     : sgpRNN_5win,
               }
 
 
@@ -128,12 +128,11 @@ class PredictiveNet:
     """
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
                  learningRate=2e-3, bias_lr=0.1,
-                 regLambda=0, regOrder=1,
-                 weight_decay=3e-3, losstype='predMSE', bptttrunc=100,
-                 neuralTimescale=2, f=0.5,
-                 dropp=0.15, trainNoiseMeanStd=(0,0.03),
+                 weight_decay=3e-3, losstype='predMSE', 
+                 trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
-                 trainBias=True, identityInit=False, dataloader=False):
+                 trainBias=True, identityInit=False, dataloader=False,
+                 **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -141,9 +140,7 @@ class PredictiveNet:
         suppObs: any unpredicted observation key from the environment that is input and
         not predicted. Added to the action input
         """
-        #Some defaults
-        self.regLambda = regLambda
-        self.regOrder = regOrder
+
         self.trainNoiseMeanStd = trainNoiseMeanStd
 
         #Set up the environmental I/O parms
@@ -157,8 +154,7 @@ class PredictiveNet:
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
         self.pRNN = netOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
-                                        trunc = bptttrunc, neuralTimescale=neuralTimescale,
-                                        dropp=dropp, f=f)
+                                         **architecture_kwargs)
         if identityInit: 
             self.pRNN.W = nn.Parameter(torch.eye(hidden_size))
 
@@ -514,6 +510,29 @@ class PredictiveNet:
             self.optimizer.add_param_group(biasparmgroup)
         else:
             self.pRNN.bias.requires_grad = False
+
+        if hasattr(self.pRNN,'W_is'):
+            rootk_s = np.sqrt(1./self.pRNN.rnn.cell.sparse_size)
+            sparseinparmgroup = {
+                        'params': self.pRNN.W_sh, 'name': 'SparseInputWeights', 
+                        'lr': learningRate*rootk_s, 
+                        'weight_decay': weight_decay*learningRate*rootk_s
+                        }
+            self.optimizer.add_param_group(sparseinparmgroup)
+            contextparmgroup = {
+                        'params': self.pRNN.W_hs, 'name': 'ContextWeights', 
+                        'lr': learningRate*rootk_h, 
+                        'weight_decay': weight_decay*learningRate*rootk_h
+                        }
+            self.optimizer.add_param_group(contextparmgroup)
+            insparseparmgroup = {
+                        'params': self.pRNN.W_is, 'name': 'InputWeights_toSparse', 
+                        'lr': learningRate*rootk_i, 
+                        'weight_decay': weight_decay*learningRate*rootk_i
+                        }
+            self.optimizer.add_param_group(insparseparmgroup)
+            
+
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self,savename,savefolder=''):
         # Collect the iterators that cannot be pickled

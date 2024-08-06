@@ -186,16 +186,16 @@ else:
                                   hidden_size = args.hiddensize,
                                   pRNNtype = args.pRNNtype,
                                   learningRate = args.lr,
-                                  bptttrunc = args.bptttrunc,
                                   weight_decay = args.weight_decay,
-                                  neuralTimescale = args.ntimescale,
-                                  dropp = args.dropout,
                                   trainNoiseMeanStd = (args.noisemean,args.noisestd),
-                                  f = args.sparsity,
                                   trainBias = args.trainBias,
                                   bias_lr = args.bias_lr,
                                   identityInit = args.identityInit,
-                                  dataloader = args.withDataLoader,)
+                                  dataloader = args.withDataLoader,
+                                  f = args.sparsity,
+                                  dropp = args.dropout,
+                                  neuralTimescale = args.ntimescale,
+                                  bptttrunc = args.bptttrunc)
     predictiveNet.seed = args.seed
     predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(env,agent,

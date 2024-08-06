@@ -13,7 +13,7 @@ import torch
 import numpy as np
 from scipy.linalg import toeplitz
 from scipy.stats import norm
-from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell
+from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell, SparseGatedRNNCell
 
 from prnn.utils.pytorchInits import CANN_
 
@@ -36,10 +36,11 @@ class pRNN(nn.Module):
         H: input_size
     """
     def __init__(self, obs_size, act_size, hidden_size=500,
-                 cell=RNNCell,  dropp=0, trunc=50, k=0, f=0.5,
-                 predOffset=1, inMask=[True], outMask=None, cyclePeriod=1,
+                 cell=RNNCell,  dropp=0, bptttrunc=50, k=0, f=0.5,
+                 predOffset=1, inMask=[True], outMask=None, 
                  actOffset=0, actMask=None, neuralTimescale=2,
-                 continuousTheta=False):
+                 continuousTheta=False,
+                 **cell_kwargs):
         super(pRNN, self).__init__()
 
         #pRNN architecture parameters
@@ -66,8 +67,9 @@ class pRNN(nn.Module):
         #TODO: add cellparams input to pass through
         #Consider putting the sigmoid outside this layer...
         input_size = obs_size + act_size
-        self.rnn = thetaRNNLayer(cell, trunc, input_size, hidden_size, musig,
-                                 defaultTheta=k, continuousTheta=continuousTheta)
+        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
+                                 defaultTheta=k, continuousTheta=continuousTheta,
+                                 musig=musig, **cell_kwargs)
         self.outlayer = nn.Sequential(
             nn.Linear(hidden_size, obs_size, bias=False),
             nn.Sigmoid()
@@ -77,6 +79,11 @@ class pRNN(nn.Module):
         self.W = self.rnn.cell.weight_hh
         self.W_out = self.outlayer[0].weight
         self.bias = self.rnn.cell.bias
+
+        if hasattr(self.rnn.cell,'weight_is'):
+            self.W_is = self.rnn.cell.weight_is
+            self.W_sh = self.rnn.cell.weight_sh
+            self.W_hs = self.rnn.cell.weight_hs
         
         self.neuralTimescale = neuralTimescale
 
@@ -93,7 +100,8 @@ class pRNN(nn.Module):
         if batched:
             noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
         else:
-            noise_shape = (k+1, obs.size(1), self.hidden_size)
+            noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)
+            #^^^for backwards compadiblity. change to self.hidden_size later
 
         noise_t = self.generate_noise(noise_params, noise_shape)
 
@@ -182,10 +190,11 @@ class pRNN(nn.Module):
         device = self.W.device
         #Noise
         noise_params = (noisemean,noisestd)
-        noise_shape = (1,timesteps,self.hidden_size)
+        #for backwards compadibility. change to self.hidden_size later
+        noise_shape = (1,timesteps,self.rnn.cell.hidden_size) 
         noise_t = self.generate_noise(noise_params, noise_shape)
         if randInit:
-            noise_shape = (1,1,self.hidden_size)
+            noise_shape = (1,1,self.rnn.cell.hidden_size)
             state = self.generate_noise(noise_params, noise_shape)
             state = self.rnn.cell.actfun(state)
         else:
@@ -193,7 +202,7 @@ class pRNN(nn.Module):
                 
         #Weight Gain
         with torch.no_grad():
-            offdiags = self.W.mul(1-torch.eye(self.hidden_size))
+            offdiags = self.W.mul(1-torch.eye(self.rnn.cell.hidden_size))
             self.W.add_(offdiags*(wgain-1))
             
         #Action
@@ -216,16 +225,20 @@ class pRNN(nn.Module):
 
 class pRNN_th(pRNN):    
     def __init__(self, obs_size, act_size, k, hidden_size=500,
-                 cell=RNNCell,  dropp=0, trunc=50, f=0.5,
+                 cell=RNNCell,  dropp=0, bptttrunc=50, f=0.5,
                  predOffset=0, inMask=[True], outMask=None,
                  actOffset=0, actMask=None, neuralTimescale=2,
-                continuousTheta=False, actionTheta=False):
+                continuousTheta=False, actionTheta=False,
+                sparse_size=1000, sparse_beta=1,
+                 lambda_direct=1, lambda_context=1):
         super(pRNN_th, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                 cell=cell,  dropp=dropp, trunc=trunc, k=k, f=0.5,
-                 predOffset=predOffset, inMask=inMask, outMask=outMask,
-                 actOffset=actOffset, actMask=actMask,
-                                      neuralTimescale=neuralTimescale,
-                                     continuousTheta=continuousTheta)
+                cell=cell,  dropp=dropp, bptttrunc=bptttrunc, k=k, f=0.5,
+                predOffset=predOffset, inMask=inMask, outMask=outMask,
+                actOffset=actOffset, actMask=actMask,
+                neuralTimescale=neuralTimescale,
+                continuousTheta=continuousTheta,
+                sparse_size=sparse_size, sparse_beta=sparse_beta,
+                lambda_direct=lambda_direct, lambda_context=lambda_context)
         
         self.k = k
         self.actionTheta = actionTheta
@@ -247,6 +260,8 @@ class pRNN_th(pRNN):
             obspad = self.batched_obspad
         else:
             act = self.actpad(act)
+            if ~hasattr(self,'obspad'):   #For backwards compadibility - remove later
+                self.obspad = (0,0,0,0,0,self.k)
             obspad = self.obspad
         obs_target = obs[:,self.predOffset:,:]
         
@@ -298,96 +313,7 @@ class pRNN_th(pRNN):
         
         
         
-        
-        
 
-        
-        
-        
-        
-        
-
-class RNN2L(nn.Module):
-    """
-    A vanilla RNN architecture that takes observations and actions and returns
-    observations (i.e. at the next timestep)
-    """
-    def __init__(self,obs_size, act_size, hidden_size=500, encsize=300,
-                 nonlinearity='relu'):
-        super(RNN2L, self).__init__()
-
-        input_size = obs_size + act_size
-
-        #Functions/layers
-        self.inlayer = nn.Linear(input_size, encsize, bias=False)
-        self.enc_rnn = nn.RNN(encsize, encsize, bias=False, batch_first=True,
-                          nonlinearity = nonlinearity)
-        #TODO: Check act
-        self.FFlayer = nn.Linear(encsize,hidden_size, bias=False)
-        self.p_rnn = nn.RNN(hidden_size, hidden_size, bias=False, batch_first=True,
-                          nonlinearity = nonlinearity)
-
-
-        self.W_internal2 = self.p_rnn.weight_ih_l0
-        self.W_internal1 = self.enc_rnn.weight_ih_l0
-        self.W_in = self.inlayer.weight
-        self.W_FF = self.FFlayer.weight
-        self.W = self.p_rnn.weight_hh_l0
-        self.W_enc = self.enc_rnn.weight_hh_l0
-
-
-        #TODO Clean this
-        with torch.no_grad():
-            self.W_internal2 = torch.nn.Parameter(torch.eye(hidden_size,
-                                                           requires_grad=False))
-            self.W_internal1 = torch.nn.Parameter(torch.eye(encsize,
-                                                           requires_grad=False))
-            self.W.add_(torch.eye(hidden_size).div_(2))
-            self.W_enc.add_(torch.eye(encsize).div_(2))
-            #self.W_out = torch.nn.Parameter(self.W_in.t())
-        #TODO: Initalization as optional param
-
-
-    def forward(self, obs, act):
-        x_t = self.restructure_inputs(obs,act)
-        x_t = self.inlayer(x_t)
-        e_t,_ = self.enc_rnn(x_t)
-        x_t = self.FFlayer(e_t)
-
-        obs_next = torch.zeros_like(x_t)
-        obs_next[:,1::2,:] = x_t[:,1::2,:] #The predicted outputs.
-
-        obs_in = torch.zeros_like(x_t)
-        obs_in[:,0::2,:] = x_t[:,0::2,:] #The FF input, every other timestep.
-
-        h_t,_ = self.p_rnn(obs_in)
-        #Input to last layer is obs_next.
-        y_t = torch.zeros_like(h_t)
-        y_t[:,1::2,:] = h_t[:,1::2,:] #The predicted outputs.
-
-        return y_t, h_t, obs_next
-
-    def internal(self, noise_t):
-        h_t,_ = self.p_rnn(noise_t)
-        #y_t = self.outlayer(h_t)
-        return h_t, h_t
-
-
-    def restructure_inputs(self, obs, act):
-        """
-        Join obs and act into a single input tensor shape (N,L,H)
-        N: Batch size
-        L: timesamps
-        H: input_size
-        obs should be one timestep longer than act, for the [t+1] observation
-        after the last action
-        """
-        act = torch.cat((act,torch.zeros(act.size(0),1,act.size(2))), dim=1)
-        obs = torch.cat((obs,torch.zeros(obs.size(0),1,obs.size(2))), dim=1)
-
-        obs = obs[:,:-1,:]
-        x_t = torch.cat((obs,act), 2)
-        return x_t
 
 
     
@@ -411,97 +337,97 @@ class thRNN(pRNN):
 
 class vRNN_0win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_0win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
 
 class vRNN_1win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_1win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,True], outMask=[True,True], actMask=None)
 
 class vRNN_2win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_2win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False], outMask=[True,True,True],
                           actMask=None)
 
 class vRNN_3win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_3win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False], outMask=[True,True,True,True],
                           actMask=None)
 
 class vRNN_4win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_4win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False,False], outMask=[True,True,True,True,True],
                           actMask=None)
 
 class vRNN_5win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_5win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=None)
 
 class vRNN_1win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_1win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
                           actMask=[True,False])
 
 class vRNN_2win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_2win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False], outMask=[True,True,True],
                           actMask=[True,False,False])
 
 class vRNN_3win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_3win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False], outMask=[True,True,True,True], 
                           actMask=[True,False,False,False])
 
 class vRNN_4win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_4win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False,False], outMask=[True,True,True,True,True],
                           actMask=[True,False,False,False,False])
 
 class vRNN_5win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(vRNN_5win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=[True,False,False,False,False,False])
@@ -512,20 +438,20 @@ class vRNN_5win_mask(pRNN):
         
 class thRNN_0win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_0win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
 
 class thRNN_1win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_1win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
@@ -533,10 +459,10 @@ class thRNN_1win_noLN(pRNN):
 
 class thRNN_2win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_2win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False], outMask=[True,True,True],
@@ -544,10 +470,10 @@ class thRNN_2win_noLN(pRNN):
 
 class thRNN_3win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_3win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False], outMask=[True,True,True,True],
@@ -555,10 +481,10 @@ class thRNN_3win_noLN(pRNN):
 
 class thRNN_4win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_4win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False], outMask=[True,True,True,True,True],
@@ -566,10 +492,10 @@ class thRNN_4win_noLN(pRNN):
 
 class thRNN_5win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_5win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
@@ -577,10 +503,10 @@ class thRNN_5win_noLN(pRNN):
         
 class thRNN_6win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_6win_noLN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False], 
@@ -597,20 +523,20 @@ class thRNN_6win_noLN(pRNN):
 
 class thRNN_0win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_0win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
 
 class thRNN_1win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_1win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
@@ -618,10 +544,10 @@ class thRNN_1win(pRNN):
 
 class thRNN_2win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_2win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False], outMask=[True,True,True],
@@ -629,10 +555,10 @@ class thRNN_2win(pRNN):
 
 class thRNN_3win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_3win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False], outMask=[True,True,True,True],
@@ -640,10 +566,10 @@ class thRNN_3win(pRNN):
 
 class thRNN_4win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_4win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False], outMask=[True,True,True,True,True],
@@ -651,10 +577,10 @@ class thRNN_4win(pRNN):
 
 class thRNN_5win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_5win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
@@ -662,10 +588,10 @@ class thRNN_5win(pRNN):
         
 class thRNN_6win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_6win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False], 
@@ -674,10 +600,10 @@ class thRNN_6win(pRNN):
         
 class thRNN_7win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_7win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False,False], 
@@ -686,10 +612,10 @@ class thRNN_7win(pRNN):
         
 class thRNN_8win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_8win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False,False,False], 
@@ -698,10 +624,10 @@ class thRNN_8win(pRNN):
         
 class thRNN_9win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_9win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False,False,False,False], 
                                          outMask=[True,True,True,True,True,True,True,True,True,True],
@@ -709,10 +635,10 @@ class thRNN_9win(pRNN):
         
 class thRNN_10win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thRNN_10win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False,False,False,False,False,False], 
                                          outMask=[True,True,True,True,True,True,True,True,True,True,True],
@@ -722,45 +648,45 @@ class thRNN_10win(pRNN):
 
 class thRNN_1win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thRNN_1win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
                           actMask=[True,False])
 
 class thRNN_2win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thRNN_2win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False], outMask=[True,True,True],
                           actMask=[True,False,False])
 
 class thRNN_3win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thRNN_3win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False], outMask=[True,True,True,True],
                           actMask=[True,False,False,False])
 
 class thRNN_4win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thRNN_4win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False], outMask=[True,True,True,True,True],
                           actMask=[True,False,False,False,False])
 
 class thRNN_5win_mask(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thRNN_5win_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=[True,False,False,False,False,False])
@@ -772,10 +698,10 @@ class thRNN_5win_mask(pRNN):
 
 class AutoencoderFF(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=None):
         super(AutoencoderFF, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         self.W.requires_grad_(False)
@@ -783,28 +709,28 @@ class AutoencoderFF(pRNN):
         
 class AutoencoderRec(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=None):
         super(AutoencoderRec, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         
 class AutoencoderPred(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=None):
         super(AutoencoderPred, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         
 class AutoencoderFFPred(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=RNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=None):
         super(AutoencoderFFPred, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=1, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         self.W.requires_grad_(False)
@@ -814,9 +740,9 @@ class AutoencoderFFPred(pRNN):
         
 class AutoencoderFF_LN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderFF_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         self.W.requires_grad_(False)
@@ -824,27 +750,27 @@ class AutoencoderFF_LN(pRNN):
         
 class AutoencoderRec_LN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderRec_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         
 class AutoencoderPred_LN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(AutoencoderPred_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                                                  f=f,
                           predOffset=1, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)
         
 class AutoencoderFFPred_LN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0, f=0.5):
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15, f=0.5):
         super(AutoencoderFFPred_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                                                    cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, 
+                                                    cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, 
                                                     dropp=dropp,f=f,
                                                     predOffset=1, actOffset=0,
                                                     inMask=[True], outMask=[True], actMask=None)
@@ -853,36 +779,36 @@ class AutoencoderFFPred_LN(pRNN):
 
 class AutoencoderMaskedO(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderMaskedO, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[False,True],
                           actMask=[True,True])
         
 class AutoencoderMaskedOA(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderMaskedOA, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[False,True],
                           actMask=[True,False])
 
 class AutoencoderMaskedO_noout(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderMaskedO_noout, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
                           actMask=[True,True])
         
 class AutoencoderMaskedOA_noout(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(AutoencoderMaskedOA_noout, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, trunc=trunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           predOffset=0, actOffset=0,
                           inMask=[True,False], outMask=[True,True],
                           actMask=[True,False])
@@ -894,30 +820,30 @@ class AutoencoderMaskedOA_noout(pRNN):
         
 class thcycRNN_3win(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thcycRNN_3win, self).__init__(obs_size, act_size,  k=3, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        predOffset=0, actOffset=0,
                                       )
         
 class thcycRNN_4win(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thcycRNN_4win, self).__init__(obs_size, act_size,  k=4, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        predOffset=0, actOffset=0,
                                       )
         
 class thcycRNN_5win(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0):
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15):
         super(thcycRNN_5win, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        predOffset=0, actOffset=0,
                                        continuousTheta=True)
@@ -926,11 +852,11 @@ class thcycRNN_5win(pRNN_th):
         
 class thcycRNN_5win_holdc(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_holdc, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -938,11 +864,11 @@ class thcycRNN_5win_holdc(pRNN_th):
         
 class thcycRNN_5win_fullc(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_fullc, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -950,11 +876,11 @@ class thcycRNN_5win_fullc(pRNN_th):
         
 class thcycRNN_5win_firstc(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_firstc, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -963,11 +889,11 @@ class thcycRNN_5win_firstc(pRNN_th):
         
 class thcycRNN_5win_hold(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_hold, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -975,11 +901,11 @@ class thcycRNN_5win_hold(pRNN_th):
         
 class thcycRNN_5win_full(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_full, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -987,11 +913,11 @@ class thcycRNN_5win_full(pRNN_th):
         
 class thcycRNN_5win_first(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_first, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1002,11 +928,11 @@ class thcycRNN_5win_first(pRNN_th):
         
 class thcycRNN_5win_holdc_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_holdc_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1014,11 +940,11 @@ class thcycRNN_5win_holdc_adapt(pRNN_th):
         
 class thcycRNN_5win_fullc_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_fullc_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1026,11 +952,11 @@ class thcycRNN_5win_fullc_adapt(pRNN_th):
         
 class thcycRNN_5win_firstc_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_firstc_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1039,11 +965,11 @@ class thcycRNN_5win_firstc_adapt(pRNN_th):
         
 class thcycRNN_5win_hold_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_hold_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1051,11 +977,11 @@ class thcycRNN_5win_hold_adapt(pRNN_th):
         
 class thcycRNN_5win_full_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_full_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1063,11 +989,11 @@ class thcycRNN_5win_full_adapt(pRNN_th):
         
 class thcycRNN_5win_first_adapt(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=AdaptingLayerNormRNNCell, trunc=50, neuralTimescale=2, dropp = 0,
+                 cell=AdaptingLayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                 f=0.5):
         super(thcycRNN_5win_first_adapt, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
-                                       cell=cell, trunc=trunc, 
+                                       cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=0,
@@ -1172,3 +1098,22 @@ class vRNN_adptCANN_FFonly(vRNN_adaptCANN):
         with torch.no_grad():
             self.W.add_(torch.rand(hidden_size, hidden_size)*0.2*rootk)
         self.W.requires_grad=False
+
+
+
+class sgpRNN_5win(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                 f=0.5,
+                 sparse_size=2000, sparse_beta=1,
+                 lambda_direct=1, lambda_context=1):
+        super(sgpRNN_5win, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=SparseGatedRNNCell,
+                                       continuousTheta=False, actionTheta=True, 
+                                       bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=0,
+                                       sparse_size=sparse_size, sparse_beta=sparse_beta,
+                                       lambda_direct=lambda_direct, lambda_context=lambda_context)

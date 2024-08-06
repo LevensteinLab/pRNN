@@ -52,7 +52,7 @@ class linearDecoder:
             p_X = sm(p_X)
         return decodedX, p_X
 
-    def train(self, h, pos, batchSize=0.75, numBatches=10000):
+    def train(self, h, pos, batchSize=0.75, numBatches=10000, forceDevice=False):
         """
         Train the decoder from activity-position pairs
 
@@ -69,6 +69,8 @@ class linearDecoder:
         """
         #Consider: while loss doesn't change or is big enough...
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        if forceDevice:
+            device = forceDevice
         self.model.to(device)
         
         print(f'Training Decoder on {device}...')

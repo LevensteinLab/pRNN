@@ -229,16 +229,14 @@ class pRNN_th(pRNN):
                  predOffset=0, inMask=[True], outMask=None,
                  actOffset=0, actMask=None, neuralTimescale=2,
                 continuousTheta=False, actionTheta=False,
-                sparse_size=1000, sparse_beta=1,
-                 lambda_direct=1, lambda_context=1):
+                **cell_kwargs):
         super(pRNN_th, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                cell=cell,  dropp=dropp, bptttrunc=bptttrunc, k=k, f=0.5,
+                cell=cell,  dropp=dropp, bptttrunc=bptttrunc, k=k, f=f,
                 predOffset=predOffset, inMask=inMask, outMask=outMask,
                 actOffset=actOffset, actMask=actMask,
                 neuralTimescale=neuralTimescale,
                 continuousTheta=continuousTheta,
-                sparse_size=sparse_size, sparse_beta=sparse_beta,
-                lambda_direct=lambda_direct, lambda_context=lambda_context)
+                **cell_kwargs)
         
         self.k = k
         self.actionTheta = actionTheta
@@ -1105,8 +1103,8 @@ class sgpRNN_5win(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
                  bptttrunc=100, neuralTimescale=2, dropp = 0.15,
                  f=0.5,
-                 sparse_size=2000, sparse_beta=1,
-                 lambda_direct=1, lambda_context=1):
+                 sparse_size=1000, sparse_beta=1,
+                 lambda_direct=1, lambda_context=1, lambda_sparse=1):
         super(sgpRNN_5win, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
                                        cell=SparseGatedRNNCell,
@@ -1116,4 +1114,5 @@ class sgpRNN_5win(pRNN_th):
                                        f=f,
                                        predOffset=0, actOffset=0,
                                        sparse_size=sparse_size, sparse_beta=sparse_beta,
-                                       lambda_direct=lambda_direct, lambda_context=lambda_context)
+                                       lambda_direct=lambda_direct, lambda_context=lambda_context,
+                                       lambda_sparse=lambda_sparse)

@@ -261,7 +261,7 @@ class AdaptingLayerNormRNNCell(nn.Module):
 class SparseGatedRNNCell(nn.Module):
     def __init__(self, input_size, hidden_size, 
                  musig=[0,1], sparse_size=1000, sparse_beta=1,
-                 lambda_direct=1, lambda_context=1):
+                 lambda_direct=1, lambda_context=1, lambda_sparse=1):
         super(SparseGatedRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -269,6 +269,7 @@ class SparseGatedRNNCell(nn.Module):
         self.sparse_beta = sparse_beta
         self.lambda_direct = lambda_direct
         self.lambda_context = lambda_context
+        self.lambda_sparse = lambda_sparse
         
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
@@ -292,13 +293,17 @@ class SparseGatedRNNCell(nn.Module):
         hx = state[0]
 
         i_input = torch.mm(input, self.weight_is.t())
-        h_input = torch.mm(hx, self.weight_hs.t())
-        sy = self.sparselayer((i_input + h_input*self.lambda_context)/self.sparse_beta)
+        h_input = 0
+        if self.lambda_context>0:
+            h_input = self.lambda_context * torch.mm(hx, self.weight_hs.t())
+        sy = self.sparselayer((i_input + h_input)/self.sparse_beta)
 
-        i_input = torch.mm(input, self.weight_ih.t())
+        i_input = 0
+        if self.lambda_direct>0:
+            i_input = self.lambda_direct * torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())
-        s_input = torch.mm(sy, self.weight_sh.t())        
-        x = self.layernorm(s_input + h_input + i_input*self.lambda_direct)
+        s_input = self.lambda_sparse * torch.mm(sy, self.weight_sh.t())        
+        x = self.layernorm(h_input + s_input + i_input)
         hy = self.actfun(x + internal)
         #return torch.cat([hy,sy],1), (hy,)
         return hy, (hy,)

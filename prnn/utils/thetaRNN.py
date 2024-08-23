@@ -305,8 +305,9 @@ class SparseGatedRNNCell(nn.Module):
         s_input = self.lambda_sparse * torch.mm(sy, self.weight_sh.t())        
         x = self.layernorm(h_input + s_input + i_input)
         hy = self.actfun(x + internal)
-        #return torch.cat([hy,sy],1), (hy,)
-        return hy, (hy,)
+        #return hy, (hy,)
+        return torch.cat([hy,sy],1), (hy,)
+        
 
 
 #class LayerNorm(jit.ScriptModule):

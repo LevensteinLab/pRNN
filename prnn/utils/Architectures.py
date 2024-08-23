@@ -92,7 +92,7 @@ class pRNN(nn.Module):
 
 
     def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
-                single=False, mask=None, batched=False):
+                single=False, mask=None, batched=False, fullRNNstate=False):
         #Determine the noise shape
         k=0
         if hasattr(self,'k'):
@@ -108,6 +108,8 @@ class pRNN(nn.Module):
         if single:
             x_t = torch.cat((obs,act), 2)
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units
             y_t = None
             obs_target = None
         else:
@@ -115,13 +117,15 @@ class pRNN(nn.Module):
             #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
                              theta=theta, mask=mask, batched=batched)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
             if batched:
                 h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
-                allout = self.outlayer(h_t)
+                allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
                 allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
                 h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
             else:
-                allout = self.outlayer(h_t)
+                allout = self.outlayer(h_t[:,:,:self.hidden_size])
 
             #Apply the mask to the output
             y_t = torch.zeros_like(allout)

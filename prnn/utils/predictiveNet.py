@@ -180,7 +180,7 @@ class PredictiveNet:
         self.phase_k = len(self.pRNN.inMask)
 
     def predict(self, obs, act, state=torch.tensor([]),
-                mask=None, randInit=True, batched=False):
+                mask=None, randInit=True, batched=False, fullRNNstate=False):
         """
         Generate predicted observation sequence from an observation and action
         sequence batch. Obs_pred is for the next timestep. 
@@ -199,7 +199,8 @@ class PredictiveNet:
             state = self.pRNN.rnn.cell.actfun(state)
         
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
-                                          state=state, mask=mask, batched=batched)
+                                          state=state, mask=mask, batched=batched, 
+                                          fullRNNstate=fullRNNstate)
 
         return obs_pred, obs_next, h
     
@@ -582,16 +583,17 @@ class PredictiveNet:
                                        numBatches=5000, inputControl=False,
                                        calculatesRSA = False, bitsec=False,
                                        sleepstd = 0.1, onsetTransient=20,
-                                       activeTimeThreshold=200):
+                                       activeTimeThreshold=200,
+                                       fullRNNstate=False):
         """
         Use an agent to calculate spatial representation of an environment
         """
         obs, act, state, render = self.collectObservationSequence(env,agent,timesteps,discretize=True)
 
         if hasattr(self, 'current_state'): # easy way to check if it's CANN
-            obs_pred, obs_next, h  = self.predict(obs,act,state)
+            obs_pred, obs_next, h  = self.predict(obs,act,state, fullRNNstate=fullRNNstate)
         else:
-            obs_pred, obs_next, h  = self.predict(obs,act)
+            obs_pred, obs_next, h  = self.predict(obs,act, fullRNNstate=fullRNNstate)
         
         #for now: take only the 0th theta window...
         #Try: mean

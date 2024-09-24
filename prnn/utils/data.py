@@ -7,11 +7,12 @@ from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
 
 class TrajDataset(Dataset):
-    def __init__(self, folder: str, seq_length: int, n_trajs: int):
+    def __init__(self, folder: str, seq_length: int, n_trajs: int, act_type=None):
         self._data_dir = folder
         #self.path = Path(folder)
         self.n_trajs = n_trajs
         self.seq_length = seq_length
+        self.act_type = act_type # different depending on the environment
 
     def __len__(self):
         return self.n_trajs
@@ -19,7 +20,7 @@ class TrajDataset(Dataset):
     def __getitem__(self, index):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         obs = np.load(self._data_dir + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
-        act = torch.tensor(act, dtype=torch.int64)
+        act = torch.tensor(act, dtype=self.act_type)
         obs = torch.tensor(obs, dtype=torch.float32)
         return obs, act
 
@@ -80,7 +81,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
 def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, num_workers=0):
     generate_trajectories(env, agent, n_trajs, seq_length, folder)
     folder = folder + '/' + env.name + '-' + type(agent).__name__
-    dataset = TrajDataset(folder, seq_length, n_trajs)
+    dataset = TrajDataset(folder, seq_length, n_trajs, env.getActType())
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
 
     

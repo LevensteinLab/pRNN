@@ -49,7 +49,7 @@ class Shell:
     def collectObservationSequence(self, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed=None, dataloader=False, reset=True):
+                                   seed=None, dataloader=False, reset=True, save_env=False):
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
@@ -80,14 +80,18 @@ class Shell:
                                                         inv_x=inv_x,
                                                         inv_y=inv_y,
                                                         reset=reset)
+                if save_env:
+                    obs_env = obs # save the environment format
                 if obs_format == 'pred': # to train right away
                     obs, act = self.env2pred(obs, act)
                 elif obs_format == 'npgrid': # to save as numpy array
                     obs, act = self.env2np(obs, act)
                 elif obs_format is None:
                     continue
-
-        return obs, act, state, render
+        if save_env:
+            return obs, act, state, render, obs_env
+        else:
+            return obs, act, state, render # for backward compatibility
 
     def dir2deg(self, dir):
         raise NotImplementedError('Environment-specific "Shell" class should be used')
@@ -121,6 +125,12 @@ class Shell:
     def getActSize(self):
         """
         Gets the size of the action vector
+        """
+        raise NotImplementedError('Environment-specific "Shell" class should be used')
+    
+    def getActType(self):
+        """
+        Gets the Torch dtype of the action vector
         """
         raise NotImplementedError('Environment-specific "Shell" class should be used')
     
@@ -214,6 +224,9 @@ class GymMinigridShell(Shell):
                                    numSuppObs=self.numHDs)
         act_size = action.size(2)
         return act_size
+    
+    def getActType(self):
+        return torch.int64
 
     def getObsSize(self):
         obs_size = np.prod(self.obs_shape)
@@ -347,7 +360,7 @@ class RatInABoxShell(Shell):
     
     def env2pred(self, obs, act=None):
         if act is not None:
-            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.HDbins)
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_means
 
         obs = obs.clip(max=1)
@@ -359,7 +372,7 @@ class RatInABoxShell(Shell):
     
     def env2np(self, obs, act=None):
         if act is not None:
-            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.HDbins)
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_means
         act = np.array(act)
 
@@ -418,6 +431,9 @@ class RatInABoxShell(Shell):
         action = self.encodeAction(act=np.ones((2,3)), meanspeed=self.ag.speed_mean, nbins=self.numHDs)
         act_size = action.size(2)
         return act_size
+    
+    def getActType(self):
+        return torch.float32
 
     def getObsSize(self):
         obs_size = self.vision[0].n + self.vision[1].n
@@ -524,7 +540,7 @@ class RiaBRemixColorsShell(RatInABoxShell):
 
         return obs, act
 
-    def env2pred(self, obs, act=None):
+    def env2np(self, obs, act=None):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean

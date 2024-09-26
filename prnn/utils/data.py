@@ -7,12 +7,12 @@ from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
 
 class TrajDataset(Dataset):
-    def __init__(self, folder: str, seq_length: int, n_trajs: int, act_type=None):
+    def __init__(self, folder: str, seq_length: int, n_trajs: int, act_datatype=None):
         self._data_dir = folder
         #self.path = Path(folder)
         self.n_trajs = n_trajs
         self.seq_length = seq_length
-        self.act_type = act_type # different depending on the environment
+        self.act_type = act_datatype # different depending on the environment
 
     def __len__(self):
         return self.n_trajs
@@ -56,7 +56,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
                 act = np.load(str(child / "act.npy"))
                 new_obs, new_act, new_state, _ = env.collectObservationSequence(agent,
                                                                                 seq_length - length_generated,
-                                                                                obs_format='npgrid',
+                                                                                obs_format=None,#This makes sure actions are not encoded
                                                                                 reset=False)
                 obs = np.concatenate((obs, new_obs[:,1:]), axis=1)
                 act = np.concatenate((act, new_act), axis=1)
@@ -97,7 +97,7 @@ class MergedTrajDataset(TrajDataset):
             try:
                 act = np.load(self._data_dir[i] + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
                 obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
-                act = torch.tensor(act, dtype=torch.int64)
+                act = torch.tensor(act, dtype=self.act_type)
                 obs = torch.tensor(obs, dtype=torch.float32)
                 break
             except FileNotFoundError:
@@ -108,7 +108,10 @@ def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, mixed_batch=T
     datafolders = [env.dataLoader.dataset._data_dir for env in envs]
     seq_length = [env.dataLoader.dataset.seq_length for env in envs]
     n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
-    datasetMerged = MergedTrajDataset(datafolders, min(seq_length), n_trajs)
+    env_act_datatype = envs[0].getActType()
+    for env in envs:
+        assert env.getActType() == env_act_datatype
+    datasetMerged = MergedTrajDataset(datafolders, min(seq_length), n_trajs, env_act_datatype)
 
     iterators = [env.killIterator() for env in envs]
     envMerged = copy.deepcopy(envs[0])

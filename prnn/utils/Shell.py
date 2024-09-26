@@ -65,9 +65,11 @@ class Shell:
                 self.DL_iterator = iter(self.dataLoader)
             try:
                 obs, act = next(self.DL_iterator)
+                obs, act = self.env2pred(obs, act)
             except StopIteration:
                 self.DL_iterator = iter(self.dataLoader)
                 obs, act = next(self.DL_iterator)
+                obs, act = self.env2pred(obs, act)
             obs = obs[:,:tsteps+1]
             act = act[:,:tsteps]
             state = None

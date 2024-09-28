@@ -928,7 +928,7 @@ class PredictiveNet:
 
             if savename is not None:
                 saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
-                        filetype='pdf')
+                        filetype='png')
             plt.show()
 
         return decoded
@@ -1061,9 +1061,9 @@ class PredictiveNet:
                 plt.yticks([])
 
         if savename is not None:
-            #plt.savefig(savename+'_ObservationSequence.pdf',format='pdf')
+            #plt.savefig(savename+'_ObservationSequence.png',format='png')
             saveFig(plt.gcf(),savename+'_ObservationSequence',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
 
         return
@@ -1087,9 +1087,9 @@ class PredictiveNet:
         #plt.xticks([0,self.numTrainingTrials+1])
 
         if savename is not None:
-            #plt.savefig(savename+'_LerningCurve.pdf',format='pdf')
+            #plt.savefig(savename+'_LerningCurve.png',format='png')
             saveFig(fig,savename+'_LearningCurve',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         if axis is None:
             plt.show()
 
@@ -1190,7 +1190,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_TuningCurves',savefolder,
-                    filetype='pdf')
+                    filetype='png')
 
         if nofig:
             plt.show()
@@ -1229,7 +1229,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_DelayDist',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
 
         return dd

@@ -276,7 +276,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.3)
         if netname is not None:
             saveFig(fg,'TCReliability_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
         
@@ -305,7 +305,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.1)
         if netname is not None:
             saveFig(fg,'TCExamples_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
         
@@ -343,7 +343,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.3)
         if netname is not None:
             saveFig(fg,'SpatialTuning_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
     

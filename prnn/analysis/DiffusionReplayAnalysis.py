@@ -255,7 +255,7 @@ class DiffusionReplayAnalysis:
         
         if netname is not None:
             saveFig(plt.gcf(),netname+'_DiffusionFigure',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         
         plt.show()
         
@@ -411,7 +411,7 @@ class DiffusionReplayAnalysis:
         #plt.tight_layout()
         if netname is not None:
             saveFig(plt.gcf(),netname+'_STDPanel',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
         

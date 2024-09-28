@@ -59,7 +59,7 @@ def TrainingFigure(predictiveNet,
     
     if savename is not None: 
         saveFig(plt.gcf(),savename+'_TrainingFigure',savefolder,
-                filetype='pdf')
+                filetype='png')
     plt.show()
     
     return
@@ -215,7 +215,7 @@ def SpontActivityFigure(predictiveNet, compareWAKEagent=None,
     
     if savename is not None: 
         saveFig(plt.gcf(),savename+'_SpontActivityFigure',savefolder,
-                filetype='pdf')
+                filetype='png')
 
     plt.show()
     
@@ -272,7 +272,7 @@ def SpontActivityExamples(predictiveNet, examples=((0,0.1),(0,0.25),(0,0.4)),
         
     if savename is not None:
         saveFig(plt.gcf(),savename+'_SpontaneousExamples',savefolder,
-                filetype='pdf')
+                filetype='png')
 
     plt.show()
 
@@ -345,7 +345,7 @@ def SpontTrajectoryFigure(predictiveNet, decoder, noisemag=0, noisestd=0.25,
 
     if savename is not None:
         saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
-                filetype='pdf')
+                filetype='png')
 
     plt.show()
 
@@ -417,7 +417,7 @@ def OfflineTrajectoryProps(predictiveNet, decoder,
             plt.ylabel('dx')
     if savename is not None:
         saveFig(plt.gcf(),savename+'_OfflineTrajectoryProps',savefolder,
-                filetype='pdf')
+                filetype='png')
     
     plt.show()
     
@@ -503,5 +503,5 @@ def IsoMapFigure(predictiveNet,env,agent, noisemag=0, noisestd=0.25,
     
     if savename is not None:
         saveFig(plt.gcf(),savename+'_Isomap',savefolder,
-                filetype='pdf')
+                filetype='png')
     plt.show()

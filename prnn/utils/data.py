@@ -71,7 +71,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
         for i in range(n_trajs - n_generated):
             traj_dir = top_dir / str(n_generated + i + 1)
             traj_dir.mkdir()
-            obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format='npgrid')
+            obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format=None)#This makes sure actions are not encoded
             last_state = env.save_state(act, state)
             np.save(str(traj_dir / "obs.npy"), obs)
             np.save(str(traj_dir / "act.npy"), act)

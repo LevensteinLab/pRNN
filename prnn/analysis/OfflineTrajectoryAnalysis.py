@@ -268,7 +268,7 @@ class OfflineTrajectoryAnalysis:
                                                 vmax=0.2, incLabels=False)
         if netname is not None:
             saveFig(plt.gcf(),netname+'_TransitionProbability',savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
     
@@ -457,7 +457,7 @@ class OfflineTrajectoryAnalysis:
         
         if netname is not None:
             saveFig(plt.gcf(),netname+'_SpontaneousTrajectory',savefolder,
-                    filetype='pdf')
+                    filetype='png')
 
         plt.show()
 

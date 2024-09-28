@@ -157,7 +157,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel('position')
 
         saveFig(plt.gcf(),'ActionRSA_'+netname,savefolder,
-                filetype='pdf')
+                filetype='png')
         plt.show()
     
     def getActionIDs(self,keepIDX=None):
@@ -545,7 +545,7 @@ class representationalGeometryAnalysis:
         
         if netname is not None:
             saveFig(plt.gcf(),'SIDependence_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
     def isomapPanel3d(self, colorvar='position', rotate=(0,0)):
@@ -656,7 +656,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel()
         if netname is not None:
             saveFig(plt.gcf(),'SpatialRSA_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
     
     @staticmethod
@@ -736,7 +736,7 @@ class representationalGeometryAnalysis:
         #plt.tight_layout()
         if savefolder is not None:
             saveFig(plt.gcf(), 'WakeSleepDistance_'+netname, savefolder,
-                    filetype='pdf')
+                    filetype='png')
 
         plt.show()
         
@@ -770,7 +770,7 @@ class representationalGeometryAnalysis:
 
         plt.tight_layout()
         saveFig(plt.gcf(),'AllRSA_'+netname,savefolder,
-                filetype='pdf')
+                filetype='png')
         plt.show()
         
     def saveAnalysis(self, savefolder):

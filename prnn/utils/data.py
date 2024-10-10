@@ -56,7 +56,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
                 act = np.load(str(child / "act.npy"))
                 new_obs, new_act, new_state, _ = env.collectObservationSequence(agent,
                                                                                 seq_length - length_generated,
-                                                                                obs_format=None,#This makes sure actions are not encoded
+                                                                                obs_format='npgrid',
                                                                                 reset=False)
                 obs = np.concatenate((obs, new_obs[:,1:]), axis=1)
                 act = np.concatenate((act, new_act), axis=1)
@@ -71,7 +71,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
         for i in range(n_trajs - n_generated):
             traj_dir = top_dir / str(n_generated + i + 1)
             traj_dir.mkdir()
-            obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format=None)#This makes sure actions are not encoded
+            obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format='npgrid')
             last_state = env.save_state(act, state)
             np.save(str(traj_dir / "obs.npy"), obs)
             np.save(str(traj_dir / "act.npy"), act)

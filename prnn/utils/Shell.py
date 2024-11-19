@@ -165,6 +165,7 @@ class GymMinigridShell(Shell):
         self.width = self.env.unwrapped.grid.width
         self.continuous = False
         self.max_dist = False
+        self.loc_mask = [x==None or x.can_overlap() for x in env.grid.grid]
     
     @property
     def action_space(self):

@@ -625,12 +625,12 @@ class representationalGeometryAnalysis:
         return
     
     def keyPanel(self):
-        pos = self.WAKEactivity['state']['agent_pos']
-        color = np.arctan((pos[:-1,0]-self.mapcenter[0])/
-                          (pos[:-1,1]-self.mapcenter[1]))
+        pos = np.unique(self.WAKEactivity['state']['agent_pos'],axis=0)
+        color = np.arctan((pos[:,0]-self.mapcenter[0])/
+                          (pos[:,1]-self.mapcenter[1]))
         
         ax = plt.gca()
-        ax.scatter(pos[:-1, 0], pos[:-1, 1], 
+        ax.scatter(pos[:, 0], pos[:, 1], 
                    c=color, marker='.', s=4)
         #ax.view_init(rotate[0]-140, rotate[1]+60)
         ax.xaxis.set_ticks([])
@@ -704,7 +704,7 @@ class representationalGeometryAnalysis:
             clb.ax.set_ylabel('P[neural|space]')
         
     def WakeSleepFigure(self, netname, savefolder=None, 
-                        isomapRotation=(0,0), withKey =True):
+                        isomapRotation=(0,0), withKey =True, withSleep=True):
         
         plt.figure()
         # plt.subplot(3,8,3)
@@ -728,7 +728,8 @@ class representationalGeometryAnalysis:
             #self.isomapPanel3d('Sleep', rotate=isomapRotation)
             plt.subplot(3,3,1)
             self.isomapPanel('position')
-            self.isomapPanel('Sleep')
+            if withSleep:
+                self.isomapPanel('Sleep')
             if withKey:
                 plt.subplot(6,6,13)
                 self.keyPanel()

@@ -11,6 +11,7 @@ from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
 
 actionOptions = {'OnehotHD' : OneHotHD ,
+                 'OnehotHDPrevAct' : OneHotHDPrevAct,
                  'SpeedHD' : SpeedHD ,
                  'SpeedNextHD' : SpeedNextHD,
                  'Onehot' : OneHot,

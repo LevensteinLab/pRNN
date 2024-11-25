@@ -57,6 +57,13 @@ def OneHotHD(act, obs, numSuppObs = 4, numActs = 7):
     act = addHD(act, obs, numSuppObs)
     return act
 
+def OneHotHDPrevAct(act, obs, numSuppObs = 4, numActs = 7):
+    act = OneHot(act, obs, numActs)
+    # Shift actions to the right by 1
+    act = nn.ConstantPad1d((0,0,1,0),0)(act)[...,:-1,:]
+    act = addHD(act, obs, numSuppObs)
+    return act
+
 
 def SpeedHD(act, obs, numSuppObs = 4, numActs = 7):
     act = OneHot(act, obs, numActs)

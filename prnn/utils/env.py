@@ -8,6 +8,9 @@ Created on Tue Nov  9 22:00:57 2021
 import numpy as np
 import matplotlib.pyplot as plt
 
+from gymnasium import spaces
+from gymnasium.core import ObservationWrapper
+
 from prnn.utils.Shell import *
 from prnn.examples.RatEnvironment import make_rat_env
 
@@ -31,9 +34,9 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
     elif package=='farama-minigrid':
         import gymnasium as gym
         import minigrid
-        from minigrid.wrappers import RGBImgPartialObsWrapper_HD
+        import prnn.examples.Lroom
         if wrap:
-            env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
+            env = RGBImgPartialObsWrapper_HD_Farama(gym.make(env_key),tile_size=1)
         else:
             env = gym.make(env_key)
         env.reset(seed=seed)
@@ -62,3 +65,37 @@ def plot_env(env, highlight=True):
     plt.imshow(gridView)
     plt.xticks([])
     plt.yticks([])
+
+
+class RGBImgPartialObsWrapper_HD_Farama(ObservationWrapper):
+    """
+    Wrapper to use partially observable RGB image as observation.
+    This can be used to have the agent to solve the gridworld in pixel space.
+    Including direction information (HD)
+    """
+
+    def __init__(self, env, tile_size=8):
+        super().__init__(env)
+
+        self.tile_size = tile_size
+
+        obs_shape = env.observation_space['image'].shape
+        self.observation_space.spaces['image'] = spaces.Box(
+            low=0,
+            high=255,
+            shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
+            dtype='uint8'
+        )
+        self.observation_space.spaces['direction'] = spaces.Discrete(4)
+
+            
+    def observation(self, obs):
+        env = self.unwrapped
+
+        rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+
+        return {
+            'mission': obs['mission'],
+            'image': rgb_img_partial,
+            'direction': obs['direction']
+        }

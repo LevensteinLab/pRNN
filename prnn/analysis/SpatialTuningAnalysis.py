@@ -51,13 +51,15 @@ class SpatialTuningAnalysis:
             self.pNControl = makeUntrainedNet(self.pN,env,agent, ratenorm = ratenorm)
             self.untrainedFields = self.pNControl.TrainingSaver['place_fields'].values[-1]
             self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
-            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake)
+            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake,
+                                        theta='expand')
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
         #Run WAKE
-        self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake)
+        self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake,
+                                        theta='expand')
         print('Calculating EV_s')
         self.FAKEactivity, self.TCreliability = self.calculateTuningCurveReliability(self.WAKEactivity,self.tuning_curves)
         
@@ -86,6 +88,11 @@ class SpatialTuningAnalysis:
         
         if theta == 'mean':
             h = h.mean(axis=0,keepdims=True)
+        if theta == 'expand':
+            k = h.size(dim=0)
+            h = h.transpose(0,1).reshape((-1,1,h.size(dim=2))).swapaxes(0,1)
+            a['state']['agent_pos'] = np.repeat( a['state']['agent_pos'], k, axis=0)
+            a['state']['agent_pos'] = a['state']['agent_pos'][:h.size(dim=1)+1,:]
             
         a['h'] = np.squeeze(h.detach().numpy())
         return a

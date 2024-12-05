@@ -109,6 +109,7 @@ netOptions = {'vRNN' : vRNN,
               'thRNN_5win_noLN' : thRNN_5win_noLN,
               'thRNN_6win_noLN' : thRNN_6win_noLN,
               'sgpRNN_5win'     : sgpRNN_5win,
+              'lognRNN_rollout' : lognRNN_rollout,
               }
 
 

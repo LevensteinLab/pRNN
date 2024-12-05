@@ -13,7 +13,7 @@ import torch
 import numpy as np
 from scipy.linalg import toeplitz
 from scipy.stats import norm
-from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell, SparseGatedRNNCell
+from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell, SparseGatedRNNCell, LogNRNNCell
 
 from prnn.utils.pytorchInits import CANN_
 
@@ -1001,6 +1001,20 @@ class thcycRNN_5win_first_adapt(pRNN_th):
                                        predOffset=0, actOffset=0,
                                        continuousTheta=False, actionTheta=False)
         
+
+
+class lognRNN_rollout(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LogNRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, mean_std_ratio=1):
+        super(lognRNN_rollout, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=0,
+                                       continuousTheta=False, actionTheta=True,
+                                       mean_std_ratio= mean_std_ratio)
         
         
               

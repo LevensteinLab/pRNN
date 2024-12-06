@@ -161,6 +161,7 @@ class AdaptingRNNCell(nn.Module):
         self.hidden_size = hidden_size
         
         #Pytorch Initalization ("goodbug") with input scaling
+        #TODO: This could all be done as a subclass of RNNCell...
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
         self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
@@ -194,7 +195,7 @@ class LayerNormRNNCell(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         
-        #This could all be done as a subclass of RNNCell...
+        #TODO: This could all be done as a subclass of RNNCell...
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
@@ -264,7 +265,7 @@ class LogNRNNCell(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         
-        #This could all be done as a subclass of RNNCell...
+        #TODO: This could all be done as a subclass of RNNCell...
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
@@ -282,6 +283,7 @@ class LogNRNNCell(nn.Module):
         
         #TODO: Add option for torch.sigmoid or torch.tanh
         self.actfun = torch.nn.ReLU()
+        #self.actfun = torch.nn.Softplus()
 
     # TODO: with and without history (-h) 
     #@jit.script_method

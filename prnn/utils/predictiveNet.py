@@ -30,6 +30,8 @@ from prnn.utils.general import delaydist
 from prnn.utils.LinearDecoder import linearDecoder
 
 from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
+from prnn.utils.eg_utils import SGD
+
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
@@ -128,8 +130,8 @@ class PredictiveNet:
                                                              in mind t vs t+1)
     """
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
-                 learningRate=2e-3, bias_lr=0.1,
-                 weight_decay=3e-3, losstype='predMSE', 
+                 learningRate=2e-3, bias_lr=0.1, eg_lr=None,
+                 weight_decay=3e-3, eg_weight_decay=1e-6, losstype='predMSE', 
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
@@ -161,7 +163,8 @@ class PredictiveNet:
 
         self.loss_fn  = lossOptions[losstype]()
         self.resetOptimizer(learningRate, weight_decay,
-                            trainBias=trainBias, bias_lr=bias_lr)
+                            trainBias=trainBias, bias_lr=bias_lr,
+                            eg_lr=eg_lr, eg_weight_decay=eg_weight_decay)
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
 
@@ -478,7 +481,8 @@ class PredictiveNet:
         return
     
 
-    def resetOptimizer(self, learningRate, weight_decay, trainBias=False, bias_lr=1):
+    def resetOptimizer(self, learningRate, weight_decay, trainBias=False, bias_lr=1, 
+                       eg_lr=None, eg_weight_decay=1e-6):
         self.learningRate = learningRate
         self.weight_decay = weight_decay
         rootk_h = np.sqrt(1./self.pRNN.rnn.cell.hidden_size)
@@ -533,7 +537,19 @@ class PredictiveNet:
                         'weight_decay': weight_decay*learningRate*rootk_i
                         }
             self.optimizer.add_param_group(insparseparmgroup)
-            
+
+        if eg_lr is not None:
+            self.optimizer = SGD(self.optimizer.param_groups)
+            for group in self.optimizer.param_groups:
+                update_alg = 'gd'
+                for p in group['params']:
+                    if (p.abs()>0).all() :
+                        update_alg = 'eg'
+                        #TODO this needs to throw error if different p's are not all the same
+                if update_alg == 'eg':
+                    group['update_alg'] = update_alg
+                    group['lr'] = eg_lr
+                    group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self,savename,savefolder=''):

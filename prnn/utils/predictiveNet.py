@@ -30,7 +30,7 @@ from prnn.utils.general import delaydist
 from prnn.utils.LinearDecoder import linearDecoder
 
 from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
-from prnn.utils.eg_utils import SGD
+from prnn.utils.eg_utils import RMSpropEG
 
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
@@ -539,11 +539,11 @@ class PredictiveNet:
             self.optimizer.add_param_group(insparseparmgroup)
 
         if eg_lr is not None:
-            self.optimizer = SGD(self.optimizer.param_groups)
+            self.optimizer = RMSpropEG(self.optimizer.param_groups)
             for group in self.optimizer.param_groups:
                 update_alg = 'gd'
                 for p in group['params']:
-                    if (p.abs()>0).all() :
+                    if (p>0).all() | (p<0).all():
                         update_alg = 'eg'
                         #TODO this needs to throw error if different p's are not all the same
                 if update_alg == 'eg':

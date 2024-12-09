@@ -236,6 +236,150 @@ def sgd(params: List[Tensor],
             # if weight is neg, and grad is neg (so pos update) instead the weight will become more negative
             param.mul_(torch.exp(param.sign() * d_p * -lr))
 
+
+
+class RMSpropEG(Optimizer):
+    """
+    A slightly modified version of PyTorch's RMSprop optimizer to include the
+    option for exponential gradient updates (via update_alg).
+    See: https://github.com/pytorch/pytorch/blob/main/torch/optim/rmsprop.py
+    """
+    def __init__(self, params, lr=1e-2, alpha=0.99, eps=1e-8, weight_decay=0,
+                 momentum=0, centered=False, update_alg="gd"):
+        if not 0.0 <= lr:
+            raise ValueError(f"Invalid learning rate: {lr}")
+        if not 0.0 <= eps:
+            raise ValueError(f"Invalid epsilon value: {eps}")
+        if not 0.0 <= momentum:
+            raise ValueError(f"Invalid momentum value: {momentum}")
+        if not 0.0 <= weight_decay:
+            raise ValueError(f"Invalid weight_decay value: {weight_decay}")
+        if not 0.0 <= alpha:
+            raise ValueError(f"Invalid alpha value: {alpha}")
+        if update_alg not in ["gd", "eg"]:
+            raise ValueError(f"Invalid update_alg value: {update_alg}")
+
+        defaults = dict(lr=lr,
+                        momentum=momentum,
+                        alpha=alpha,
+                        eps=eps,
+                        centered=centered,
+                        weight_decay=weight_decay,
+                        update_alg=update_alg)
+
+        super().__init__(params, defaults)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        """Performs a single optimization step."""
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            params_with_grad = []
+            grads = []
+            square_avgs = []
+            momentum_buffer_list = []
+            grad_avgs = []
+
+            for p in group['params']:
+                if p.grad is not None:
+                    params_with_grad.append(p)
+                    grads.append(p.grad)
+                    state = self.state[p]
+
+                    # State initialization
+                    if len(state) == 0:
+                        state['square_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                        if group['momentum'] > 0:
+                            state['momentum_buffer'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                        if group['centered']:
+                            state['grad_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+
+                    square_avgs.append(state['square_avg'])
+
+                    if group['momentum'] > 0:
+                        momentum_buffer_list.append(state['momentum_buffer'])
+
+                    if group['centered']:
+                        grad_avgs.append(state['grad_avg'])
+
+            rmsprop(params_with_grad,
+                    grads,
+                    square_avgs,
+                    momentum_buffer_list,
+                    grad_avgs,
+                    lr=group['lr'],
+                    alpha=group['alpha'],
+                    eps=group['eps'],
+                    weight_decay=group['weight_decay'],
+                    momentum=group['momentum'],
+                    centered=group['centered'],
+                    update_alg=group['update_alg'])
+
+        return loss
+
+
+def rmsprop(params: List[torch.Tensor],
+            grads: List[torch.Tensor],
+            square_avgs: List[torch.Tensor],
+            momentum_buffer_list: List[Optional[torch.Tensor]],
+            grad_avgs: List[torch.Tensor],
+            *,
+            lr: float,
+            alpha: float,
+            eps: float,
+            weight_decay: float,
+            momentum: float,
+            centered: bool,
+            update_alg: str):
+
+    for i, param in enumerate(params):
+        grad = grads[i]
+        square_avg = square_avgs[i]
+
+        # Apply weight decay
+        if weight_decay != 0:
+            if update_alg == "gd":
+                grad = grad.add(param, alpha=weight_decay)
+            elif update_alg == "eg":
+                # param.sign added bec. in the update we need to multiply by sign
+                # which induces an error here (neg weights will grow with w.d)
+                grad = grad.add(param.sign(), alpha=weight_decay)
+
+        # Update running average of squared gradients
+        square_avg.mul_(alpha).addcmul_(grad, grad, value=1 - alpha)
+
+        if centered:
+            grad_avg = grad_avgs[i]
+            grad_avg.mul_(alpha).add_(grad, alpha=1 - alpha)
+            avg = square_avg.addcmul(grad_avg, grad_avg, value=-1).sqrt().add_(eps)
+        else:
+            avg = square_avg.sqrt().add_(eps)
+
+        if momentum > 0:
+            buf = momentum_buffer_list[i]
+            buf.mul_(momentum).addcdiv_(grad, avg)
+            grad = buf
+        else:
+            grad = grad.div(avg)
+
+        # Apply update algorithm
+        if update_alg == "gd":
+            param.add_(grad, alpha=-lr)
+        elif update_alg == "eg":
+            # multiply by sign to ensure that the update is in the correct direction
+            # this occurs because eg is not compatible with negative weights
+            # if weight is neg, and grad is neg (so pos update) instead the weight will become more negative
+            param.mul_(torch.exp(param.sign() * grad * -lr))
+
+
+
 def max_singular_value(W, num_iters=50):
     # Step 1: Initialize a random vector
     v = torch.randn(W.size(1), device=W.device)

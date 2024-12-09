@@ -56,7 +56,7 @@ class thetaRNNLayer(nn.Module):
             input = torch.zeros(internal.size(0),internal.size(1),self.cell.input_size,
                                 device=self.cell.weight_hh.device)
         if state.size(0)==0:
-            state = torch.zeros(internal.size(0),1,self.cell.hidden_size,
+            state = torch.zeros(1,1,self.cell.hidden_size,
                                 device=self.cell.weight_hh.device)
         if internal.size(0)==0:
             internal = torch.zeros(theta+1,input.size(1),self.cell.hidden_size,

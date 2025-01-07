@@ -19,6 +19,9 @@ import numbers
 import numpy as np
 import math
 
+import torch.nn.utils.prune as prune
+
+
 #class RNNLayer(jit.ScriptModule):
 class thetaRNNLayer(nn.Module):    
     """
@@ -260,22 +263,28 @@ class AdaptingLayerNormRNNCell(nn.Module):
 
 
 class LogNRNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size, musig=[0,1], mean_std_ratio=1):
+    def __init__(self, input_size, hidden_size, musig=[0,1], mean_std_ratio=1., sparsity=1.):
         super(LogNRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         
         #TODO: This could all be done as a subclass of RNNCell...
         #Pytorch Initalization ("goodbug") with input scaling
+        #Note - should implement uniform similar to lognormal_ for consistency (and similar sparsity implementation)
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
         self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
         self.weight_hh = Parameter(torch.rand(hidden_size, hidden_size)*2*rootk_h-rootk_h)
 
         #Reinitialize with lognormal weights
-        lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio)
-        lognormal_(self.weight_ih, mean_std_ratio=mean_std_ratio)
-        
+        sparse_lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
+        sparse_lognormal_(self.weight_ih, mean_std_ratio=mean_std_ratio, sparsity=1.)
+        #self.weight_hh = Parameter(self.weight_hh.to_sparse())
+        #self.weight_ih = Parameter(self.weight_ih.to_sparse())
+        #with torch.no_grad():
+        #    prune.random_unstructured(self, name="weight_hh", amount=1-sparsity)
+        #self.weight_hh = Parameter(self.weight_hh)
+
         self.layernorm = LayerNorm(hidden_size,musig)
         
         self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
@@ -384,11 +393,12 @@ def calc_ln_mu_sigma(mean, var):
     sigma_ln = math.sqrt(math.log(1 + (var / mean ** 2)))
     return mu_ln, sigma_ln
 
-def lognormal_(
+def sparse_lognormal_(
     tensor: Tensor,
     gain: float = 1.0,
     mode: str = "fan_in",
     mean_std_ratio: float = 1,
+    sparsity: float = 1,
     **ignored
 ):
     """
@@ -407,15 +417,22 @@ def lognormal_(
     will have variance = mu^2 + sigma^2 = (1 + mean_std_ratio^2) * sigma^2. Where sigma, mu are
     the log normal distribution parameters.
     """
-    fan = torch.nn.init._calculate_correct_fan(tensor, mode)
+    if sparsity == 0:
+        with torch.no_grad():
+            tensor.mul_(0.)
+        return
+
+    fan = torch.nn.init._calculate_correct_fan(tensor, mode) * sparsity
     std = gain / math.sqrt(fan)
     #std /= (1+mean_std_ratio**2)**0.5 # Adjust for multiplication with bernoulli  
     mu, sigma = calc_ln_mu_sigma(std * mean_std_ratio, std ** 2)
     with torch.no_grad():
         tensor.log_normal_(mu, sigma)
-        #tensor.mul_(2 * torch.bernoulli(0.5 * torch.ones_like(tensor), generator=generator) - 1)    
-    
-
+        #tensor.mul_(2 * torch.bernoulli(0.5 * torch.ones_like(tensor), generator=generator) - 1)  
+        if sparsity < 1:
+            sparse_mask = torch.rand_like(tensor) < sparsity  
+            tensor.mul_(sparse_mask)
+            #tensor = tensor.to_sparse()
 
 
 

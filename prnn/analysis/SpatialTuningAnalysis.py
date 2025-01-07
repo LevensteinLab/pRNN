@@ -10,7 +10,7 @@ class SpatialTuningAnalysis:
                  inputControl=False, untrainedControl=False,
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
-                 agent=False, start_pos=1):
+                 agent=False, start_pos=1, theta='expand'):
         
         self.pN = predictiveNet
         self.inputControl = inputControl
@@ -52,14 +52,14 @@ class SpatialTuningAnalysis:
             self.untrainedFields = self.pNControl.TrainingSaver['place_fields'].values[-1]
             self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
             WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake,
-                                        theta='expand')
+                                        theta=theta)
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
         #Run WAKE
         self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake,
-                                        theta='expand')
+                                        theta=theta)
         print('Calculating EV_s')
         self.FAKEactivity, self.TCreliability = self.calculateTuningCurveReliability(self.WAKEactivity,self.tuning_curves)
         

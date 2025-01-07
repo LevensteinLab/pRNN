@@ -88,7 +88,7 @@ class pRNN(nn.Module):
         self.neuralTimescale = neuralTimescale
 
         with torch.no_grad():
-            self.W.add_(torch.eye(hidden_size).mul_(1-1/self.neuralTimescale))
+            self.W.add_(torch.eye(hidden_size).mul_(1-1/self.neuralTimescale).to_sparse())
 
 
     def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
@@ -904,7 +904,7 @@ class thcycRNN_5win_hold(pRNN_th):
 class thcycRNN_5win_full(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
                  cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5):
+                f=0.5, **cell_kwargs):
         super(thcycRNN_5win_full, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
                                        cell=cell, bptttrunc=bptttrunc, 
@@ -1006,7 +1006,7 @@ class thcycRNN_5win_first_adapt(pRNN_th):
 class lognRNN_rollout(pRNN_th):
     def __init__(self,obs_size, act_size, hidden_size=500,
                  cell=LogNRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5, mean_std_ratio=1):
+                f=0.5, **cell_kwargs):
         super(lognRNN_rollout, self).__init__(obs_size, act_size,  k=5, 
                                        hidden_size=hidden_size,
                                        cell=cell, bptttrunc=bptttrunc, 
@@ -1014,7 +1014,7 @@ class lognRNN_rollout(pRNN_th):
                                        f=f,
                                        predOffset=0, actOffset=0,
                                        continuousTheta=False, actionTheta=True,
-                                       mean_std_ratio= mean_std_ratio)
+                                       **cell_kwargs)
         
         
               

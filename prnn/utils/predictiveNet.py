@@ -543,7 +543,7 @@ class PredictiveNet:
             for group in self.optimizer.param_groups:
                 update_alg = 'gd'
                 for p in group['params']:
-                    if (p>0).all() | (p<0).all():
+                    if (p.to_dense()>=0).all() and not (p.to_dense()==0).all():
                         update_alg = 'eg'
                         #TODO this needs to throw error if different p's are not all the same
                 if update_alg == 'eg':

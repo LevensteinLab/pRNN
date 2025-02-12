@@ -262,6 +262,8 @@ class SpatialTuningAnalysis:
             
             plt.subplot(6,6,10+eidx)
             self.TCreliabilitypanel(excell)
+            if eidx>numex:
+                break
 
 
         plt.ylabel(None)
@@ -269,6 +271,8 @@ class SpatialTuningAnalysis:
         for eidx,excell in enumerate(allexcells):
             plt.subplot(6,6,13+convertHorzVertIdx(eidx,4,6))
             self.tuningCurvepanel(excell)
+            if eidx>numex:
+                break
         
         #for idx,whichcells in enumerate([reliablecells[0:40],unreliablecells]):
         #    subfig = plt.subplot(2,2,2+idx*2)
@@ -288,17 +292,24 @@ class SpatialTuningAnalysis:
         
         
     def TCExamplesFigure(self, netname=None, savefolder=None,
-                         numex=32, seed = None, EVthresh=0.5):
+                         numex=32, seed = None, EVthresh=0.5,
+                         sortby = 'SI', excells = None):
         #Calculate RGA.SIdep = RGA.calculateSIdependence() first... This is sloppy
 
         fg = plt.figure(figsize=(18, 7))
-         
-        reliablecells = np.nonzero(self.TCreliability>EVthresh)[0]
+        
+        if excells is None:
+            reliablecells = np.nonzero(self.TCreliability>EVthresh)[0]
+        else:
+            reliablecells = excells
 
         if seed is not None:
             np.random.seed(seed)
         allexcells = np.random.choice(reliablecells,np.min([numex,len(reliablecells)]),replace=False)
-        SIsortinds = self.SI[allexcells].argsort()
+        if sortby == 'SI':
+            SIsortinds = self.SI[allexcells].argsort()
+        else:
+            SIsortinds = sortby[allexcells].argsort()
         allexcells = allexcells[SIsortinds]
         
         plt.subplot(2,4,8)

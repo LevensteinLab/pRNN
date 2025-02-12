@@ -112,6 +112,7 @@ netOptions = {'vRNN' : vRNN,
               'thRNN_6win_noLN' : thRNN_6win_noLN,
               'sgpRNN_5win'     : sgpRNN_5win,
               'lognRNN_rollout' : lognRNN_rollout,
+              'lognRNN_mask' : lognRNN_mask,
               }
 
 
@@ -586,7 +587,8 @@ class PredictiveNet:
             from prnn.utils.Shell import GymMinigridShell
             for i in range(len(predAgent.EnvLibrary)):
                 predAgent.EnvLibrary[i] = GymMinigridShell(predAgent.EnvLibrary[i],
-                                                            predAgent.encodeAction.__name__)
+                                                            predAgent.encodeAction.__name__,
+                                                            predAgent.trainArgs.env)
             predAgent.env_shell = predAgent.EnvLibrary[0]
         if not suppressText:
             print("Net Loaded from pathname")
@@ -601,7 +603,8 @@ class PredictiveNet:
                                        calculatesRSA = False, bitsec=False,
                                        sleepstd = 0.1, onsetTransient=20,
                                        activeTimeThreshold=200,
-                                       fullRNNstate=False):
+                                       fullRNNstate=False,
+                                       HDinfo=False):
         """
         Use an agent to calculate spatial representation of an environment
         """
@@ -641,6 +644,19 @@ class PredictiveNet:
         numactiveT = np.sum((h>0).numpy(),axis=1)
         inactive_cells = numactiveT<activeTimeThreshold
         SI.iloc[inactive_cells.flatten()]=0
+
+        if HDinfo:
+            #Get HD Tuning
+            HD = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
+                            d = state['agent_dir'][onsetTransient:-1],
+                            columns = ('HD'), time_units = 's')
+            HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(rates,HD,
+                                                                    ep=rates.time_support,
+                                                                    nb_bins=np.max(HD)+1,
+                                                                    minmax=(np.min(HD)-0.5,np.max(HD)+0.5))
+            HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
+                                            bitssec=bitsec)
+            SI['HDinfo'] = HD_info['SI']
 
 
         if inputControl:
@@ -742,7 +758,7 @@ class PredictiveNet:
 
         if saveTrainingData:
             self.addTrainingData('place_fields',place_fields)
-            self.addTrainingData('SI',SI)
+            self.addTrainingData('SI',SI['SI'])
         return place_fields, SI, decoder
 
 

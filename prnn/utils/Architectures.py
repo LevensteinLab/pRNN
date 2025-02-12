@@ -580,7 +580,7 @@ class thRNN_4win(pRNN):
 class thRNN_5win(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
                       cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5):
+                f=0.5, **cell_kwargs):
         super(thRNN_5win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
                           cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
                           f=f,
@@ -1015,6 +1015,18 @@ class lognRNN_rollout(pRNN_th):
                                        predOffset=0, actOffset=0,
                                        continuousTheta=False, actionTheta=True,
                                        **cell_kwargs)
+
+class lognRNN_mask(pRNN):
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                      cell=LogNRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, **cell_kwargs):
+        super(lognRNN_mask, self).__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f,
+                          predOffset=0, actOffset=0,
+                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
+                          actMask=None,
+                          **cell_kwargs)
         
         
               

@@ -17,6 +17,10 @@ from typing import List, Tuple
 from torch import Tensor
 import numbers
 import numpy as np
+import math
+
+import torch.nn.utils.prune as prune
+
 
 #class RNNLayer(jit.ScriptModule):
 class thetaRNNLayer(nn.Module):    
@@ -160,6 +164,7 @@ class AdaptingRNNCell(nn.Module):
         self.hidden_size = hidden_size
         
         #Pytorch Initalization ("goodbug") with input scaling
+        #TODO: This could all be done as a subclass of RNNCell...
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
         self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
@@ -193,7 +198,7 @@ class LayerNormRNNCell(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         
-        #This could all be done as a subclass of RNNCell...
+        #TODO: This could all be done as a subclass of RNNCell...
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
@@ -257,11 +262,54 @@ class AdaptingLayerNormRNNCell(nn.Module):
         return hy, (hy,ay)
 
 
+class LogNRNNCell(nn.Module):
+    def __init__(self, input_size, hidden_size, musig=[0,1], mean_std_ratio=1., sparsity=1.):
+        super(LogNRNNCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        
+        #TODO: This could all be done as a subclass of RNNCell...
+        #Pytorch Initalization ("goodbug") with input scaling
+        #Note - should implement uniform similar to lognormal_ for consistency (and similar sparsity implementation)
+        rootk_h = np.sqrt(1./hidden_size)
+        rootk_i = np.sqrt(1./input_size)
+        self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
+        self.weight_hh = Parameter(torch.rand(hidden_size, hidden_size)*2*rootk_h-rootk_h)
+
+        #Reinitialize with lognormal weights
+        sparse_lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
+        sparse_lognormal_(self.weight_ih, mean_std_ratio=mean_std_ratio, sparsity=1.)
+        #self.weight_hh = Parameter(self.weight_hh.to_sparse())
+        #self.weight_ih = Parameter(self.weight_ih.to_sparse())
+        #with torch.no_grad():
+        #    prune.random_unstructured(self, name="weight_hh", amount=1-sparsity)
+        #self.weight_hh = Parameter(self.weight_hh)
+
+        self.layernorm = LayerNorm(hidden_size,musig)
+        
+        self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
+        self.bias = self.layernorm.mu
+        
+        #TODO: Add option for torch.sigmoid or torch.tanh
+        self.actfun = torch.nn.ReLU()
+        #self.actfun = torch.nn.Softplus()
+
+    # TODO: with and without history (-h) 
+    #@jit.script_method
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tensor:
+        hx = state[0]
+        i_input = torch.mm(input, self.weight_ih.t())
+        h_input = torch.mm(hx, self.weight_hh.t())
+        x = self.layernorm(i_input + h_input)
+        hy = self.actfun(x + internal)
+        return hy, (hy,)
+
+
 #TODO: put musig after sparse size/beta, pass through with args or kwargs
 class SparseGatedRNNCell(nn.Module):
     def __init__(self, input_size, hidden_size, 
                  musig=[0,1], sparse_size=1000, sparse_beta=1,
-                 lambda_direct=1, lambda_context=1):
+                 lambda_direct=1, lambda_context=1, lambda_sparse=1):
         super(SparseGatedRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -269,6 +317,7 @@ class SparseGatedRNNCell(nn.Module):
         self.sparse_beta = sparse_beta
         self.lambda_direct = lambda_direct
         self.lambda_context = lambda_context
+        self.lambda_sparse = lambda_sparse
         
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
@@ -292,16 +341,21 @@ class SparseGatedRNNCell(nn.Module):
         hx = state[0]
 
         i_input = torch.mm(input, self.weight_is.t())
-        h_input = torch.mm(hx, self.weight_hs.t())
-        sy = self.sparselayer((i_input + h_input*self.lambda_context)/self.sparse_beta)
+        h_input = 0
+        if self.lambda_context>0:
+            h_input = self.lambda_context * torch.mm(hx, self.weight_hs.t())
+        sy = self.sparselayer((i_input + h_input)/self.sparse_beta)
 
-        i_input = torch.mm(input, self.weight_ih.t())
+        i_input = 0
+        if self.lambda_direct>0:
+            i_input = self.lambda_direct * torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())
-        s_input = torch.mm(sy, self.weight_sh.t())        
-        x = self.layernorm(s_input + h_input + i_input*self.lambda_direct)
+        s_input = self.lambda_sparse * torch.mm(sy, self.weight_sh.t())        
+        x = self.layernorm(h_input + s_input + i_input)
         hy = self.actfun(x + internal)
-        #return torch.cat([hy,sy],1), (hy,)
-        return hy, (hy,)
+        #return hy, (hy,)
+        return torch.cat([hy,sy],1), (hy,)
+        
 
 
 #class LayerNorm(jit.ScriptModule):
@@ -331,7 +385,58 @@ class LayerNorm(nn.Module):
         return (input - mu) / sigma * self.sig + self.mu
     
     
-    
+
+#INIT FUNCTIONS
+def calc_ln_mu_sigma(mean, var):
+    "Given desired mean and var returns ln mu and sigma"
+    mu_ln = math.log(mean ** 2 / math.sqrt(mean ** 2 + var))
+    sigma_ln = math.sqrt(math.log(1 + (var / mean ** 2)))
+    return mu_ln, sigma_ln
+
+def sparse_lognormal_(
+    tensor: Tensor,
+    gain: float = 1.0,
+    mode: str = "fan_in",
+    mean_std_ratio: float = 1,
+    sparsity: float = 1,
+    **ignored
+):
+    """
+    Initializes the tensor with a log normal distribution * {1,-1}. 
+
+    Arguments:
+        tensor: torch.Tensor, the tensor to initialize
+        gain: float, the gain to use for the initialization stddev calulation.
+        mode: str, the mode to use for the initialization. Options are 'fan_in', 'fan_out'
+        generator: optional torch.Generator, the random number generator to use. 
+        mean_std_ratio: float, the ratio of the mean to std for log_normal initialization.
+
+    Note this function draws from a log normal distribution with mean = mean_std_ratio * std
+    and then multiplies the tensor by a random Rademacher dist. variable (impl. with bernoulli). 
+    This induces the need to correct the ln std dev, as the final symmetrical distribution
+    will have variance = mu^2 + sigma^2 = (1 + mean_std_ratio^2) * sigma^2. Where sigma, mu are
+    the log normal distribution parameters.
+    """
+    if sparsity == 0:
+        with torch.no_grad():
+            tensor.mul_(0.)
+        return
+
+    fan = torch.nn.init._calculate_correct_fan(tensor, mode) * sparsity
+    std = gain / math.sqrt(fan)
+    #std /= (1+mean_std_ratio**2)**0.5 # Adjust for multiplication with bernoulli  
+    mu, sigma = calc_ln_mu_sigma(std * mean_std_ratio, std ** 2)
+    with torch.no_grad():
+        tensor.log_normal_(mu, sigma)
+        #tensor.mul_(2 * torch.bernoulli(0.5 * torch.ones_like(tensor), generator=generator) - 1)  
+        if sparsity < 1:
+            sparse_mask = torch.rand_like(tensor) < sparsity  
+            tensor.mul_(sparse_mask)
+            #tensor = tensor.to_sparse()
+
+
+
+
 #Unit Tests
 
 import torch.nn.functional as F

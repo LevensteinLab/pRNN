@@ -30,6 +30,8 @@ from prnn.utils.general import delaydist
 from prnn.utils.LinearDecoder import linearDecoder
 
 from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
+from prnn.utils.eg_utils import RMSpropEG
+
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
@@ -120,6 +122,8 @@ netOptions = {'vRNN' : vRNN,
               'thRNN_5win_noLN' : thRNN_5win_noLN,
               'thRNN_6win_noLN' : thRNN_6win_noLN,
               'sgpRNN_5win'     : sgpRNN_5win,
+              'lognRNN_rollout' : lognRNN_rollout,
+              'lognRNN_mask' : lognRNN_mask,
               }
 
 
@@ -138,8 +142,8 @@ class PredictiveNet:
                                                              in mind t vs t+1)
     """
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
-                 learningRate=2e-3, bias_lr=0.1,
-                 weight_decay=3e-3, losstype='predMSE', 
+                 learningRate=2e-3, bias_lr=0.1, eg_lr=None,
+                 weight_decay=3e-3, eg_weight_decay=1e-6, losstype='predMSE', 
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
@@ -171,7 +175,8 @@ class PredictiveNet:
 
         self.loss_fn  = lossOptions[losstype]()
         self.resetOptimizer(learningRate, weight_decay,
-                            trainBias=trainBias, bias_lr=bias_lr)
+                            trainBias=trainBias, bias_lr=bias_lr,
+                            eg_lr=eg_lr, eg_weight_decay=eg_weight_decay)
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
 
@@ -191,7 +196,7 @@ class PredictiveNet:
         self.phase_k = len(self.pRNN.inMask)
 
     def predict(self, obs, act, state=torch.tensor([]),
-                mask=None, randInit=True, batched=False):
+                mask=None, randInit=True, batched=False, fullRNNstate=False):
         """
         Generate predicted observation sequence from an observation and action
         sequence batch. Obs_pred is for the next timestep. 
@@ -210,7 +215,8 @@ class PredictiveNet:
             state = self.pRNN.rnn.cell.actfun(state)
         
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
-                                          state=state, mask=mask, batched=batched)
+                                          state=state, mask=mask, batched=batched, 
+                                          fullRNNstate=fullRNNstate)
 
         return obs_pred, obs_next, h
     
@@ -487,7 +493,8 @@ class PredictiveNet:
         return
     
 
-    def resetOptimizer(self, learningRate, weight_decay, trainBias=False, bias_lr=1):
+    def resetOptimizer(self, learningRate, weight_decay, trainBias=False, bias_lr=1, 
+                       eg_lr=None, eg_weight_decay=1e-6):
         self.learningRate = learningRate
         self.weight_decay = weight_decay
         rootk_h = np.sqrt(1./self.pRNN.rnn.cell.hidden_size)
@@ -542,7 +549,19 @@ class PredictiveNet:
                         'weight_decay': weight_decay*learningRate*rootk_i
                         }
             self.optimizer.add_param_group(insparseparmgroup)
-            
+
+        if eg_lr is not None:
+            self.optimizer = RMSpropEG(self.optimizer.param_groups)
+            for group in self.optimizer.param_groups:
+                update_alg = 'gd'
+                for p in group['params']:
+                    if (p.to_dense()>=0).all() and not (p.to_dense()==0).all():
+                        update_alg = 'eg'
+                        #TODO this needs to throw error if different p's are not all the same
+                if update_alg == 'eg':
+                    group['update_alg'] = update_alg
+                    group['lr'] = eg_lr
+                    group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self,savename,savefolder=''):
@@ -579,7 +598,8 @@ class PredictiveNet:
             from prnn.utils.Shell import GymMinigridShell
             for i in range(len(predAgent.EnvLibrary)):
                 predAgent.EnvLibrary[i] = GymMinigridShell(predAgent.EnvLibrary[i],
-                                                            predAgent.encodeAction.__name__)
+                                                            predAgent.encodeAction.__name__,
+                                                            predAgent.trainArgs.env)
             predAgent.env_shell = predAgent.EnvLibrary[0]
         if not suppressText:
             print("Net Loaded from pathname")
@@ -593,16 +613,18 @@ class PredictiveNet:
                                        numBatches=5000, inputControl=False,
                                        calculatesRSA = False, bitsec=False,
                                        sleepstd = 0.1, onsetTransient=20,
-                                       activeTimeThreshold=200):
+                                       activeTimeThreshold=200,
+                                       fullRNNstate=False,
+                                       HDinfo=False):
         """
         Use an agent to calculate spatial representation of an environment
         """
         obs, act, state, render = self.collectObservationSequence(env,agent,timesteps,discretize=True)
 
         if hasattr(self, 'current_state'): # easy way to check if it's CANN
-            obs_pred, obs_next, h  = self.predict(obs,act,state)
+            obs_pred, obs_next, h  = self.predict(obs,act,state, fullRNNstate=fullRNNstate)
         else:
-            obs_pred, obs_next, h  = self.predict(obs,act)
+            obs_pred, obs_next, h  = self.predict(obs,act, fullRNNstate=fullRNNstate)
         
         #for now: take only the 0th theta window...
         #Try: mean
@@ -633,6 +655,19 @@ class PredictiveNet:
         numactiveT = np.sum((h>0).numpy(),axis=1)
         inactive_cells = numactiveT<activeTimeThreshold
         SI.iloc[inactive_cells.flatten()]=0
+
+        if HDinfo:
+            #Get HD Tuning
+            HD = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
+                            d = state['agent_dir'][onsetTransient:-1],
+                            columns = ('HD'), time_units = 's')
+            HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(rates,HD,
+                                                                    ep=rates.time_support,
+                                                                    nb_bins=np.max(HD)+1,
+                                                                    minmax=(np.min(HD)-0.5,np.max(HD)+0.5))
+            HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
+                                            bitssec=bitsec)
+            SI['HDinfo'] = HD_info['SI']
 
 
         if inputControl:
@@ -734,7 +769,7 @@ class PredictiveNet:
 
         if saveTrainingData:
             self.addTrainingData('place_fields',place_fields)
-            self.addTrainingData('SI',SI)
+            self.addTrainingData('SI',SI['SI'])
         return place_fields, SI, decoder
 
 

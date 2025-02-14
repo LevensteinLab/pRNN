@@ -10,7 +10,7 @@ class SpatialTuningAnalysis:
                  inputControl=False, untrainedControl=False,
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
-                 agent=False, start_pos=1):
+                 agent=False, start_pos=1, theta='expand'):
         
         self.pN = predictiveNet
         self.inputControl = inputControl
@@ -51,13 +51,15 @@ class SpatialTuningAnalysis:
             self.pNControl = makeUntrainedNet(self.pN,env,agent, ratenorm = ratenorm)
             self.untrainedFields = self.pNControl.TrainingSaver['place_fields'].values[-1]
             self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
-            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake)
+            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake,
+                                        theta=theta)
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
         #Run WAKE
-        self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake)
+        self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake,
+                                        theta=theta)
         print('Calculating EV_s')
         self.FAKEactivity, self.TCreliability = self.calculateTuningCurveReliability(self.WAKEactivity,self.tuning_curves)
         
@@ -86,6 +88,11 @@ class SpatialTuningAnalysis:
         
         if theta == 'mean':
             h = h.mean(axis=0,keepdims=True)
+        if theta == 'expand':
+            k = h.size(dim=0)
+            h = h.transpose(0,1).reshape((-1,1,h.size(dim=2))).swapaxes(0,1)
+            a['state']['agent_pos'] = np.repeat( a['state']['agent_pos'], k, axis=0)
+            a['state']['agent_pos'] = a['state']['agent_pos'][:h.size(dim=1)+1,:]
             
         a['h'] = np.squeeze(h.detach().numpy())
         return a
@@ -255,6 +262,8 @@ class SpatialTuningAnalysis:
             
             plt.subplot(6,6,10+eidx)
             self.TCreliabilitypanel(excell)
+            if eidx>numex:
+                break
 
 
         plt.ylabel(None)
@@ -262,6 +271,8 @@ class SpatialTuningAnalysis:
         for eidx,excell in enumerate(allexcells):
             plt.subplot(6,6,13+convertHorzVertIdx(eidx,4,6))
             self.tuningCurvepanel(excell)
+            if eidx>numex:
+                break
         
         #for idx,whichcells in enumerate([reliablecells[0:40],unreliablecells]):
         #    subfig = plt.subplot(2,2,2+idx*2)
@@ -281,17 +292,24 @@ class SpatialTuningAnalysis:
         
         
     def TCExamplesFigure(self, netname=None, savefolder=None,
-                         numex=32, seed = None, EVthresh=0.5):
+                         numex=32, seed = None, EVthresh=0.5,
+                         sortby = 'SI', excells = None):
         #Calculate RGA.SIdep = RGA.calculateSIdependence() first... This is sloppy
 
         fg = plt.figure(figsize=(18, 7))
-         
-        reliablecells = np.nonzero(self.TCreliability>EVthresh)[0]
+        
+        if excells is None:
+            reliablecells = np.nonzero(self.TCreliability>EVthresh)[0]
+        else:
+            reliablecells = excells
 
         if seed is not None:
             np.random.seed(seed)
         allexcells = np.random.choice(reliablecells,np.min([numex,len(reliablecells)]),replace=False)
-        SIsortinds = self.SI[allexcells].argsort()
+        if sortby == 'SI':
+            SIsortinds = self.SI[allexcells].argsort()
+        else:
+            SIsortinds = sortby[allexcells].argsort()
         allexcells = allexcells[SIsortinds]
         
         plt.subplot(2,4,8)

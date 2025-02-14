@@ -82,7 +82,7 @@ class predMSE_reg(nn.Module):
         totalloss = predloss+energyloss
         return totalloss, predloss
 
-#https://arxiv.org/pdf/2105.04906.pdf
+#https://arxiv.org/png/2105.04906.png
 class VICReg(nn.Module):
     def __init__(self):
         super(VICReg,self).__init__()

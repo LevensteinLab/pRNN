@@ -31,7 +31,7 @@ def clumpyRandom(size,choices,seedprobability,numiter=1):
 
 
 
-def saveFig(fig,savename,savepath=None,filetype='pdf', dpi=300):
+def saveFig(fig,savename,savepath=None,filetype='png', dpi=300):
     mkdir_p(savepath)
     #if ~isinstance(filetype,list):
     #    filetype = [filetype]

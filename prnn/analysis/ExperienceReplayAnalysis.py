@@ -398,7 +398,7 @@ class ExperienceReplayAnalysis:
         #plt.tight_layout()
         if netname is not None:
             saveFig(plt.gcf(),netname+'_LRReplayPanel',savefolder,
-                    filetype='pdf')
+                    filetype='png')
             
         plt.show()
     

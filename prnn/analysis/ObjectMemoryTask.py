@@ -175,7 +175,7 @@ class ObjectMemoryTask:
         plt.tight_layout()
         if netname is not None:
             saveFig(plt.gcf(),'ObjectLearning_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
         

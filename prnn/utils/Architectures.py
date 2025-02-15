@@ -1128,6 +1128,80 @@ class thcycRNN_5win_first_adapt(pRNN_th):
                                        predOffset=0, actOffset=0,
                                        continuousTheta=False, actionTheta=False)
         
+        
+class thcycRNN_5win_holdc_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_holdc_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=True, actionTheta='hold')
+        
+class thcycRNN_5win_fullc_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_fullc_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=True, actionTheta=True)
+        
+class thcycRNN_5win_firstc_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_firstc_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=True, actionTheta=False)
+        
+        
+class thcycRNN_5win_hold_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_hold_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=False, actionTheta='hold')
+        
+class thcycRNN_5win_full_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_full_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=False, actionTheta=True)
+        
+class thcycRNN_5win_first_prevAct(pRNN_th):
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5):
+        super(thcycRNN_5win_first_prevAct, self).__init__(obs_size, act_size,  k=5, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=1,
+                                       continuousTheta=False, actionTheta=False)
+        
 
 
 class lognRNN_rollout(pRNN_th):
@@ -1154,6 +1228,7 @@ class lognRNN_mask(pRNN):
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=None,
                           **cell_kwargs)
+        
         
         
               

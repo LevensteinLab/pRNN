@@ -73,7 +73,7 @@ def SpeedHD(act, obs, numSuppObs = 4, numActs = 7):
     return act
 
 def SpeedNextHD(act, obs, numSuppObs = 4, numActs = 7):
-    act = OneHot(act, obs, numActs = numActs)
+    act = OneHot(act, obs, numActs)
     act[:,:,forwardIDX+1:] = 0
     act[:,:,:forwardIDX] = 0
     act = addHD(act, obs, numSuppObs, suppOffset=True)

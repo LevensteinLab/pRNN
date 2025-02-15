@@ -26,7 +26,7 @@ class TrajDataset(Dataset):
 
 
 def generate_trajectories(env, agent, n_trajs, seq_length, folder):
-    folder = folder + '/' + env.name + '-' + type(agent).__name__
+    folder = folder + '/' + env.name + '-' + agent.name
     top_dir = Path(folder)
     n_generated = 0
     length_generated = 0
@@ -80,7 +80,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
 
 def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, num_workers=0):
     generate_trajectories(env, agent, n_trajs, seq_length, folder)
-    folder = folder + '/' + env.name + '-' + type(agent).__name__
+    folder = folder + '/' + env.name + '-' + agent.name
     dataset = TrajDataset(folder, seq_length, n_trajs, env.getActType())
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
 

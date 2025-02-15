@@ -114,6 +114,12 @@ netOptions = {'vRNN' : vRNN,
               'thcycRNN_5win_firstc_adapt' : thcycRNN_5win_firstc_adapt,
               'thcycRNN_5win_fullc_adapt' : thcycRNN_5win_fullc_adapt,
               'thcycRNN_5win_holdc_adapt' : thcycRNN_5win_holdc_adapt,
+              'thcycRNN_5win_first_prevAct' : thcycRNN_5win_first_prevAct,
+              'thcycRNN_5win_full_prevAct' : thcycRNN_5win_full_prevAct,
+              'thcycRNN_5win_hold_prevAct' : thcycRNN_5win_hold_prevAct,
+              'thcycRNN_5win_firstc_prevAct' : thcycRNN_5win_firstc_prevAct,
+              'thcycRNN_5win_fullc_prevAct' : thcycRNN_5win_fullc_prevAct,
+              'thcycRNN_5win_holdc_prevAct' : thcycRNN_5win_holdc_prevAct,
               'thRNN_0win_noLN'  :  thRNN_0win_noLN,
               'thRNN_1win_noLN'  :  thRNN_1win_noLN,
               'thRNN_2win_noLN' : thRNN_2win_noLN,
@@ -944,6 +950,7 @@ class PredictiveNet:
         #Consider - separate file for the more compound plots
         obs_pred,h,noise_t = self.spontaneous(timesteps,noisemag,noisestd)
 
+        decoded = None
         p = None
         if decoder:
             decoded, p = self.decode(h,decoder)

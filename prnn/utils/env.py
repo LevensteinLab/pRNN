@@ -42,13 +42,17 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         env.reset(seed=seed)
         env = FaramaMinigridShell(env, act_enc, env_key)
 
-    elif package=='ratinabox':        
+    elif package=='ratinabox_vision':        
         env = make_rat_env(env_key)
-        env = RatInABoxShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBVisionShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
         env = RiaBRemixColorsShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+
+    elif package=='ratinabox_grid':        
+        env = make_rat_env(env_key)
+        env = RiaBGridShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

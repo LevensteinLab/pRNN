@@ -3,8 +3,10 @@
 
 .DS_Store
 __pycache__/
+Figures/
 *.pkl
 *.ipynb_checkpoints/
+*.sh
 
 slurm*
 
@@ -16,3 +18,5 @@ train_example_net.sh
 prnn/analysis/TuningCurveAnalysis.py
 TCA.ipynb
 train_example_net2.sh
+RiaBAnalysis.ipynb
+trainNet_prnn.py

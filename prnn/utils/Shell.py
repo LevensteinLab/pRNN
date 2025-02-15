@@ -3,9 +3,11 @@ import numpy as np
 import matplotlib
 import random
 
+from matplotlib.collections import EllipseCollection
+
 from ratinabox.Agent import Agent
 from ratinabox.Neurons import *
-from ratinabox.contribs.FieldOfViewNeurons import FieldOfViewNeurons
+from ratinabox.utils import get_angle, get_distances_between
 
 from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
@@ -74,7 +76,7 @@ class Shell:
             state = None
             render = None
         else:
-            for bb in range(batch_size):
+            for bb in range(batch_size): #TODO: fix for batch_size>1
                 obs, act, state, render = agent.getObservations(self,tsteps,
                                                         includeRender=includeRender,
                                                         discretize=discretize,
@@ -167,6 +169,7 @@ class GymMinigridShell(Shell):
         self.continuous = False
         self.max_dist = False
         self.loc_mask = [x==None or x.can_overlap() for x in env.grid.grid]
+        self.hd_trans = np.array([-1,1,0,0])
     
     @property
     def action_space(self):
@@ -175,8 +178,13 @@ class GymMinigridShell(Shell):
     def dir2deg(self, dir):
         return HDmap[dir]
     
-    def env2pred(self, obs, act=None):
-        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
+        if hd_from=='obs':
+            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        elif hd_from=='act':
+            hd = self.act2hd(obs[actoffset], act, actoffset)
+        else:
+            KeyError('hd_from should be either "obs" or "act"')
         if act is not None:
             act = self.encodeAction(act=act,
                                     obs=hd,
@@ -188,7 +196,10 @@ class GymMinigridShell(Shell):
         obs = torch.unsqueeze(obs, dim=0)
         obs = obs/255 #normalize image
 
-        return obs, act
+        if hd_from=='obs':
+            return obs, act
+        else:
+            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
     def env2np(self, obs, act=None):
         hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
@@ -206,6 +217,17 @@ class GymMinigridShell(Shell):
         obs = obs.detach().numpy()
         obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
         return obs
+    
+    def act2hd(self, obs, act, act_offset=0):
+        #TODO: adapt for theta with At-1
+        hd = [self.get_hd(obs)]
+        for a in reversed(act[:act_offset]):
+            hd.insert(0, hd[0] - self.hd_trans[a])
+        for a in act[act_offset:]:
+            hd.append(hd[-1] + self.hd_trans[a] +
+                      4 * ((hd[-1]==0) & (self.hd_trans[a]<0)) -
+                      4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
+        return np.array(hd)
     
     def get_agent_pos(self):
         return self.env.unwrapped.agent_pos
@@ -315,26 +337,8 @@ class RatInABoxShell(Shell):
                     'speed_mean': speed,
                     'thigmotaxis': thigmotaxis
                     })
-
-        # Create vision cells
-        FoV_Walls = FieldOfViewNeurons(Ag, params={
-            'spatial_resolution': 0.045,
-            "FoV_angles": [0, 45],
-            "FoV_distance": [0.0, 0.33],
-            })
-        locs = self.env.discretise_environment(dx=0.04)
-        locs = locs.reshape(-1, locs.shape[-1])
-        FoV_Walls.super.cell_fr_norm = np.ones(FoV_Walls.super.n)
-        FoV_Walls.super.cell_fr_norm = np.max(FoV_Walls.super.get_state(evaluate_at=None, pos=locs), axis=1)
-        FoV_Objects = FieldOfViewNeurons(Ag, params={
-            'spatial_resolution': 0.045,
-            "FoV_angles": [0, 45],
-            "FoV_distance": [0.0, 0.33],
-            'cell_type':'OVC',
-            })
         
         self.ag = Ag
-        self.vision = (FoV_Walls, FoV_Objects)
         self.numHDs = HDbins # For One-hot encoding of HD if needed
 
         self.height = int((self.env.extent[3] - self.env.extent[2])/env.dx)
@@ -345,8 +349,6 @@ class RatInABoxShell(Shell):
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
-
-        self.reset()
 
     def dir2deg(self, dir):
         return np.rad2deg(dir)+90
@@ -359,75 +361,6 @@ class RatInABoxShell(Shell):
         )
         self.height = int((self.env.extent[3] - self.env.extent[2])/dx)
         self.width = int((self.env.extent[1] - self.env.extent[0])/dx)
-    
-    def env2pred(self, obs, act=None):
-        if act is not None:
-            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
-            act[:,:,0] = act[:,:,0]/self.ag.speed_means
-
-        obs = obs.clip(max=1)
-        obs = obs.reshape(obs.shape[:-2]+(-1,))
-        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
-        obs = torch.unsqueeze(obs, dim=0)
-
-        return obs, act
-    
-    def env2np(self, obs, act=None):
-        if act is not None:
-            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
-            act[:,:,0] = act[:,:,0]/self.ag.speed_means
-        act = np.array(act)
-
-        obs = obs.clip(max=1)[None]
-        obs = obs.reshape(obs.shape[:-2]+(-1,))
-
-        return obs, act
-    
-    def pred2np(self, obs):
-        self.obs_colors = ['black']
-        facecolor = matplotlib.cm.get_cmap(self.env.object_colormap)
-        for i in range(self.env.n_object_types):
-            self.obs_colors.append(facecolor(i / (self.env.n_object_types - 1 + 1e-8)))
-        
-        obs = obs.detach().numpy().squeeze()
-
-        img = []
-        for t in range(obs.shape[0]):
-            img.append(self.to_image(obs[t])[None,...])
-        obs = np.concatenate(img, axis=0)
-        return obs
-    
-    def to_image(self, obs):
-        fig, ax = plt.subplots()
-        # ax.set_ylim(top=0.5)
-
-        n = self.env.n_object_types
-        obs = obs.reshape(-1,n+1)
-
-        for (i, coord) in enumerate(self.vision[0].manifold_coords_euclid):
-            [x, y] = coord
-
-            for obj in range(n+1):
-                facecolor = list(matplotlib.colors.to_rgba(self.obs_colors[obj]))
-                facecolor[-1] = max(0, min(1, obs[i,obj] / self.vision[int(bool(obj))].super.max_fr)*n/(n+obj)) # Make the colors increasingly transparent as the next overlays the previous
-                circ = matplotlib.patches.Circle(
-                    (-x+0.5, y),
-                    radius=0.5 * self.vision[int(bool(obj))].spatial_resolution,
-                    linewidth=0.5,
-                    edgecolor="dimgrey",
-                    facecolor=facecolor,
-                    zorder=2.1,
-                )
-                ax.add_patch(circ)
-
-        plt.axis('off')
-        fig.tight_layout(pad=0)
-        ax.margins(0)
-        fig.canvas.draw()
-        image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-        return image_from_plot
 
     def getActSize(self):
         action = self.encodeAction(act=np.ones((2,3)), meanspeed=self.ag.speed_mean, nbins=self.numHDs)
@@ -436,21 +369,6 @@ class RatInABoxShell(Shell):
     
     def getActType(self):
         return torch.float32
-
-    def getObsSize(self):
-        obs_size = self.vision[0].n + self.vision[1].n
-        return obs_size
-    
-    def get_viewpoint(self, agent_pos, agent_dir):
-        self.reset(pos=agent_pos, hd=agent_dir)
-
-        walls = np.array(self.vision[0].history["firingrate"][0])
-        objects = np.array(self.vision[1].history["firingrate"][0])
-        n_neurons = walls.shape[0]
-        objects = objects.reshape((n_neurons, -1), order='F')
-        obs = np.concatenate((walls[...,None], objects), axis=-1)
-
-        return self.env2pred(obs)[0].squeeze()
     
     def get_map_bins(self):
         minmax=(0, self.width,
@@ -470,28 +388,194 @@ class RatInABoxShell(Shell):
     
     def set_agent_dir(self, vel):
         self.ag.save_velocity = vel
+
+
+class RiaBVisionShell(RatInABoxShell):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+
+        # Create vision cells
+        FoV_Walls = FieldOfViewBVCs(self.ag, params={
+            'spatial_resolution': 0.01,
+            "angle_range": [0, 45],
+            "distance_range": [0.0, 0.33],
+            })
+        FoV_Objects = [FieldOfViewOVCs(self.ag, params={
+            'spatial_resolution': 0.01,
+            "angle_range": [0, 45],
+            "distance_range": [0.0, 0.33],
+            "object_tuning_type": x
+            }) for x in range(env.n_object_types)]
+        
+        self.vision = [FoV_Walls] + FoV_Objects
+
+        self.obs_colors = ['black']
+        facecolor = matplotlib.cm.get_cmap(self.env.object_colormap)
+        for i in range(self.env.n_object_types):
+            self.obs_colors.append(facecolor(i / (self.env.n_object_types - 1 + 1e-8)))
+
+        self.reset()
+
+    def getObservations(self, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+
+        render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
+        if reset:
+            self.reset()
+        else:
+            self.reset(keep_state=True)
+
+        for aa in range(tsteps):
+            self.ag.update()
+            for i in range(len(self.vision)):
+                self.vision[i].update()
+
+        rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
+        vel = np.array(self.ag.history['vel'][1:])*self.ag.dt
+        act = np.concatenate((rot_vel[:,None], vel), axis=1)
+
+        # walls = np.array(self.vision[0].history["firingrate"])
+        # objects = np.array(self.vision[1].history["firingrate"])
+        # n_neurons = walls.shape[1]
+        # objects = objects.reshape((tsteps+1, n_neurons, -1), order='F')
+        # obs = np.concatenate((walls[...,None], objects), axis=-1)
+        obs = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+
+        pos = np.array(self.ag.history['pos'])
+        if discretize:
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.env.dx
+            coord = self.env.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+        if inv_x:
+            max_x = np.round(pos[:,0].max())
+            pos[:,0] = max_x - pos[:,0]
+        if inv_y:
+            max_y = np.round(pos[:,1].max())
+            pos[:,1] = max_y - pos[:,1]
+
+        state = {'agent_pos': pos, 
+                 'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
+                 'mean_vel': self.ag.speed_mean,
+                }
+
+        return obs, act, state, render
+    
+    def env2pred(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+
+        obs = obs.clip(max=1)
+        obs = obs.reshape(obs.shape[:-2]+(-1,))
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+
+        return obs, act
+    
+    def env2np(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+        act = np.array(act)
+
+        obs = obs.clip(max=1)[None]
+        obs = obs.reshape(obs.shape[:-2]+(-1,))
+
+        return obs, act
+    
+    def pred2np(self, obs):        
+        obs = obs.detach().numpy().squeeze()
+
+        img = []
+        for t in range(obs.shape[0]):
+            img.append(self.to_image(obs[t])[None,...])
+        obs = np.concatenate(img, axis=0)
+        return obs
+    
+    def to_image(self, obs):
+        fig, ax = plt.subplots()
+        # ax.set_ylim(top=0.5)
+
+        n = self.env.n_object_types
+        obs = obs.reshape(-1,n+1)
+
+        y = self.vision[0].tuning_distances * np.cos(self.vision[0].tuning_angles)
+        x = self.vision[0].tuning_distances * np.sin(self.vision[0].tuning_angles) + 0.5
+        ww = (self.vision[0].sigma_angles * self.vision[0].tuning_distances)
+        hh = self.vision[0].sigma_distances
+        aa  = self.vision[0].tuning_angles * 180 / np.pi
+
+        for obj in range(n+1):
+            facecolor_array = self.vision[obj].cell_colors.copy()
+            facecolor_array[:, -1] = 0.7*np.maximum( # Make the colors increasingly transparent as the next overlays the previous
+                                    0, np.minimum(1, obs[:,obj] / (self.vision[obj].max_fr*n/(n+obj)))
+                                                    )
+
+            ec = EllipseCollection(ww,hh, aa, units = 'x',
+                                    offsets = np.array([x,y]).T,
+                                    offset_transform = ax.transData,
+                                    linewidth=0.5,
+                                    edgecolor="dimgrey",
+                                    zorder = 2.1,
+                                    )
+            ec.set_facecolors(facecolor_array)
+
+            ax.add_collection(ec) 
+
+        plt.axis('off')
+        fig.tight_layout(pad=0)
+        ax.margins(0.15)
+        plt.gca().invert_xaxis()
+        fig.canvas.draw()
+        image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        return image_from_plot
+
+    def getObsSize(self):
+        obs_size = sum([self.vision[i].n for i in range(len(self.vision))])
+        return obs_size
+    
+    def get_viewpoint(self, agent_pos, agent_dir):
+        self.reset(pos=agent_pos, hd=agent_dir)
+
+        # walls = np.array(self.vision[0].history["firingrate"][0])
+        # objects = np.array(self.vision[1].history["firingrate"][0])
+        # n_neurons = walls.shape[0]
+        # objects = objects.reshape((n_neurons, -1), order='F')
+        # obs = np.concatenate((walls[...,None], objects), axis=-1)
+        obs = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+
+        return self.env2pred(obs)[0].squeeze()
     
     def show_state(self, t, fig, ax, **kwargs):
         start_t = self.ag.history["t"][t-1]
         end_t = self.ag.history["t"][t]
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax,color="changing")
-        self.vision[0].display_manifold(fig, ax, t=end_t)
-        for obj in range(self.env.n_object_types):
-            self.vision[1].display_manifold(fig, ax, t=end_t, object_type=obj)
+        for i in range(len(self.vision)):
+            self.vision[i].display_vector_cells(fig, ax, t=end_t)
     
     def show_state_traj(self, start, end, fig, ax, **kwargs):
         start_t = self.ag.history["t"][start]
         end_t = self.ag.history["t"][end]
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
-        self.vision[0].display_manifold(fig, ax, t=end_t)
-        for obj in range(self.env.n_object_types):
-            self.vision[1].display_manifold(fig, ax, t=end_t, object_type=obj)
+        for i in range(len(self.vision)):
+            self.vision[i].display_vector_cells(fig, ax, t=end_t)
     
     def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
 
         self.ag.reset_history()
-        self.vision[0].reset_history()
-        self.vision[1].reset_history()
+        for i in range(len(self.vision)):
+            self.vision[i].reset_history()
         
         if keep_state:
             vel = self.ag.vel
@@ -504,12 +588,12 @@ class RatInABoxShell(Shell):
 
         self.ag.save_velocity = vel
         self.ag.save_to_history()
-        self.vision[0].update()
-        self.vision[1].update()
+        for i in range(len(self.vision)):
+            self.vision[i].update()
 
 
 # TODO: colormapping as argument
-class RiaBRemixColorsShell(RatInABoxShell):
+class RiaBRemixColorsShell(RiaBVisionShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
@@ -581,23 +665,26 @@ class RiaBRemixColorsShell(RatInABoxShell):
 
         obs = obs.reshape(-1,3)
 
-        for (i, coord) in enumerate(self.vision[0].manifold_coords_euclid):
-            [x, y] = coord
-            facecolor = list(obs[i])
-            facecolor.append(1.0)
-            circ = matplotlib.patches.Circle(
-                (-x+0.5, y),
-                radius=0.5 * self.vision[0].spatial_resolution,
-                linewidth=0.5,
-                edgecolor="dimgrey",
-                facecolor=facecolor,
-                zorder=2.1,
-            )
-            ax.add_patch(circ)
+        y = self.vision[0].tuning_distances * np.cos(self.vision[0].tuning_angles)
+        x = self.vision[0].tuning_distances * np.sin(self.vision[0].tuning_angles) + 0.5
+        ww = (self.vision[0].sigma_angles * self.vision[0].tuning_distances)
+        hh = self.vision[0].sigma_distances
+        aa  = self.vision[0].tuning_angles * 180 / np.pi
+        ec = EllipseCollection(ww,hh, aa, units = 'x',
+                                offsets = np.array([x,y]).T,
+                                offset_transform = ax.transData,
+                                linewidth=0.5,
+                                edgecolor="dimgrey",
+                                zorder = 2.1,
+                                )
+        ec.set_facecolors(obs)
+
+        ax.add_collection(ec) 
 
         plt.axis('off')
         fig.tight_layout(pad=0)
-        ax.margins(0)
+        ax.margins(0.15)
+        plt.gca().invert_xaxis()
         fig.canvas.draw()
         image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
@@ -607,3 +694,133 @@ class RiaBRemixColorsShell(RatInABoxShell):
     def getObsSize(self):
         obs_size = self.vision[0].n * 3
         return obs_size
+
+
+class RiaBGridShell(RatInABoxShell):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+
+        # Create grid cells
+        np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
+        self.grid = GridCells(self.ag, params={
+                    "n": 150,
+                    "gridscale_distribution": "modules",
+                    "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
+                                  0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
+                                  0.3, 0.5, 0.8),
+                    "orientation_distribution": "modules",
+                    "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
+                    "phase_offset_distribution": "uniform",
+                    "phase_offset": (0, 2 * np.pi), #degrees
+            })
+
+        self.reset()
+
+    def getObservations(self, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+
+        render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
+        if reset:
+            self.reset()
+        else:
+            self.reset(keep_state=True)
+
+        for aa in range(tsteps):
+            self.ag.update()
+            self.grid.update()
+
+        rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
+        vel = np.array(self.ag.history['vel'][1:])*self.ag.dt
+        act = np.concatenate((rot_vel[:,None], vel), axis=1)
+
+        obs = np.array(self.grid.history["firingrate"])
+
+        pos = np.array(self.ag.history['pos'])
+        if discretize:
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.env.dx
+            coord = self.env.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+        if inv_x:
+            max_x = np.round(pos[:,0].max())
+            pos[:,0] = max_x - pos[:,0]
+        if inv_y:
+            max_y = np.round(pos[:,1].max())
+            pos[:,1] = max_y - pos[:,1]
+
+        state = {'agent_pos': pos, 
+                 'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
+                 'mean_vel': self.ag.speed_mean,
+                }
+
+        return obs, act, state, render
+    
+    def env2pred(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+
+        obs = obs.clip(max=1)
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+
+        return obs, act
+    
+    def env2np(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+        act = np.array(act)
+
+        obs = obs.clip(max=1)[None]
+
+        return obs, act
+    
+    def pred2np(self, obs):        
+        # No images, placeholder for compatibility
+        return np.ones([obs.shape[1],1,1,3])
+
+    def getObsSize(self):
+        obs_size = self.grid.n
+        return obs_size
+    
+    def get_viewpoint(self, agent_pos, agent_dir):
+        self.reset(pos=agent_pos, hd=agent_dir)
+
+        obs = np.array(self.grid.history["firingrate"])
+
+        return self.env2pred(obs)[0].squeeze()
+    
+    def show_state(self, t, fig, ax, **kwargs):
+        start_t = self.ag.history["t"][t-1]
+        end_t = self.ag.history["t"][t]
+        self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax,color="changing")
+    
+    def show_state_traj(self, start, end, fig, ax, **kwargs):
+        start_t = self.ag.history["t"][start]
+        end_t = self.ag.history["t"][end]
+        self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
+    
+    def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
+
+        self.ag.reset_history()
+        self.grid.reset_history()
+        
+        if keep_state:
+            vel = self.ag.vel
+            pos = self.ag.pos
+
+        if vel:
+            self.ag.pos = pos
+        else:
+            vel = [0,0]
+
+        self.ag.save_velocity = vel
+        self.ag.save_to_history()
+        self.grid.update()

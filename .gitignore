@@ -7,12 +7,12 @@ Figures/
 *.pkl
 *.ipynb_checkpoints/
 *.sh
-*.sh
 
 slurm*
 
 Data/*
 nets/*
+Figures/*
 Figures/*
 
 test.ipynb
@@ -20,5 +20,6 @@ train_example_net.sh
 prnn/analysis/TuningCurveAnalysis.py
 TCA.ipynb
 train_example_net2.sh
-RiaBAnalysis.ipynb
+prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+RiaBAnalysis.ipynb

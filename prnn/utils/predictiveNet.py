@@ -607,6 +607,8 @@ class PredictiveNet:
                                                             predAgent.encodeAction.__name__,
                                                             predAgent.trainArgs.env)
             predAgent.env_shell = predAgent.EnvLibrary[0]
+        if not hasattr(predAgent.pRNN, "hidden_size"):
+            predAgent.pRNN.hidden_size = predAgent.hidden_size
         if not suppressText:
             print("Net Loaded from pathname")
         return predAgent
@@ -667,10 +669,11 @@ class PredictiveNet:
             HD = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
                             d = state['agent_dir'][onsetTransient:-1],
                             columns = ('HD'), time_units = 's')
+            nb_bins, minmax = env.get_HD_bins()
             HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(rates,HD,
                                                                     ep=rates.time_support,
-                                                                    nb_bins=np.max(HD)+1,
-                                                                    minmax=(np.min(HD)-0.5,np.max(HD)+0.5))
+                                                                    nb_bins=nb_bins,
+                                                                    minmax=minmax)
             HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
                                             bitssec=bitsec)
             SI['HDinfo'] = HD_info['SI']

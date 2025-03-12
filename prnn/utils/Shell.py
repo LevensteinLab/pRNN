@@ -12,11 +12,11 @@ from ratinabox.utils import get_angle, get_distances_between
 from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
 
-actionOptions = {'OnehotHD' : OneHotHD ,
-                 'OnehotHDPrevAct' : OneHotHDPrevAct,
+actionOptions = {'OneHotHD' : OneHotHD ,
+                 'OneHotHDPrevAct' : OneHotHDPrevAct,
                  'SpeedHD' : SpeedHD ,
                  'SpeedNextHD' : SpeedNextHD,
-                 'Onehot' : OneHot,
+                 'OneHot' : OneHot,
                  'Velocities' : Velocities,
                  'NoAct' : NoAct,
                  'HDOnly': HDOnly,
@@ -261,6 +261,10 @@ class GymMinigridShell(Shell):
                 0.5, self.height-1.5)
         return self.width-2, self.height-2, minmax
     
+    def get_HD_bins(self):
+        minmax = (-0.5, 4.5)
+        return self.numHDs, minmax
+    
     def get_viewpoint(self, agent_pos, agent_dir):
 
         self.env.unwrapped.agent_dir = agent_dir
@@ -359,8 +363,6 @@ class RatInABoxShell(Shell):
         self.env.flattened_discrete_coords = self.env.discrete_coords.reshape(
             -1, self.env.discrete_coords.shape[-1]
         )
-        self.height = int((self.env.extent[3] - self.env.extent[2])/dx)
-        self.width = int((self.env.extent[1] - self.env.extent[0])/dx)
 
     def getActSize(self):
         action = self.encodeAction(act=np.ones((2,3)), meanspeed=self.ag.speed_mean, nbins=self.numHDs)
@@ -374,6 +376,10 @@ class RatInABoxShell(Shell):
         minmax=(0, self.width,
                 0, self.height)
         return self.width, self.height, minmax
+    
+    def get_HD_bins(self):
+        minmax = (0, 2*np.pi)
+        return self.numHDs, minmax
     
     def load_state(self, state):
         self.set_agent_pos(state[:2])
@@ -634,10 +640,17 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
         remix = np.zeros((*obs.shape[:-1],3))
         remix += np.tile(obs[...,0,None],3)*100/255
-        remix[...,2] += obs[...,1]
-        remix[...,0] += obs[...,2]
-        remix[...,0] += obs[...,3]
-        remix[...,1] += obs[...,3]
+        if 'LRoom' in self.name:
+            remix[...,2] += obs[...,1]
+            remix[...,0] += obs[...,2]
+            remix[...,0] += obs[...,3]
+            remix[...,1] += obs[...,3]
+        else:
+            for i in range(1,obs.shape[-1]):
+                remix += np.moveaxis(np.tile(obs[...,i], [2]+[1]*(len(obs[...,i].shape))),
+                                     0,
+                                     -1
+                                     ) * self.obs_colors[i][:3]
         obs = remix
 
 

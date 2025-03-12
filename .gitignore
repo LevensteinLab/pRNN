@@ -7,11 +7,13 @@ Figures/
 *.pkl
 *.ipynb_checkpoints/
 *.sh
+*.sh
 
 slurm*
 
 Data/*
 nets/*
+Figures/*
 
 test.ipynb
 train_example_net.sh

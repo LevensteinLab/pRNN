@@ -130,6 +130,7 @@ netOptions = {'vRNN' : vRNN,
               'sgpRNN_5win'     : sgpRNN_5win,
               'lognRNN_rollout' : lognRNN_rollout,
               'lognRNN_mask' : lognRNN_mask,
+              'multRNN_5win_i01_o01': multRNN_5win_i01_o01
               }
 
 
@@ -414,7 +415,10 @@ class PredictiveNet:
                                                           agent, 
                                                           sequence_duration,
                                                           dataloader=self.useDataLoader)
-            obs,act = obs.to(device),act.to(device)
+            try:
+                obs,act = obs.to(device),act.to(device)
+            except(AttributeError):
+                obs, act = [o.to(device) for o in obs], act.to(device)
             steploss, sparsity, meanrate = self.trainStep(obs,act, 
                                                           with_homeostat,
                                                           learningRate=learningRate,

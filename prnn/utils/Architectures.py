@@ -60,20 +60,9 @@ class pRNN(nn.Module):
         self.droplayer = nn.Dropout(p=dropp)
         #self.droplayer_act = nn.Dropout(p=dropp_act)
         
-        #Sparsity via layernorm subtraction
-        mu = norm.ppf(f)
-        musig = [mu,1]
-
-        #TODO: add cellparams input to pass through
-        #Consider putting the sigmoid outside this layer...
-        input_size = obs_size + act_size
-        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
-                                 defaultTheta=k, continuousTheta=continuousTheta,
-                                 musig=musig, **cell_kwargs)
-        self.outlayer = nn.Sequential(
-            nn.Linear(hidden_size, obs_size, bias=False),
-            nn.Sigmoid()
-            )
+        self.create_layers(obs_size, act_size, hidden_size,
+                           cell, bptttrunc, continuousTheta,
+                           k, f, **cell_kwargs)
 
         self.W_in = self.rnn.cell.weight_ih
         self.W = self.rnn.cell.weight_hh
@@ -89,6 +78,25 @@ class pRNN(nn.Module):
 
         with torch.no_grad():
             self.W.add_(torch.eye(hidden_size).mul_(1-1/self.neuralTimescale).to_sparse())
+
+    
+    def create_layers(self, obs_size, act_size, hidden_size,
+                      cell, bptttrunc, continuousTheta,
+                      k, f, **cell_kwargs):
+        #Sparsity via layernorm subtraction
+        mu = norm.ppf(f)
+        musig = [mu,1]
+
+        #TODO: add cellparams input to pass through
+        #Consider putting the sigmoid outside this layer...
+        input_size = obs_size + act_size
+        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
+                                 defaultTheta=k, continuousTheta=continuousTheta,
+                                 musig=musig, **cell_kwargs)
+        self.outlayer = nn.Sequential(
+            nn.Linear(hidden_size, obs_size, bias=False),
+            nn.Sigmoid()
+            )
 
 
     def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
@@ -313,6 +321,149 @@ class pRNN_th(pRNN):
 
         obs = self.droplayer(obs) #dropout without action
         
+        #Concatenate the obs/act into a single input
+        x_t = torch.cat((obs_out,act_out), 2)
+        return x_t, obs_target_out, outmask
+
+
+class pRNN_multimodal(pRNN):
+    """
+    A predictive RNN framework that allows segregation between different types of observations.
+    They can be included only in inputs, in outputs, or both.
+
+    obs_size: tuple of sizes for each observation type
+    inIDs: tuple of indices of observations to include in input
+    outIDs: tuple of indices of observations to include in output
+
+    All inputs should be tensors of shape (N,L,H)
+        N: Batch size
+        L: timesamps
+        H: input_size
+    """
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                 cell=RNNCell,  dropp=0, bptttrunc=50, k=0, f=0.5,
+                 predOffset=1, inMask=[True], outMask=None, 
+                 actOffset=0, actMask=None, neuralTimescale=2,
+                 continuousTheta=False, inIDs=None, outIDs=None,
+                 **cell_kwargs):
+        self.inIDs = inIDs
+        self.outIDs = outIDs
+        super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size,
+                                              cell,  dropp, bptttrunc, k, f,
+                                              predOffset, inMask, outMask, 
+                                              actOffset, actMask, neuralTimescale,
+                                              continuousTheta,
+                                              **cell_kwargs)
+
+    
+    def create_layers(self, obs_size, act_size, hidden_size,
+                      cell, bptttrunc, continuousTheta,
+                      k, f, **cell_kwargs):
+        #Sparsity via layernorm subtraction
+        mu = norm.ppf(f)
+        musig = [mu,1]
+
+        input_size = 0
+        output_size = 0
+        for i in self.inIDs:
+                input_size += obs_size[i]
+        for i in self.outIDs:
+                output_size += obs_size[i]
+        input_size += act_size
+
+        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
+                                 defaultTheta=k, continuousTheta=continuousTheta,
+                                 musig=musig, **cell_kwargs)
+        self.outlayer = nn.Sequential(
+            nn.Linear(hidden_size, output_size, bias=False),
+            nn.Sigmoid()
+            )
+
+
+    def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
+                single=False, mask=None, batched=False, fullRNNstate=False):
+        #Determine the noise shape
+        k=0
+        if hasattr(self,'k'):
+            k= self.k
+        if batched:
+            noise_shape = (k+1, obs[0].size(1), self.hidden_size, obs.size(-1))
+        else:
+            noise_shape = (k+1, obs[0].size(1), self.hidden_size)
+
+        noise_t = self.generate_noise(noise_params, noise_shape)
+
+        if single:
+            x_t = []
+            for i in self.inIDs:
+                x_t.append(obs[i])
+            x_t = torch.cat((*x_t,act), 2)
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units
+            y_t = None
+            obs_target = None
+        else:
+            x_t, obs_target, outmask = self.restructure_inputs(obs,act,batched)
+            #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
+                             theta=theta, mask=mask, batched=batched)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
+            if batched:
+                h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
+                allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
+                allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
+                h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
+            else:
+                allout = self.outlayer(h_t[:,:,:self.hidden_size])
+
+            #Apply the mask to the output
+            y_t = torch.zeros_like(allout)
+            y_t[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+        return y_t, h_t, obs_target
+
+    def restructure_inputs(self, obs, act, batched=False):
+        #Apply the action and prediction offsets
+        if batched:
+            act = self.batched_actpad(act)
+        else:
+            act = self.actpad(act)
+        
+        if self.actOffset:
+                act = act[:,:-self.actOffset,...]
+
+        # Specify inputs and outputs in the observation
+        obs_in = []
+        for i in self.inIDs:
+            obs_in.append(obs[i])
+        obs_in = torch.cat(obs_in, 2)
+        obs_target = []
+        for i in self.outIDs:
+            obs_target.append(obs[i][:,self.predOffset:,:])
+        obs_target = torch.cat(obs_target, 2)
+
+        #Make everything the same size
+        minsize = min(obs_in.size(1),act.size(1),obs_target.size(1))
+        obs_in, act = obs_in[:,:minsize,:], act[:,:minsize,:]
+        obs_target = obs_target[:,:minsize,:]
+
+        #Apply the masks (this is ugly.)
+        actmask = np.resize(np.array(self.actMask),minsize)
+        outmask = np.resize(np.array(self.outMask),minsize)
+        obsmask = np.resize(np.array(self.inMask),minsize)
+
+        obs_out = torch.zeros_like(obs_in, requires_grad=False)
+        act_out = torch.zeros_like(act, requires_grad=False)
+        obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
+
+        obs_out[:,obsmask,:] = obs_in[:,obsmask,:]
+        act_out[:,actmask,:] = act[:,actmask,:]
+        obs_target_out[:,outmask,:] = obs_target[:,outmask,:]
+        
+        obs_out = self.droplayer(obs_out) #dropout without action
+        #act_out = self.droplayer_act(act_out) #dropout without action
+
         #Concatenate the obs/act into a single input
         x_t = torch.cat((obs_out,act_out), 2)
         return x_t, obs_target_out, outmask
@@ -1348,3 +1499,18 @@ class sgpRNN_5win(pRNN_th):
                                        sparse_size=sparse_size, sparse_beta=sparse_beta,
                                        lambda_direct=lambda_direct, lambda_context=lambda_context,
                                        lambda_sparse=lambda_sparse)
+
+
+
+class multRNN_5win_i01_o01(pRNN_multimodal):
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, **cell_kwargs):
+        super(multRNN_5win_i01_o01, self).__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f,
+                          predOffset=0, actOffset=0,
+                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
+                          actMask=None,
+                          inIDs=(0,1), outIDs=(0,1),
+                          )

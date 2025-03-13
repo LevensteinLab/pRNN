@@ -397,19 +397,16 @@ class RatInABoxShell(Shell):
 
 
 class RiaBVisionShell(RatInABoxShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins,
+                 FoV_params={'spatial_resolution': 0.01,
+                             'angle_range': [0, 45],
+                             'distance_range': [0.0, 0.33]}
+                             ):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create vision cells
-        FoV_Walls = FieldOfViewBVCs(self.ag, params={
-            'spatial_resolution': 0.01,
-            "angle_range": [0, 45],
-            "distance_range": [0.0, 0.33],
-            })
-        FoV_Objects = [FieldOfViewOVCs(self.ag, params={
-            'spatial_resolution': 0.01,
-            "angle_range": [0, 45],
-            "distance_range": [0.0, 0.33],
+        FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
+        FoV_Objects = [FieldOfViewOVCs(self.ag, params=FoV_params | {
             "object_tuning_type": x
             }) for x in range(env.n_object_types)]
         
@@ -587,8 +584,8 @@ class RiaBVisionShell(RatInABoxShell):
 
 
 class RiaBRemixColorsShell(RiaBVisionShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
-        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
 
     def env2pred(self, obs, act=None):
         """
@@ -834,8 +831,8 @@ class RiaBGridShell(RatInABoxShell):
 
 
 class RiaBColorsGridShell(RiaBVisionShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
-        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
 
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader

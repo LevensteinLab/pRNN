@@ -17,7 +17,10 @@ from prnn.examples.RatEnvironment import make_rat_env
 
 
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
-             speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True, seed=42):
+             speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
+             seed=42, FoV_params={'spatial_resolution': 0.01,
+                                  "angle_range": [0, 45],
+                                  "distance_range": [0.0, 0.33]}):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -44,11 +47,13 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
 
     elif package=='ratinabox_vision':        
         env = make_rat_env(env_key)
-        env = RiaBVisionShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBVisionShell(env, act_enc, env_key, speed,
+                              thigmotaxis, HDbins, FoV_params)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
-        env = RiaBRemixColorsShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBRemixColorsShell(env, act_enc, env_key, speed,
+                                   thigmotaxis, HDbins, FoV_params)
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
@@ -56,7 +61,8 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
-        env = RiaBColorsGridShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBColorsGridShell(env, act_enc, env_key, speed,
+                                  thigmotaxis, HDbins, FoV_params)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

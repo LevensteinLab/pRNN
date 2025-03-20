@@ -39,6 +39,7 @@ class Shell:
         self.encodeAction = actionOptions[act_enc]
         self.dataLoader = None
         self.DL_iterator = None
+        self.n_obs = 1 #default number of observation modalities
 
     def addDataLoader(self, dataloader):
         self.dataLoader = dataloader
@@ -67,12 +68,14 @@ class Shell:
             if not self.DL_iterator:
                 self.DL_iterator = iter(self.dataLoader)
             try:
-                obs, act = next(self.DL_iterator)
+                data = next(self.DL_iterator)
             except StopIteration:
                 self.DL_iterator = iter(self.dataLoader)
-                obs, act = next(self.DL_iterator)
-            obs = obs[:,:tsteps+1]
-            act = act[:,:tsteps]
+                data = next(self.DL_iterator)
+            obs = [o[:,:tsteps+1] for o in data[:self.n_obs]]
+            if len(obs) == 1:
+                obs = obs[0]
+            act = data[self.n_obs][:,:tsteps]
             state = None
             render = None
         else:
@@ -213,8 +216,10 @@ class GymMinigridShell(Shell):
         obs = obs/255
         return obs, act
 
-    def pred2np(self, obs, whichPhase=0):
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
         obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
         obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
         return obs
     
@@ -386,8 +391,7 @@ class RatInABoxShell(Shell):
         self.set_agent_dir(state[2:])
     
     def save_state(self, act, state):
-        # TODO: check this
-        return np.array([state['agent_pos'][-1], act[-1,1:]])
+        return np.array([*state['agent_pos'][-1], *act[-1,1:]])
     
     def set_agent_pos(self, pos):
         self.ag.pos = pos
@@ -488,12 +492,14 @@ class RiaBVisionShell(RatInABoxShell):
 
         return obs, act
     
-    def pred2np(self, obs):        
-        obs = obs.detach().numpy().squeeze()
+    def pred2np(self, obs, whichPhase=0, timesteps=None):        
+        obs = obs.detach().numpy()#.squeeze()
+        if timesteps:
+            obs = obs[:,timesteps,...]
 
         img = []
-        for t in range(obs.shape[0]):
-            img.append(self.to_image(obs[t])[None,...])
+        for t in range(obs.shape[1]):
+            img.append(self.to_image(obs[whichPhase,t])[None,...])
         obs = np.concatenate(img, axis=0)
         return obs
     
@@ -650,16 +656,18 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
         return obs, act
     
-    def pred2np(self, obs):
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
         """
         Convert sequence of observations from pytorch format to image-filled np.array
         """
         
-        obs = obs.detach().numpy().squeeze()
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
 
         img = []
-        for t in range(obs.shape[0]):
-            img.append(self.to_image(obs[t])[None,...])
+        for t in range(obs.shape[1]):
+            img.append(self.to_image(obs[whichPhase,t])[None,...])
         obs = np.concatenate(img, axis=0)
         return obs
     
@@ -786,8 +794,10 @@ class RiaBGridShell(RatInABoxShell):
 
         return obs, act
     
-    def pred2np(self, obs):        
+    def pred2np(self, obs, whichPhase=0, timesteps=None):        
         # No images, placeholder for compatibility
+        if timesteps:
+            obs = obs[:,timesteps,...]
         return np.ones([obs.shape[1],1,1,3])
 
     def getObsSize(self):
@@ -833,7 +843,7 @@ class RiaBGridShell(RatInABoxShell):
 class RiaBColorsGridShell(RiaBVisionShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
-
+        self.n_obs = 2
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
         self.grid = GridCells(self.ag, params={
@@ -966,22 +976,23 @@ class RiaBColorsGridShell(RiaBVisionShell):
         remix = remix.reshape(remix.shape[:-2]+(-1,))[None]
 
 
-        obs_grid = obs.clip(max=1)
-        obs_grid = obs.reshape(obs_grid.shape[:-2]+(-1,))
+        obs_grid = obs_grid.clip(max=1)[None]
 
         obs = (remix, obs_grid)
 
         return obs, act
     
-    def pred2np(self, obs):
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
         """
         Convert sequence of observations from pytorch format to image-filled np.array
         """
-        obs = obs[0].detach().numpy().squeeze()
+        obs = obs[0].detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
 
         img = []
-        for t in range(obs.shape[0]):
-            img.append(self.to_image(obs[t])[None,...])
+        for t in range(obs.shape[1]):
+            img.append(self.to_image(obs[whichPhase,t])[None,...])
         obs = np.concatenate(img, axis=0)
         return obs
     

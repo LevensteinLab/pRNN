@@ -335,6 +335,11 @@ class pRNN_multimodal(pRNN):
     inIDs: tuple of indices of observations to include in input
     outIDs: tuple of indices of observations to include in output
 
+    The order of observations in obs tuple/list should be as follows:
+        - observations that only go into the input
+        - observations that go into both input and output
+        - observations that only go into the output
+
     All inputs should be tensors of shape (N,L,H)
         N: Batch size
         L: timesamps
@@ -346,8 +351,15 @@ class pRNN_multimodal(pRNN):
                  actOffset=0, actMask=None, neuralTimescale=2,
                  continuousTheta=False, inIDs=None, outIDs=None,
                  **cell_kwargs):
+        self.obs_size = obs_size
         self.inIDs = inIDs
         self.outIDs = outIDs
+        n=0
+        self.obs_out_slices = []
+        for i in outIDs:
+            self.obs_out_slices.append(slice(n,n+obs_size[i]))
+            n += obs_size[i]
+
         super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size,
                                               cell,  dropp, bptttrunc, k, f,
                                               predOffset, inMask, outMask, 
@@ -363,15 +375,15 @@ class pRNN_multimodal(pRNN):
         mu = norm.ppf(f)
         musig = [mu,1]
 
-        input_size = 0
+        self.input_size = 0
         output_size = 0
         for i in self.inIDs:
-                input_size += obs_size[i]
+                self.input_size += obs_size[i]
         for i in self.outIDs:
                 output_size += obs_size[i]
-        input_size += act_size
+        self.input_size += act_size
 
-        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
+        self.rnn = thetaRNNLayer(cell, bptttrunc, self.input_size, hidden_size,
                                  defaultTheta=k, continuousTheta=continuousTheta,
                                  musig=musig, **cell_kwargs)
         self.outlayer = nn.Sequential(
@@ -387,9 +399,9 @@ class pRNN_multimodal(pRNN):
         if hasattr(self,'k'):
             k= self.k
         if batched:
-            noise_shape = (k+1, obs[0].size(1), self.hidden_size, obs.size(-1))
+            noise_shape = (k+1, act.size(1)+1, self.hidden_size, act.size(-1))
         else:
-            noise_shape = (k+1, obs[0].size(1), self.hidden_size)
+            noise_shape = (k+1, act.size(1)+1, self.hidden_size)
 
         noise_t = self.generate_noise(noise_params, noise_shape)
 
@@ -419,8 +431,17 @@ class pRNN_multimodal(pRNN):
                 allout = self.outlayer(h_t[:,:,:self.hidden_size])
 
             #Apply the mask to the output
-            y_t = torch.zeros_like(allout)
-            y_t[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+            pred = torch.zeros_like(allout)
+            pred[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+            y_t = [] # Outputs disentangled
+            for i in self.inIDs:
+                if i in self.outIDs:
+                    break
+                else:
+                    y_t.append(torch.zeros_like(obs[i]))
+            for i, _ in enumerate(self.outIDs):
+                y_t.append(pred[...,self.obs_out_slices[i]])
+            y_t = (pred, y_t)
         return y_t, h_t, obs_target
 
     def restructure_inputs(self, obs, act, batched=False):

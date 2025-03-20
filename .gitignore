@@ -3,7 +3,6 @@
 
 .DS_Store
 __pycache__/
-Figures/
 *.pkl
 *.ipynb_checkpoints/
 *.sh
@@ -12,7 +11,6 @@ slurm*
 
 Data/*
 nets/*
-Figures/*
 Figures/*
 
 test.ipynb

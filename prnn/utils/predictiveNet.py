@@ -210,9 +210,12 @@ class PredictiveNet:
         Note: state input is used for CANN control in internal functions
         """
         if batched:
-            obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
+            if type(obs) == list:
+                obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
+            else:
+                obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
             act = act.permute(*[i for i in range(1,len(act.size()))],0)
-            shape = (obs.size(-1), 1, self.hidden_size)
+            shape = (act.size(-1), 1, self.hidden_size)
             
         else:
             shape = (1, 1, self.hidden_size)
@@ -265,6 +268,8 @@ class PredictiveNet:
         """
 
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
         if with_homeostat:
@@ -859,6 +864,8 @@ class PredictiveNet:
                                                                         seed=seed
                                                                         )
         obs_pred, obs_next, h  = self.predict(obs,act)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[1]
         
         k=0
         if hasattr(self.pRNN,'k'):
@@ -868,7 +875,10 @@ class PredictiveNet:
             h = h[0:1,:,:]
         elif rolloutdim=='mean':
             h = torch.mean(h,dim=0,keepdims=True)
-        obs_pred = obs_pred[0:1,:,:]
+        if type(obs_pred) == list:  
+            obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+        else:
+            obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
         ##FIX ABOVE HERE FOR K
         
@@ -916,7 +926,9 @@ class PredictiveNet:
         #Consider - separate file for the more compound plots
         obs,act,state, render  = self.collectObservationSequence(env,agent,timesteps,
                                                            includeRender = True)
-        obs_pred, obs_next ,h = self.predict(obs,act)
+        obs_pred, obs_next, h = self.predict(obs,act)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[1]
 
         decoded = None
         if decoder:
@@ -932,7 +944,10 @@ class PredictiveNet:
         #h = h[0:1,:,:]
         h = torch.mean(h,dim=0,keepdims=True) #this is what's used to train the decoder...
         if obs_pred is not None:
-            obs_pred = obs_pred[0:1,:,:]
+            if type(obs_pred) == list:  
+                obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+            else:
+                obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
         ##FIX ABOVE HERE FOR K
             
@@ -1025,12 +1040,11 @@ class PredictiveNet:
         numtimesteps = len(timesteps)
         
         
-        obs = self.env_shell.pred2np(obs[:,timesteps,...])
+        obs = self.env_shell.pred2np(obs, timesteps=timesteps)
         if obs_pred is not None:
-            obs_pred = self.env_shell.pred2np(obs_pred[:,timesteps,...])
+            obs_pred = self.env_shell.pred2np(obs_pred, timesteps=timesteps)
         if obs_next is not None:
-            obs_next = self.env_shell.pred2np(obs_next[:,timesteps,...])
-        #obs_next = self.pred2np(obs_next[:,timesteps,...])
+            obs_next = self.env_shell.pred2np(obs_next, timesteps=timesteps)
 
         #figure bigger, get rid of axis numbers, add labels
         fig = plt.figure(figsize=(10,10))
@@ -1244,8 +1258,9 @@ class PredictiveNet:
                                 interpolation='nearest',alpha=mask.transpose())
                     ax[x,y].axis('off')
                     if SI is not None:
-                        ax[x,y].text(0, 3, f"{SI[idx][0]:0.1}", fontsize=10,color='r')
-                except:
+                        ax[x,y].text(0, 3, f"{SI[idx]:0.1}", fontsize=10,color='r')
+                except Exception as e:
+                    print('Tuning curve panel is not finished because of: ' + str(e))
                     break
 
         if savename is not None:

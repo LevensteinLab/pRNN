@@ -337,8 +337,9 @@ def SpontTrajectoryFigure(predictiveNet, decoder, noisemag=0, noisestd=0.25,
     plt.subplot(5,2,3)
     predictiveNet.plotActivationTimeseries(h)
 
-    predictiveNet.plotSequence(predictiveNet.env_shell.pred2np(obs_pred[:,timesteps-6:,...]), 
-                      range(6),4,label='Predicted')
+    predictiveNet.plotSequence(predictiveNet.env_shell.pred2np(obs_pred,
+                                                               timesteps=range(timesteps-6,timesteps)), 
+                                                               range(6),4,label='Predicted')
     predictiveNet.plotSequence(np.transpose(p,axes=[0,2,1]), range(timesteps-7,timesteps-1),5,
                       label='Decoded',mask=decoder.mask.transpose())
 

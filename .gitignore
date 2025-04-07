@@ -21,3 +21,4 @@ train_example_net2.sh
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
 RiaBAnalysis.ipynb
+testing.ipynb

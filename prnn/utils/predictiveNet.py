@@ -130,7 +130,10 @@ netOptions = {'vRNN' : vRNN,
               'sgpRNN_5win'     : sgpRNN_5win,
               'lognRNN_rollout' : lognRNN_rollout,
               'lognRNN_mask' : lognRNN_mask,
-              'multRNN_5win_i01_o01': multRNN_5win_i01_o01
+              'multRNN_5win_i01_o01': multRNN_5win_i01_o01,
+              'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
+              'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
+              'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
               }
 
 
@@ -689,6 +692,7 @@ class PredictiveNet:
 
 
         if inputControl:
+            # if self.env_shell.n_obs == 1:
             rates_input = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
                                  d = obs.squeeze().detach().numpy()[onsetTransient:-1,:], time_units = 's')
             pf_input,xy = nap.compute_2d_tuning_curves_continuous(rates_input,position,

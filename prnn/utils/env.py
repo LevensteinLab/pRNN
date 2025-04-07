@@ -14,13 +14,26 @@ from gymnasium.core import ObservationWrapper
 from prnn.utils.Shell import *
 from prnn.examples.RatEnvironment import make_rat_env
 
+FoV_params_default = {"spatial_resolution": 0.01,
+                      "angle_range": [0, 45],
+                      "distance_range": [0.0, 0.33]
+                      }
 
+Grid_params_default = {"n": 150,
+                       "gridscale_distribution": "modules",
+                       "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
+                                     0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
+                                     0.3, 0.5, 0.8),
+                       "orientation_distribution": "modules",
+                       "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
+                       "phase_offset_distribution": "uniform",
+                       "phase_offset": (0, 2 * np.pi), #degrees
+                       }
 
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
-             seed=42, FoV_params={'spatial_resolution': 0.01,
-                                  "angle_range": [0, 45],
-                                  "distance_range": [0.0, 0.33]}):
+             seed=42, FoV_params=FoV_params_default,
+             Grid_params=Grid_params_default):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -57,12 +70,13 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
-        env = RiaBGridShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBGridShell(env, act_enc, env_key, speed,
+                            thigmotaxis, HDbins, Grid_params)
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
         env = RiaBColorsGridShell(env, act_enc, env_key, speed,
-                                  thigmotaxis, HDbins, FoV_params)
+                                  thigmotaxis, HDbins, FoV_params, Grid_params)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

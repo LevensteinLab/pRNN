@@ -388,16 +388,20 @@ class RatInABoxShell(Shell):
     
     def load_state(self, state):
         self.set_agent_pos(state[:2])
-        self.set_agent_dir(state[2:])
+        self.set_agent_dir(state[2], state[3])
     
     def save_state(self, act, state):
-        return np.array([*state['agent_pos'][-1], *act[-1,1:]])
+        return np.array([*state['agent_pos'][-1],
+                         *state['agent_dir'][-1],
+                         state['mean_vel']])
     
     def set_agent_pos(self, pos):
         self.ag.pos = pos
     
-    def set_agent_dir(self, vel):
-        self.ag.save_velocity = vel
+    def set_agent_dir(self, direction, vel):
+        self.ag.velocity = vel * np.array([np.cos(direction),
+                                           np.sin(direction)])
+        self.ag.rotational_velocity = 0
 
 
 class RiaBVisionShell(RatInABoxShell):
@@ -709,22 +713,13 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
 
 class RiaBGridShell(RatInABoxShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+    def __init__(self, env, act_enc, env_key, speed,
+                 thigmotaxis, HDbins, Grid_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params={
-                    "n": 150,
-                    "gridscale_distribution": "modules",
-                    "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8),
-                    "orientation_distribution": "modules",
-                    "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
-                    "phase_offset_distribution": "uniform",
-                    "phase_offset": (0, 2 * np.pi), #degrees
-            })
+        self.grid = GridCells(self.ag, params=Grid_params)
 
         self.reset()
 
@@ -841,22 +836,13 @@ class RiaBGridShell(RatInABoxShell):
 
 
 class RiaBColorsGridShell(RiaBVisionShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+    def __init__(self, env, act_enc, env_key, speed,
+                 thigmotaxis, HDbins, FoV_params, Grid_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params={
-                    "n": 150,
-                    "gridscale_distribution": "modules",
-                    "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8),
-                    "orientation_distribution": "modules",
-                    "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
-                    "phase_offset_distribution": "uniform",
-                    "phase_offset": (0, 2 * np.pi), #degrees
-            })
+        self.grid = GridCells(self.ag, params=Grid_params)
         
         self.reset()
 

@@ -10,7 +10,8 @@ class SpatialTuningAnalysis:
                  inputControl=False, untrainedControl=False,
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
-                 agent=False, start_pos=1, theta='expand'):
+                 agent=False, start_pos=1, theta='expand',
+                 fig_type='png'):
         
         self.pN = predictiveNet
         self.inputControl = inputControl
@@ -18,6 +19,7 @@ class SpatialTuningAnalysis:
         self.noRec = compareNoRec
         self.reliabilityMetric = reliabilityMetric
         self.start_pos = start_pos # the numbering of occupiable locations starts from this
+        self.fig_type = fig_type
         
         env = predictiveNet.EnvLibrary[0]
 
@@ -287,7 +289,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.3)
         if netname is not None:
             saveFig(fg,'TCReliability_'+netname,savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
         
         
@@ -323,7 +325,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.1)
         if netname is not None:
             saveFig(fg,'TCExamples_'+netname,savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
         
         
@@ -361,7 +363,7 @@ class SpatialTuningAnalysis:
         plt.subplots_adjust(wspace=0.2, hspace=0.3)
         if netname is not None:
             saveFig(fg,'SpatialTuning_'+netname,savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
         
     

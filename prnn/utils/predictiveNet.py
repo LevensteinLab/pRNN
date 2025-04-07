@@ -157,7 +157,7 @@ class PredictiveNet:
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
-                 **architecture_kwargs):
+                 fig_type='png', **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -194,6 +194,7 @@ class PredictiveNet:
         self.TrainingSaver = pd.DataFrame()
         self.numTrainingTrials = -1
         self.numTrainingEpochs = -1
+        self.fig_type = fig_type
 
         #The homeostatic targets
         self.target_rate = target_rate
@@ -1007,7 +1008,7 @@ class PredictiveNet:
 
             if savename is not None:
                 saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
-                        filetype='png')
+                        filetype=self.fig_type)
             plt.show()
 
         return decoded
@@ -1139,9 +1140,8 @@ class PredictiveNet:
                 plt.yticks([])
 
         if savename is not None:
-            #plt.savefig(savename+'_ObservationSequence.png',format='png')
             saveFig(plt.gcf(),savename+'_ObservationSequence',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
 
         return
@@ -1165,9 +1165,8 @@ class PredictiveNet:
         #plt.xticks([0,self.numTrainingTrials+1])
 
         if savename is not None:
-            #plt.savefig(savename+'_LerningCurve.png',format='png')
             saveFig(fig,savename+'_LearningCurve',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         if axis is None:
             plt.show()
 
@@ -1269,7 +1268,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_TuningCurves',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
 
         if nofig:
             plt.show()
@@ -1308,7 +1307,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_DelayDist',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
 
         return dd

@@ -21,16 +21,16 @@ class SpatialTuningAnalysis:
         self.start_pos = start_pos # the numbering of occupiable locations starts from this
         self.fig_type = fig_type
         
-        env = predictiveNet.EnvLibrary[0]
+        self.env = predictiveNet.EnvLibrary[0]
 
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
-            agent = RandomActionAgent(env.action_space, action_probability)
+            agent = RandomActionAgent(self.env.action_space, action_probability)
         
         if self.inputControl:
             print('Getting Tuning Curves for Input Units')
-            place_fields, SI, _ = self.pN.calculateSpatialRepresentation(env,
+            place_fields, SI, _ = self.pN.calculateSpatialRepresentation(self.env,
                                                                          agent,
                                                                          timesteps=max(15000, timesteps_wake),
                                                                          inputControl=True,
@@ -50,17 +50,17 @@ class SpatialTuningAnalysis:
         
         if self.untrainedControl:
             print('Running Untrained Control')
-            self.pNControl = makeUntrainedNet(self.pN,env,agent, ratenorm = ratenorm)
+            self.pNControl = makeUntrainedNet(self.pN,self.env,agent, ratenorm = ratenorm)
             self.untrainedFields = self.pNControl.TrainingSaver['place_fields'].values[-1]
             self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
-            WAKEactivity = self.runWAKE(self.pNControl, env, agent, timesteps_wake,
+            WAKEactivity = self.runWAKE(self.pNControl, self.env, agent, timesteps_wake,
                                         theta=theta)
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
         #Run WAKE
-        self.WAKEactivity = self.runWAKE(self.pN, env, agent, timesteps_wake,
+        self.WAKEactivity = self.runWAKE(self.pN, self.env, agent, timesteps_wake,
                                         theta=theta)
         print('Calculating EV_s')
         self.FAKEactivity, self.TCreliability = self.calculateTuningCurveReliability(self.WAKEactivity,self.tuning_curves)
@@ -74,7 +74,7 @@ class SpatialTuningAnalysis:
         #Compare to a Recurrence-ablated control
         if self.noRec:
             pN_noRec = self.makeNoRecNet(self.pN)
-            self.noRec_fields, _, _ = pN_noRec.calculateSpatialRepresentation(env, agent,
+            self.noRec_fields, _, _ = pN_noRec.calculateSpatialRepresentation(self.env, agent,
                                                                               bitsec= not(ratenorm))
             self.reccorr = self.noRecComparison(self.tuning_curves,self.noRec_fields)
         
@@ -135,12 +135,17 @@ class SpatialTuningAnalysis:
         
         
     
-    @staticmethod
-    def makeFAKEdata(WAKEactivity, tuning_curves, useMstats=False, metric='EVspace', inputCells=False, start_pos=1):
+    # @staticmethod
+    def makeFAKEdata(self, WAKEactivity, tuning_curves, useMstats=False,
+                     metric='EVspace', inputCells=False, start_pos=1):
         FAKEactivity = {'state':WAKEactivity['state']}
         position = WAKEactivity['state']['agent_pos']
         if inputCells:
-            WAKE_h = WAKEactivity['obs'].squeeze().detach().numpy()[:-1,:]
+            if self.env.n_obs == 1:
+                WAKE_h = WAKEactivity['obs'].squeeze().detach().numpy()[:-1,:]
+            else:
+                WAKE_h = np.concatenate([o.squeeze().detach().numpy()[:-1,:] for o in WAKEactivity['obs']],
+                                        axis=-1)
             FAKEactivity['h'] = np.zeros_like(WAKE_h)
         else:
             WAKE_h = WAKEactivity['h']

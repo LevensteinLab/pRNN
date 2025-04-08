@@ -694,9 +694,12 @@ class PredictiveNet:
 
 
         if inputControl:
-            # if self.env_shell.n_obs == 1:
+            if self.env_shell.n_obs == 1:
+                d = obs.squeeze().detach().numpy()[onsetTransient:-1,:]
+            else:
+                d = np.concatenate([o.squeeze().detach().numpy()[onsetTransient:-1,:] for o in obs], axis=-1)
             rates_input = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
-                                 d = obs.squeeze().detach().numpy()[onsetTransient:-1,:], time_units = 's')
+                                 d = d, time_units = 's')
             pf_input,xy = nap.compute_2d_tuning_curves_continuous(rates_input,position,
                                                                   ep=rates.time_support,
                                                                   nb_bins=(nb_bins_x, nb_bins_y),

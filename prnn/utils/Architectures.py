@@ -433,7 +433,7 @@ class pRNN_multimodal(pRNN):
                 if i in set(self.inIDs)-set(self.outIDs):
                     y_t.append(torch.zeros_like(obs[i]))
                 else:
-                    y_t.append(pred[...,self.obs_out_slices[i]])
+                    y_t.append(pred[...,self.obs_out_slices[self.outIDs.index(i)]])
             y_t = (pred, y_t)
         return y_t, h_t, obs_target
 

@@ -731,7 +731,9 @@ class PredictiveNet:
                                                     metric='cosine')
             
             #EV_s
-            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,place_fields)
+            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,
+                                             place_fields,
+                                             n_obs=self.env_shell.n_obs)
             EVs = FAKEinputdata['TCcorr']
             if saveTrainingData:
                 self.addTrainingData('sRSA',sRSA)

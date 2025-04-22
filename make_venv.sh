@@ -40,7 +40,7 @@ pip install ruamel.yaml==0.18.6
 
 pip3 install gym==0.21.0 --no-binary :all:
 pip install gymnasium==0.29.1
-pip install ratinabox==1.7.1
+pip install ratinabox==1.15.2
 
 #pip3 install gym-minigrid  #For now, use mine:
 cd $HOME/minigrid

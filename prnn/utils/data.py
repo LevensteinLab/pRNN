@@ -76,8 +76,8 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
 
                 act = np.concatenate((act, new_act), axis=1)
                 np.save(str(child / "act.npy"), act)
-                #last_state = env.save_state(act, new_state)
-                #np.save(str(child / "state.npy"), last_state)
+                last_state = env.save_state(new_state)
+                np.save(str(child / "state.npy"), last_state)
     
     # Generate new trajectories in addition to the already existing ones
     if n_generated < n_trajs:
@@ -86,7 +86,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
             traj_dir = top_dir / str(n_generated + i + 1)
             traj_dir.mkdir()
             obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format='npgrid')
-            #last_state = env.save_state(act, state)
+            last_state = env.save_state(state)
             if env.n_obs > 1: # for multimodal observations
                 for j in range(env.n_obs):
                     np.save(str(traj_dir / ("obs"+str(j)+".npy")), obs[j])

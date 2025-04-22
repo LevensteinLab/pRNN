@@ -284,7 +284,7 @@ class GymMinigridShell(Shell):
         self.set_agent_pos(state[:2])
         self.set_agent_dir(state[2])
     
-    def save_state(self, act, state):
+    def save_state(self, state):
         return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
     
     def set_agent_pos(self, pos):
@@ -390,9 +390,9 @@ class RatInABoxShell(Shell):
         self.set_agent_pos(state[:2])
         self.set_agent_dir(state[2], state[3])
     
-    def save_state(self, act, state):
+    def save_state(self, state):
         return np.array([*state['agent_pos'][-1],
-                         *state['agent_dir'][-1],
+                         state['agent_dir'][-1],
                          state['mean_vel']])
     
     def set_agent_pos(self, pos):

@@ -21,13 +21,14 @@ FoV_params_default = {"spatial_resolution": 0.01,
 
 Grid_params_default = {"n": 150,
                        "gridscale_distribution": "modules",
-                       "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                     0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                     0.3, 0.5, 0.8),
+                       "gridscale": (0.1, 0.2, 0.3, 0.4, 0.5,
+                                     0.6, 0.7, 0.8, 0.9, 1.0),
                        "orientation_distribution": "modules",
-                       "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
+                       "orientation": (2*np.pi/5, 8*np.pi/5, 4*np.pi/5,
+                                       3*np.pi/5, np.pi, 7*np.pi/5,
+                                       np.pi/5, 6*np.pi/5, 9*np.pi/5, 0),
                        "phase_offset_distribution": "uniform",
-                       "phase_offset": (0, 2 * np.pi), #degrees
+                       "phase_offset": (0, 2 * np.pi),
                        }
 
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',

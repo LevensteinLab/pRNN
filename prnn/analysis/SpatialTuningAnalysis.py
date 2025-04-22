@@ -55,7 +55,8 @@ class SpatialTuningAnalysis:
             self.untrainedSI = self.pNControl.TrainingSaver['SI'].values[-1]
             WAKEactivity = self.runWAKE(self.pNControl, self.env, agent, timesteps_wake,
                                         theta=theta)
-            FAKEuntraineddata = self.makeFAKEdata(WAKEactivity,self.untrainedFields, start_pos=start_pos)
+            FAKEuntraineddata = self.makeFAKEdata(WAKEactivity, self.untrainedFields,
+                                                  start_pos=start_pos, n_obs=self.b_obs)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
@@ -68,7 +69,7 @@ class SpatialTuningAnalysis:
         if inputControl:
             print('Calculating EV_s for input control')
             FAKEinputdata = self.makeFAKEdata(self.WAKEactivity, self.inputFields,inputCells=True,
-                                              start_pos=start_pos)
+                                              start_pos=start_pos, n_obs=self.b_obs)
             self.inputReliability = FAKEinputdata['TCcorr']
         
         #Compare to a Recurrence-ablated control
@@ -103,7 +104,9 @@ class SpatialTuningAnalysis:
     def calculateTuningCurveReliability(self,WAKEactivity,tuning_curves):
         #FAKEactivity = copy.deepcopy(WAKEactivity)
         FAKEactivity = {'state':WAKEactivity['state']}
-        FAKEactivity = self.makeFAKEdata(WAKEactivity,tuning_curves, start_pos=self.start_pos)
+        FAKEactivity = self.makeFAKEdata(WAKEactivity,tuning_curves,
+                                         start_pos=self.start_pos,
+                                         n_obs=self.b_obs)
         TCreliability = FAKEactivity['TCcorr']
         return FAKEactivity, TCreliability
     
@@ -135,13 +138,13 @@ class SpatialTuningAnalysis:
         
         
     
-    # @staticmethod
-    def makeFAKEdata(self, WAKEactivity, tuning_curves, useMstats=False,
-                     metric='EVspace', inputCells=False, start_pos=1):
+    @staticmethod
+    def makeFAKEdata(WAKEactivity, tuning_curves, useMstats=False,
+                     metric='EVspace', inputCells=False, start_pos=1, n_obs=1):
         FAKEactivity = {'state':WAKEactivity['state']}
         position = WAKEactivity['state']['agent_pos']
         if inputCells:
-            if self.env.n_obs == 1:
+            if n_obs == 1:
                 WAKE_h = WAKEactivity['obs'].squeeze().detach().numpy()[:-1,:]
             else:
                 WAKE_h = np.concatenate([o.squeeze().detach().numpy()[:-1,:] for o in WAKEactivity['obs']],

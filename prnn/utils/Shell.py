@@ -1113,8 +1113,8 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         act = np.concatenate((rot_vel[:,None], vel), axis=1)
         obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
                               for i in range(len(self.vision))], axis=-1)
-        obs_grid = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
-        obs = (obs_vis, obs_grid)
+        obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
+        obs = (obs_vis, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
         if discretize:

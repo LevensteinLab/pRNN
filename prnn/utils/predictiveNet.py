@@ -134,6 +134,7 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
               'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
+              'multRNN_5win_i0_o01': multRNN_5win_i0_o01,
               }
 
 

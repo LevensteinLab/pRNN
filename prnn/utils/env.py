@@ -83,7 +83,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
     elif package=='ratinabox_colors_Reward':
         env = make_rat_env(env_key)
         env = RiaBColorsRewardShell(env, act_enc, env_key, speed,
-                                  thigmotaxis, HDbins, FoV_params)
+                                    thigmotaxis, HDbins, FoV_params, seed=seed)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

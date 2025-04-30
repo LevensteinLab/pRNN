@@ -561,16 +561,36 @@ class RiaBVisionShell(RatInABoxShell):
     def show_state(self, t, fig, ax, **kwargs):
         start_t = self.ag.history["t"][t-1]
         end_t = self.ag.history["t"][t]
+        # create a little space around the env
+        self.env.extent[0]-=0.05
+        self.env.extent[1]+=0.05
+        self.env.extent[2]-=0.05
+        self.env.extent[3]+=0.05
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax,color="changing")
         for i in range(len(self.vision)):
             self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.05
+        self.env.extent[1]-=0.05
+        self.env.extent[2]+=0.05
+        self.env.extent[3]-=0.05
     
     def show_state_traj(self, start, end, fig, ax, **kwargs):
         start_t = self.ag.history["t"][start]
         end_t = self.ag.history["t"][end]
+        # create a little space around the env
+        self.env.extent[0]-=0.05
+        self.env.extent[1]+=0.05
+        self.env.extent[2]-=0.05
+        self.env.extent[3]+=0.05
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
         for i in range(len(self.vision)):
             self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.05
+        self.env.extent[1]-=0.05
+        self.env.extent[2]+=0.05
+        self.env.extent[3]-=0.05
     
     def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
 
@@ -579,7 +599,7 @@ class RiaBVisionShell(RatInABoxShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -822,7 +842,7 @@ class RiaBGridShell(RatInABoxShell):
         self.grid.reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -1027,7 +1047,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -1045,7 +1065,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
 class RiaBColorsRewardShell(RiaBVisionShell):
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
 
@@ -1057,7 +1077,7 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         coords_type_0 = coords[mask]
         if len(coords_type_0) < 3:
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
-        #add a seed to make it reproducible TODO (add as argument as well)
+        np.random.seed(seed)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
         reward_positions = env.objects['objects'][reward_hole_indices]
 
@@ -1252,7 +1272,6 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         plt.gca().invert_xaxis()
         fig.canvas.draw()
         image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        print(image_from_plot.shape)
         image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
         return image_from_plot
@@ -1270,7 +1289,7 @@ class RiaBColorsRewardShell(RiaBVisionShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:

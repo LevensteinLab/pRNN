@@ -93,7 +93,7 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
             else:
                 np.save(str(traj_dir / "obs.npy"), obs)
             np.save(str(traj_dir / "act.npy"), act)
-            #np.save(str(traj_dir / "state.npy"), last_state)
+            np.save(str(traj_dir / "state.npy"), last_state)
 
 
 def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, num_workers=0):

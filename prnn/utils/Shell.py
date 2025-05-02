@@ -1432,17 +1432,11 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
 
         remix = np.zeros((*obs_vis.shape[:-1],3))
         remix += np.tile(obs_vis[...,0,None],3)*100/255
-        if 'LRoom' in self.name:
-            remix[...,2] += obs_vis[...,1]
-            remix[...,0] += obs_vis[...,2]
-            remix[...,0] += obs_vis[...,3]
-            remix[...,1] += obs_vis[...,3]
-        else:
-            for i in range(1,obs_vis.shape[-1]):
-                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
-                                     0,
-                                     -1
-                                     ) * self.obs_colors[i][:3]
+        for i in range(1,obs_vis.shape[-1]):
+            remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
+                                    0,
+                                    -1
+                                    ) * self.obs_colors[i][:3]
         remix = remix.clip(max=1)
         remix = remix.reshape(remix.shape[:-2]+(-1,))[None]
 

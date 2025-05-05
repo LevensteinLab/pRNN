@@ -1301,3 +1301,338 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         for i in range(len(self.vision)):
             self.vision[i].update()
 
+
+class RiaBColorsRewardDirectedShell(RiaBVisionShell):
+
+
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
+        self.n_obs = 2
+
+        coords = env.objects["objects"]         # shape (N, 2)
+        types  = env.objects["object_types"]    # shape (N,)
+
+        # Create a mask (Boolean array) for where types == 0
+        mask = (types == 0)
+        coords_type_0 = coords[mask]
+        if len(coords_type_0) < 3:
+            raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
+        #add a seed to make it reproducible TODO (add as argument as well)
+        reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
+        reward_positions = env.objects['objects'][reward_hole_indices]
+
+        # Make the agent 
+        Ag = Agent(Env)
+        Ag.dt = 50e-3  # set discretisation time, large is fine
+        Ag.episode_data = {
+            "start_time": [],
+            "end_time": [],
+            "start_pos": [],
+            "end_pos": [],
+            "success_or_failure": [],
+        }  # a dictionary we will use later
+        Ag.exploit_explore_ratio = 0.3  # exploit/explore parameter we will use later
+        #Ag.exploit_explore_ratio = 1 # set this high so agent climbs the VF
+
+
+        #Input features (200 place cells of random widths)
+        n_pc = 200 
+        Inputs = PlaceCells(
+            Ag,
+            params={
+                "n": n_pc,
+                "widths": np.random.uniform(0.04, 0.4, size=(n_pc)), #large and small widths
+                "color": "C1",
+            },
+        )
+        # just manually setting the last four cell's widths and locations for some plots I wish to make later, this is not critical
+        Inputs.place_cell_widths[-4:] = 0.2
+        Inputs.place_cell_centres[-4:] = np.array(
+            [[0.15, 0.55], [0.55, 0.25], [0.65, 0.7], [0.9, 0.7]]
+        )
+        Inputs.plot_rate_map(chosen_neurons=[-4, -3, -2, -1], autosave=False)
+
+
+        #The reward neuron (another place cell hidden behind the barrier) 
+        Reward = PlaceCells(
+            Ag,
+            params={
+                "n": 1,
+                "place_cell_centres": np.array([[0.9, 0.05]]),
+                "description": "top_hat",
+                "widths": 0.2,
+                "max_fr": 1,
+                "color": "C5",
+            },
+        )
+        Reward.episode_end_time = 3  # a param we will use later
+        Reward.plot_rate_map(chosen_neurons="1")
+
+
+
+        # The Value Neuron
+        # Now initialise a Value neuron, full documentation of this class in ratinabox/contribs/ValueNeuron.py
+        # It's a feedforward layer summing (then non-linearly activating) its input features. 
+        # It takes: 
+        # • a list of inputs (the place cells we just made) 
+        # • a timescale for the discounting of future rewards (tau)
+        # • a non-linear activation function (relu)
+        ValNeur = ValueNeuron(
+            Ag, params={
+                        "input_layers": [Inputs], 
+                        "tau": 10,
+                        "eta":0.001,
+                        "L2": 0.1,  # L2 regularisation
+                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
+                        "color": "C2"}
+        )
+        ValNeur.inputs['PlaceCells']['w'] *= 0.01
+        ValNeur.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+        #have value update for 3 rewards seperately, then relay between the 3 
+        self.reset()
+
+    def getObservations(self, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+
+        render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
+        if reset:
+            self.reset()
+        else:
+            self.reset(keep_state=True)
+
+        for aa in range(tsteps):
+
+            #get greedy direction of steepest ascent of the value function
+            gradV = get_steep_ascent(self.ValNeur, Ag.pos)
+            if gradV is None: drift_velocity = None #if None, the agent will just randomly explore
+            else: drift_velocity = 3 * Ag.speed_mean * gradV
+            # you can ignore this (force agent to travel towards reward when v nearby) helps stability.
+            if (Ag.pos[0] > 0.8) and (Ag.pos[1] < 0.4):
+                dir_to_reward = Reward.place_cell_centres[0] - Ag.pos
+                drift_velocity = (
+                    3 * Ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
+                )
+
+            # move the agent
+            Ag.update(
+                drift_velocity=drift_velocity,
+                drift_to_random_strength_ratio=Ag.exploit_explore_ratio,
+            )
+
+            self.Reward.update() #switched from self.grid.update()
+            self.Inputs.update()
+            self.ValNeur.update() #TODO add the gradient update
+
+
+
+            for i in range(len(self.vision)):
+                self.vision[i].update()
+
+        rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
+        vel = np.array(self.ag.history['vel'][1:])*self.ag.dt
+        act = np.concatenate((rot_vel[:,None], vel), axis=1)
+        obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+        obs_grid = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
+        obs_inputs = np.array(self.Inputs.history["firingrate"])
+        obs_valneur = np.array(self.ValNeur.history["firingrate"])
+        obs = (obs_vis, obs_grid, obs_inputs, obs_valneur)
+
+        pos = np.array(self.ag.history['pos'])
+        if discretize:
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.env.dx
+            coord = self.env.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+        if inv_x:
+            max_x = np.round(pos[:,0].max())
+            pos[:,0] = max_x - pos[:,0]
+        if inv_y:
+            max_y = np.round(pos[:,1].max())
+            pos[:,1] = max_y - pos[:,1]
+
+        state = {'agent_pos': pos, 
+                 'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
+                 'mean_vel': self.ag.speed_mean,
+                }
+
+        return obs, act, state, render
+
+    def env2pred(self, obs, act=None):
+        """
+        Convert observation and action input to pytorch arrays
+        for input to the predictive net, tensor of shape (N,L,H)
+        N: Batch size
+        L: timesamps
+        H: input_size
+        https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
+        """
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+
+        obs_vis, obs_Reward = obs
+
+        remix = np.zeros((*obs_vis.shape[:-1],3))
+        remix += np.tile(obs_vis[...,0,None],3)*100/255
+        if 'LRoom' in self.name:
+            remix[...,2] += obs_vis[...,1]
+            remix[...,0] += obs_vis[...,2]
+            remix[...,0] += obs_vis[...,3]
+            remix[...,1] += obs_vis[...,3]
+        else:
+            for i in range(1,obs_vis.shape[-1]):
+                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
+                                     0,
+                                     -1
+                                     ) * self.obs_colors[i][:3]
+        remix = remix.clip(max=1)
+        remix = remix.reshape(remix.shape[:-2]+(-1,))
+        remix = torch.tensor(remix, dtype=torch.float, requires_grad=False)
+        remix = torch.unsqueeze(remix, dim=0)
+
+
+        obs_Reward = obs_Reward.clip(max=1)
+        obs_Reward = torch.tensor(obs_Reward, dtype=torch.float, requires_grad=False)
+        obs_Reward = torch.unsqueeze(obs_Reward, dim=0)
+
+        obs_inputs = obs_inputs.clip(max=1)
+        obs_inputs = torch.tensor(obs_inputs, dtype=torch.float, requires_grad=False)
+        obs_inputs = torch.unsqueeze(obs_inputs, dim=0)
+
+        obs_valneur = obs_valneur.clip(max=1)
+        obs_valneur = torch.tensor(obs_valneur, dtype=torch.float, requires_grad=False)
+        obs_valneur = torch.unsqueeze(obs_valneur, dim=0)
+
+        obs = (remix, obs_Reward, obs_inputs, obs_valneur)
+
+        return obs, act
+
+    def env2np(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+        act = np.array(act)
+
+        obs_vis, obs_Reward = obs
+
+        remix = np.zeros((*obs_vis.shape[:-1],3))
+        remix += np.tile(obs_vis[...,0,None],3)*100/255
+        if 'LRoom' in self.name:
+            remix[...,2] += obs_vis[...,1]
+            remix[...,0] += obs_vis[...,2]
+            remix[...,0] += obs_vis[...,3]
+            remix[...,1] += obs_vis[...,3]
+        else:
+            for i in range(1,obs_vis.shape[-1]):
+                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
+                                     0,
+                                     -1
+                                     ) * self.obs_colors[i][:3]
+        remix = remix.clip(max=1)
+        remix = remix.reshape(remix.shape[:-2]+(-1,))[None]
+
+
+        obs_Reward = obs_Reward.clip(max=1)[None]
+        obs_inputs = obs_inputs.clip(max=1)[None]
+        obs_valneur = obs_valneur.clip(max=1)[None]
+
+        obs = (remix, obs_Reward, obs_inputs, obs_valneur)
+
+        return obs, act
+    
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        """
+        Convert sequence of observations from pytorch format to image-filled np.array
+        """
+        obs = obs[0].detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
+
+        img = []
+        for t in range(obs.shape[1]):
+            img.append(self.to_image(obs[whichPhase,t])[None,...])
+        obs = np.concatenate(img, axis=0)
+        return obs
+    
+    def to_image(self, obs):
+        fig, ax = plt.subplots()
+
+
+        obs = obs.reshape(-1,3)
+
+        y = self.vision[0].tuning_distances * np.cos(self.vision[0].tuning_angles)
+        x = self.vision[0].tuning_distances * np.sin(self.vision[0].tuning_angles) + 0.5
+        ww = (self.vision[0].sigma_angles * self.vision[0].tuning_distances)
+        hh = self.vision[0].sigma_distances
+        aa  = self.vision[0].tuning_angles * 180 / np.pi
+        ec = EllipseCollection(ww,hh, aa, units = 'x',
+                                offsets = np.array([x,y]).T,
+                                offset_transform = ax.transData,
+                                linewidth=0.5,
+                                edgecolor="dimgrey",
+                                zorder = 2.1,
+                                )
+        ec.set_facecolors(obs)
+
+        ax.add_collection(ec) 
+
+        plt.axis('off')
+        fig.tight_layout(pad=0)
+        ax.margins(0.15)
+        plt.gca().invert_xaxis()
+        fig.canvas.draw()
+        image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        print(image_from_plot.shape)
+        image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        return image_from_plot
+
+    def getObsSize(self):
+        obs_size = (self.vision[0].n * 3, self.Reward.n)
+        return obs_size
+    
+    def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
+        if not hasattr(self, 'Reward'):
+            return
+        self.ag.reset_history()
+        self.Reward.reset_history()
+        for i in range(len(self.vision)):
+            self.vision[i].reset_history()
+        
+        if keep_state:
+            vel = self.ag.vel
+            pos = self.ag.pos
+
+        if vel:
+            self.ag.pos = pos
+        else:
+            vel = [0,0]
+
+        self.ag.save_velocity = vel
+        self.ag.save_to_history()
+        self.Reward.update()
+        self.ValNeur.reset() 
+        self.Inputs.reset()
+        for i in range(len(self.vision)):
+            self.vision[i].update()
+    
+    def get_steep_ascent(ValueNeuron, pos):
+        """This function will be used for policy improvement. Calculates direction steepest ascent (gradient) of the value function and returns a drift velocity in this direction. Returns None when the local gradient is exceedingly low"""
+        V = ValueNeuron.get_state(evaluate_at=None, pos=pos)[0][0] #query the firing rate at the given position
+        if V <= 0.05*ValueNeuron.max_value:
+            return None # if the value function is too low it is unreliable, return None
+        else:  # calculate gradient locally
+            V_plusdx = ValueNeuron.get_state(evaluate_at=None, pos=pos + np.array([1e-3, 0]))[0][0]
+            V_plusdy = ValueNeuron.get_state(evaluate_at=None, pos=pos + np.array([0, 1e-3]))[0][0]
+            gradV = np.array([V_plusdx - V, V_plusdy - V])
+            norm = np.linalg.norm(gradV)
+            gradV = gradV / norm
+            return gradV
+

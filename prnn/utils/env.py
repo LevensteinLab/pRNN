@@ -14,13 +14,27 @@ from gymnasium.core import ObservationWrapper
 from prnn.utils.Shell import *
 from prnn.examples.RatEnvironment import make_rat_env
 
+FoV_params_default = {"spatial_resolution": 0.01,
+                      "angle_range": [0, 45],
+                      "distance_range": [0.0, 0.33]
+                      }
 
+Grid_params_default = {"n": 150,
+                       "gridscale_distribution": "modules",
+                       "gridscale": (0.1, 0.2, 0.3, 0.4, 0.5,
+                                     0.6, 0.7, 0.8, 0.9, 1.0),
+                       "orientation_distribution": "modules",
+                       "orientation": (2*np.pi/5, 8*np.pi/5, 4*np.pi/5,
+                                       3*np.pi/5, np.pi, 7*np.pi/5,
+                                       np.pi/5, 6*np.pi/5, 9*np.pi/5, 0),
+                       "phase_offset_distribution": "uniform",
+                       "phase_offset": (0, 2 * np.pi),
+                       }
 
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
-             seed=42, FoV_params={'spatial_resolution': 0.01,
-                                  "angle_range": [0, 45],
-                                  "distance_range": [0.0, 0.33]}):
+             seed=42, FoV_params=FoV_params_default,
+             Grid_params=Grid_params_default):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -57,18 +71,19 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
-        env = RiaBGridShell(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+        env = RiaBGridShell(env, act_enc, env_key, speed,
+                            thigmotaxis, HDbins, Grid_params)
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
         env = RiaBColorsGridShell(env, act_enc, env_key, speed,
-                                  thigmotaxis, HDbins, FoV_params)
+                                  thigmotaxis, HDbins, FoV_params, Grid_params)
         
     #Hadrien TODO add an option here 
     elif package=='ratinabox_colors_Reward':
         env = make_rat_env(env_key)
         env = RiaBColorsRewardShell(env, act_enc, env_key, speed,
-                                  thigmotaxis, HDbins, FoV_params)
+                                    thigmotaxis, HDbins, FoV_params, seed=seed)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

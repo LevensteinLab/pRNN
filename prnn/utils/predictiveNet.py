@@ -130,7 +130,11 @@ netOptions = {'vRNN' : vRNN,
               'sgpRNN_5win'     : sgpRNN_5win,
               'lognRNN_rollout' : lognRNN_rollout,
               'lognRNN_mask' : lognRNN_mask,
-              'multRNN_5win_i01_o01': multRNN_5win_i01_o01
+              'multRNN_5win_i01_o01': multRNN_5win_i01_o01,
+              'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
+              'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
+              'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
+              'multRNN_5win_i0_o01': multRNN_5win_i0_o01,
               }
 
 
@@ -154,7 +158,7 @@ class PredictiveNet:
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
-                 **architecture_kwargs):
+                 fig_type='png', **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -191,6 +195,7 @@ class PredictiveNet:
         self.TrainingSaver = pd.DataFrame()
         self.numTrainingTrials = -1
         self.numTrainingEpochs = -1
+        self.fig_type = fig_type
 
         #The homeostatic targets
         self.target_rate = target_rate
@@ -690,8 +695,12 @@ class PredictiveNet:
 
 
         if inputControl:
+            if self.env_shell.n_obs == 1:
+                d = obs.squeeze().detach().numpy()[onsetTransient:-1,:]
+            else:
+                d = np.concatenate([o.squeeze().detach().numpy()[onsetTransient:-1,:] for o in obs], axis=-1)
             rates_input = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
-                                 d = obs.squeeze().detach().numpy()[onsetTransient:-1,:], time_units = 's')
+                                 d = d, time_units = 's')
             pf_input,xy = nap.compute_2d_tuning_curves_continuous(rates_input,position,
                                                                   ep=rates.time_support,
                                                                   nb_bins=(nb_bins_x, nb_bins_y),
@@ -724,7 +733,9 @@ class PredictiveNet:
                                                     metric='cosine')
             
             #EV_s
-            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,place_fields)
+            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,
+                                             place_fields,
+                                             n_obs=self.env_shell.n_obs)
             EVs = FAKEinputdata['TCcorr']
             if saveTrainingData:
                 self.addTrainingData('sRSA',sRSA)
@@ -1004,7 +1015,7 @@ class PredictiveNet:
 
             if savename is not None:
                 saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
-                        filetype='png')
+                        filetype=self.fig_type)
             plt.show()
 
         return decoded
@@ -1136,9 +1147,8 @@ class PredictiveNet:
                 plt.yticks([])
 
         if savename is not None:
-            #plt.savefig(savename+'_ObservationSequence.png',format='png')
             saveFig(plt.gcf(),savename+'_ObservationSequence',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
 
         return
@@ -1162,9 +1172,8 @@ class PredictiveNet:
         #plt.xticks([0,self.numTrainingTrials+1])
 
         if savename is not None:
-            #plt.savefig(savename+'_LerningCurve.png',format='png')
             saveFig(fig,savename+'_LearningCurve',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         if axis is None:
             plt.show()
 
@@ -1266,7 +1275,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_TuningCurves',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
 
         if nofig:
             plt.show()
@@ -1305,7 +1314,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_DelayDist',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
 
         return dd

@@ -284,7 +284,7 @@ class GymMinigridShell(Shell):
         self.set_agent_pos(state[:2])
         self.set_agent_dir(state[2])
     
-    def save_state(self, act, state):
+    def save_state(self, state):
         return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
     
     def set_agent_pos(self, pos):
@@ -389,17 +389,18 @@ class RatInABoxShell(Shell):
     def load_state(self, state):
         self.set_agent_pos(state[:2])
         self.set_agent_dir(state[2], state[3])
-    def save_state(self, act, state):
+    
+    def save_state(self, state):
         return np.array([*state['agent_pos'][-1],
-                        *state['agent_dir'][-1],
-                        state['mean_vel']])
-        
+                         state['agent_dir'][-1],
+                         state['mean_vel']])
+    
     def set_agent_pos(self, pos):
         self.ag.pos = pos
-        
+    
     def set_agent_dir(self, direction, vel):
         self.ag.velocity = vel * np.array([np.cos(direction),
-                                        np.sin(direction)])
+                                           np.sin(direction)])
         self.ag.rotational_velocity = 0
 
 
@@ -560,16 +561,36 @@ class RiaBVisionShell(RatInABoxShell):
     def show_state(self, t, fig, ax, **kwargs):
         start_t = self.ag.history["t"][t-1]
         end_t = self.ag.history["t"][t]
+        # create a little space around the env
+        self.env.extent[0]-=0.05
+        self.env.extent[1]+=0.05
+        self.env.extent[2]-=0.05
+        self.env.extent[3]+=0.05
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax,color="changing")
         for i in range(len(self.vision)):
             self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.05
+        self.env.extent[1]-=0.05
+        self.env.extent[2]+=0.05
+        self.env.extent[3]-=0.05
     
     def show_state_traj(self, start, end, fig, ax, **kwargs):
         start_t = self.ag.history["t"][start]
         end_t = self.ag.history["t"][end]
+        # create a little space around the env
+        self.env.extent[0]-=0.05
+        self.env.extent[1]+=0.05
+        self.env.extent[2]-=0.05
+        self.env.extent[3]+=0.05
         self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
         for i in range(len(self.vision)):
             self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.05
+        self.env.extent[1]-=0.05
+        self.env.extent[2]+=0.05
+        self.env.extent[3]-=0.05
     
     def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
 
@@ -578,7 +599,7 @@ class RiaBVisionShell(RatInABoxShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -712,22 +733,13 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
 
 class RiaBGridShell(RatInABoxShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+    def __init__(self, env, act_enc, env_key, speed,
+                 thigmotaxis, HDbins, Grid_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params={
-                    "n": 150,
-                    "gridscale_distribution": "modules",
-                    "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8),
-                    "orientation_distribution": "modules",
-                    "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
-                    "phase_offset_distribution": "uniform",
-                    "phase_offset": (0, 2 * np.pi), #degrees
-            })
+        self.grid = GridCells(self.ag, params=Grid_params)
 
         self.reset()
 
@@ -830,7 +842,7 @@ class RiaBGridShell(RatInABoxShell):
         self.grid.reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -844,22 +856,13 @@ class RiaBGridShell(RatInABoxShell):
 
 
 class RiaBColorsGridShell(RiaBVisionShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+    def __init__(self, env, act_enc, env_key, speed,
+                 thigmotaxis, HDbins, FoV_params, Grid_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params={
-                    "n": 150,
-                    "gridscale_distribution": "modules",
-                    "gridscale": (0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8, 0.3, 0.5, 0.8,
-                                  0.3, 0.5, 0.8),
-                    "orientation_distribution": "modules",
-                    "orientation": (0, 2*np.pi/5, 4*np.pi/5, 6*np.pi/5, 8*np.pi/5), #radians 
-                    "phase_offset_distribution": "uniform",
-                    "phase_offset": (0, 2 * np.pi), #degrees
-            })
+        self.grid = GridCells(self.ag, params=Grid_params)
         
         self.reset()
 
@@ -1044,7 +1047,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:
@@ -1062,7 +1065,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
 class RiaBColorsRewardShell(RiaBVisionShell):
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
 
@@ -1074,7 +1077,7 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         coords_type_0 = coords[mask]
         if len(coords_type_0) < 3:
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
-        #add a seed to make it reproducible TODO (add as argument as well)
+        np.random.seed(seed)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
         reward_positions = env.objects['objects'][reward_hole_indices]
 
@@ -1130,8 +1133,8 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         act = np.concatenate((rot_vel[:,None], vel), axis=1)
         obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
                               for i in range(len(self.vision))], axis=-1)
-        obs_grid = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
-        obs = (obs_vis, obs_grid)
+        obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
+        obs = (obs_vis, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
         if discretize:
@@ -1269,7 +1272,6 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         plt.gca().invert_xaxis()
         fig.canvas.draw()
         image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        print(image_from_plot.shape)
         image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
         return image_from_plot
@@ -1287,7 +1289,7 @@ class RiaBColorsRewardShell(RiaBVisionShell):
             self.vision[i].reset_history()
         
         if keep_state:
-            vel = self.ag.vel
+            vel = self.ag.velocity
             pos = self.ag.pos
 
         if vel:

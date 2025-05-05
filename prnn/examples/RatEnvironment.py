@@ -44,7 +44,7 @@ def create_circular_boundary(radius=1, num_points=100, center=(0, 0)):
 
 
 #generates the food holes inside the environment
-def generate_wells(env, num_holes=177, board_radius=0.6, hole_radius=0.025):
+def generate_wells(env, num_holes=177, board_radius=0.6, hole_radius=0.025, offset=0.1):
     """Generates a specific number of holes evenly spaced inside a circular boundary using a rectangular grid pattern."""
     # Calculate the approximate number of rows and columns
     area_per_hole = (np.pi * board_radius**2) / num_holes
@@ -70,12 +70,12 @@ def generate_wells(env, num_holes=177, board_radius=0.6, hole_radius=0.025):
             y = -board_radius + (j + 0.5) * y_spacing
 
             # Ensure the hole is inside the circular boundary
-            if np.sqrt(x**2 + y**2) + hole_radius < board_radius:
+            if np.sqrt(x**2 + y**2) + hole_radius + offset < board_radius:
                 # Add objects to environment
                 if(i == 0 and j == 0):
-                    env.add_object([x, y], type='new')
+                    env.add_object([x+board_radius, y+board_radius], type='new')
                 else:
-                    env.add_object([x, y], type='same')
+                    env.add_object([x+board_radius, y+board_radius], type='same')
                 num_holes_created += 1
 
 #picks reward holes randomly 
@@ -96,8 +96,10 @@ def add_uniform_objects(env, dist = 0.6, gap = 0.05, num_objects = 32):
     newangles_degrees = np.linspace(0, 360, num_objects, endpoint=False).tolist()
     newangles_radians = [math.radians(angle) for angle in newangles_degrees]
     newpositions = [(d * math.cos(theta), d * math.sin(theta)) for theta in newangles_radians]
+    newpositions = [(pos[0]+0.6, pos[1]+0.6) for pos in newpositions] #center of the cheeseboard 
 
-    random.shuffle(newpositions) #look at numpy function to do this so that seed is reproducible
+    random.seed(42) #set the seed for reproducibility
+    random.shuffle(newpositions)
 
 
     env.add_object([newpositions[0][0], newpositions[0][1]], type='new')
@@ -113,6 +115,11 @@ def add_uniform_objects(env, dist = 0.6, gap = 0.05, num_objects = 32):
         env.add_object([newpositions[i][0], newpositions[i][1]], type='same')
 
 def make_rat_env(key):
+    """
+    Create a rat environment based on the given key.
+    Important: the boundaries should be all positive,
+    so there's no negative coordinates.
+    """
     # TODO: think about how to make this more general
     if key == 'RiaB-LRoom':
         # Create the L-shaped environment
@@ -150,13 +157,15 @@ def make_rat_env(key):
 
     if key == 'cheeseboard':
         # Define a circular environment
-        circle_boundary = create_circular_boundary(radius=.6, num_points=200)
+        circle_boundary = create_circular_boundary(radius=.6, num_points=200, center=(0.6, 0.6))
 
         # Initialize the Environment with a circular boundary
-        Env = Environment(params={"boundary": circle_boundary})
+        Env = Environment(params={"boundary": circle_boundary,
+                                  "dx": 1/16,
+                                  "scale": 1})
         Env.object_colormap = 'tab10'
 
-        generate_wells(Env, board_radius=0.5, num_holes = 150)
+        generate_wells(Env, board_radius=0.6, num_holes = 150, offset=0.1)
         #indices = set_random_holes_reward(Env, num_rewards=3)
 
         #reward_positions = Env.objects['objects'][indices]

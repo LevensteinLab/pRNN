@@ -23,5 +23,4 @@ prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
 RiaBAnalysis.ipynb
 myenv/
-myenv/
-myenv/
+testing.ipynb

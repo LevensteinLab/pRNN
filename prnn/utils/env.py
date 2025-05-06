@@ -79,7 +79,6 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         env = RiaBColorsGridShell(env, act_enc, env_key, speed,
                                   thigmotaxis, HDbins, FoV_params, Grid_params)
         
-    #Hadrien TODO add an option here 
     elif package=='ratinabox_colors_Reward':
         env = make_rat_env(env_key)
         env = RiaBColorsRewardShell(env, act_enc, env_key, speed,

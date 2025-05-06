@@ -613,6 +613,223 @@ class RiaBVisionShell(RatInABoxShell):
             self.vision[i].update()
 
 
+
+
+
+class RiaBVisionShell2(RatInABoxShell):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins,
+                 FoV_params={'spatial_resolution': 0.01,
+                             'angle_range': [0, 45],
+                             'distance_range': [0.0, 0.33]}
+                             ):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
+
+        # Create vision cells
+
+        FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
+        FoV_Walls.sigma_distances = np.full((60,), 0.02)
+        FoV_Walls.sigma_angles /= 2#np.full((60,), 1.)
+        FoV_Objects = [FieldOfViewOVCs(self.ag, params=FoV_params | {
+            "object_tuning_type": x
+            }) for x in range(env.n_object_types)]
+        FoV_Objects[0].sigma_distances = np.full((60,), 0.02)
+        FoV_Objects[0].sigma_angles /= 2#np.full((60,), 1.)
+        
+        self.vision = [FoV_Walls] + FoV_Objects
+
+        self.obs_colors = ['black']
+        facecolor = matplotlib.cm.get_cmap(self.env.object_colormap)
+        for i in range(self.env.n_object_types):
+            self.obs_colors.append(facecolor(i / (self.env.n_object_types - 1 + 1e-8)))
+
+        self.reset()
+
+    def getObservations(self, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+
+        render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
+        if reset:
+            self.reset()
+        else:
+            self.reset(keep_state=True)
+
+        for aa in range(tsteps):
+            self.ag.update()
+            for i in range(len(self.vision)):
+                self.vision[i].update()
+
+        rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
+        vel = np.array(self.ag.history['vel'][1:])*self.ag.dt
+        act = np.concatenate((rot_vel[:,None], vel), axis=1)
+        obs = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+
+        pos = np.array(self.ag.history['pos'])
+        if discretize:
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.env.dx
+            coord = self.env.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+        if inv_x:
+            max_x = np.round(pos[:,0].max())
+            pos[:,0] = max_x - pos[:,0]
+        if inv_y:
+            max_y = np.round(pos[:,1].max())
+            pos[:,1] = max_y - pos[:,1]
+
+        state = {'agent_pos': pos, 
+                 'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
+                 'mean_vel': self.ag.speed_mean,
+                }
+
+        return obs, act, state, render
+    
+    def env2pred(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+
+        obs = obs.clip(max=1)
+        obs = obs.reshape(obs.shape[:-2]+(-1,))
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+
+        return obs, act
+    
+    def env2np(self, obs, act=None):
+        if act is not None:
+            act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
+            act[:,:,0] = act[:,:,0]/self.ag.speed_mean
+        act = np.array(act)
+
+        obs = obs.clip(max=1)[None]
+        obs = obs.reshape(obs.shape[:-2]+(-1,))
+
+        return obs, act
+    
+    def pred2np(self, obs, whichPhase=0, timesteps=None):        
+        obs = obs.detach().numpy()#.squeeze()
+        if timesteps:
+            obs = obs[:,timesteps,...]
+
+        img = []
+        for t in range(obs.shape[1]):
+            img.append(self.to_image(obs[whichPhase,t])[None,...])
+        obs = np.concatenate(img, axis=0)
+        return obs
+    
+    def to_image(self, obs):
+        fig, ax = plt.subplots()
+        # ax.set_ylim(top=0.5)
+
+        n = self.env.n_object_types
+        obs = obs.reshape(-1,n+1)
+
+        y = self.vision[0].tuning_distances * np.cos(self.vision[0].tuning_angles)
+        x = self.vision[0].tuning_distances * np.sin(self.vision[0].tuning_angles) + 0.5
+        ww = (self.vision[0].sigma_angles * self.vision[0].tuning_distances)
+        hh = self.vision[0].sigma_distances
+        aa  = self.vision[0].tuning_angles * 180 / np.pi
+
+        for obj in range(n+1):
+            facecolor_array = self.vision[obj].cell_colors.copy()
+            facecolor_array[:, -1] = 0.7*np.maximum( # Make the colors increasingly transparent as the next overlays the previous
+                                    0, np.minimum(1, obs[:,obj] / (self.vision[obj].max_fr*n/(n+obj)))
+                                                    )
+
+            ec = EllipseCollection(ww,hh, aa, units = 'x',
+                                    offsets = np.array([x,y]).T,
+                                    offset_transform = ax.transData,
+                                    linewidth=0.5,
+                                    edgecolor="dimgrey",
+                                    zorder = 2.1,
+                                    )
+            ec.set_facecolors(facecolor_array)
+
+            ax.add_collection(ec) 
+
+        plt.axis('off')
+        fig.tight_layout(pad=0)
+        ax.margins(0.15)
+        plt.gca().invert_xaxis()
+        fig.canvas.draw()
+        image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        return image_from_plot
+
+    def getObsSize(self):
+        obs_size = sum([self.vision[i].n for i in range(len(self.vision))])
+        return obs_size
+    
+    def get_viewpoint(self, agent_pos, agent_dir):
+        self.reset(pos=agent_pos, hd=agent_dir)
+        obs = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+
+        return self.env2pred(obs)[0].squeeze()
+    
+    def show_state(self, t, fig, ax, **kwargs):
+        start_t = self.ag.history["t"][t-1]
+        end_t = self.ag.history["t"][t]
+        # create a little space around the env
+        self.env.extent[0]-=0.05
+        self.env.extent[1]+=0.05
+        self.env.extent[2]-=0.05
+        self.env.extent[3]+=0.05
+        self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax,color="changing")
+        for i in range(len(self.vision)):
+            self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.05
+        self.env.extent[1]-=0.05
+        self.env.extent[2]+=0.05
+        self.env.extent[3]-=0.05
+    
+    def show_state_traj(self, start, end, fig, ax, **kwargs):
+        start_t = self.ag.history["t"][start]
+        end_t = self.ag.history["t"][end]
+        # create a little space around the env
+        self.env.extent[0]-=0.5
+        self.env.extent[1]+=0.5
+        self.env.extent[2]-=0.5
+        self.env.extent[3]+=0.5
+        self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
+        for i in range(len(self.vision)):
+            self.vision[i].display_vector_cells(fig, ax, t=end_t)
+        # reset the env extent
+        self.env.extent[0]+=0.5
+        self.env.extent[1]-=0.5
+        self.env.extent[2]+=0.5
+        self.env.extent[3]-=0.5
+    
+    def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
+
+        self.ag.reset_history()
+        for i in range(len(self.vision)):
+            self.vision[i].reset_history()
+        
+        if keep_state:
+            vel = self.ag.velocity
+            pos = self.ag.pos
+
+        if vel:
+            self.ag.pos = pos
+        else:
+            vel = [0,0]
+
+        self.ag.save_velocity = vel
+        self.ag.save_to_history()
+        for i in range(len(self.vision)):
+            self.vision[i].update()
+
+
 class RiaBRemixColorsShell(RiaBVisionShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
@@ -1062,7 +1279,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             self.vision[i].update()
 
 
-class RiaBColorsRewardShell(RiaBVisionShell):
+class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma distances and angles (Hadrien)
 
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed):
@@ -1173,7 +1390,7 @@ class RiaBColorsRewardShell(RiaBVisionShell):
         obs_vis, obs_Reward = obs
 
         remix = np.zeros((*obs_vis.shape[:-1],3))
-        remix += np.tile(obs_vis[...,0,None],3)*100/255
+        remix += np.tile(obs_vis[...,0,None],3)*50/255
         if 'LRoom' in self.name:
             remix[...,2] += obs_vis[...,1]
             remix[...,0] += obs_vis[...,2]

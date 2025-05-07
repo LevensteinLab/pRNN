@@ -173,6 +173,7 @@ class GymMinigridShell(Shell):
         self.max_dist = False
         self.loc_mask = [x==None or x.can_overlap() for x in env.grid.grid]
         self.hd_trans = np.array([-1,1,0,0])
+        self.start_pos = 1 # the numbering of occupiable locations starts from this
     
     @property
     def action_space(self):
@@ -358,6 +359,7 @@ class RatInABoxShell(Shell):
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
+        self.start_pos = 0
 
     def dir2deg(self, dir):
         return np.rad2deg(dir)+90

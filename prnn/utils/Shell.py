@@ -1323,6 +1323,10 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
             "wall_geometry": "euclidean",
         },
         )
+
+        self.home_pos = env.sample_random_position()[0]   
+        Ag.pos = self.home_pos.copy() 
+        Ag.save_to_history()   
         
         self.reset()
 
@@ -1523,8 +1527,8 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
             self.vision[i].update()
 
 
-class RiaBColorsRewardDirectedShell(RiaBVisionShell):
-
+class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
+    #showstatetrajectory
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
@@ -1657,7 +1661,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
             self.ValNeur.update() 
 
             self.ValNeur.update_weights(reward = self._current_reward_vector())
-            
+
             if (self.Reward.firingrate[self.active_reward_idx] > self.success_threshold):
                 # rotate to the next reward channel
                 self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n

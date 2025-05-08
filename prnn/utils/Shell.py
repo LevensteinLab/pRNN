@@ -1282,9 +1282,10 @@ class RiaBColorsGridShell(RiaBVisionShell):
 class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma distances and angles (Hadrien)
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, n_repeats = 1):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
+        self.n_repeats = n_repeats
 
         coords = env.objects["objects"]         # shape (N, 2)
         types  = env.objects["object_types"]    # shape (N,)
@@ -1351,6 +1352,7 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
                               for i in range(len(self.vision))], axis=-1)
         obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
+        obs_reward = np.tile(reward_obs, self.n_repeats)  
         obs = (obs_vis, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
@@ -1576,12 +1578,13 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
         Reward = PlaceCells(
             Ag,
             params={
-                "n": 1,
-                "place_cell_centres": np.array([[0.9, 0.05]]),
+                "n": 3,
+                "place_cell_centres": np.array(reward_positions),
                 "description": "top_hat",
                 "widths": 0.2,
                 "max_fr": 1,
                 "color": "C5",
+                "wall_geometry": "euclidean",
             },
         )
         Reward.episode_end_time = 3  # a param we will use later
@@ -1596,7 +1599,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
         # • a list of inputs (the place cells we just made) 
         # • a timescale for the discounting of future rewards (tau)
         # • a non-linear activation function (relu)
-        ValNeur = ValueNeuron(
+        ValNeur1 = ValueNeuron(
             Ag, params={
                         "input_layers": [Inputs], 
                         "tau": 10,
@@ -1605,8 +1608,33 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
                         "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
                         "color": "C2"}
         )
-        ValNeur.inputs['PlaceCells']['w'] *= 0.01
-        ValNeur.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+        ValNeur1.inputs['PlaceCells']['w'] *= 0.01
+        ValNeur1.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+
+        ValNeur2 = ValueNeuron(
+            Ag, params={
+                        "input_layers": [Inputs], 
+                        "tau": 10,
+                        "eta":0.001,
+                        "L2": 0.1,  # L2 regularisation
+                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
+                        "color": "C2"}
+        )
+        ValNeur2.inputs['PlaceCells']['w'] *= 0.01
+        ValNeur2.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+
+        ValNeur3 = ValueNeuron(
+            Ag, params={
+                        "input_layers": [Inputs], 
+                        "tau": 10,
+                        "eta":0.001,
+                        "L2": 0.1,  # L2 regularisation
+                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
+                        "color": "C2"}
+        )
+        ValNeur3.inputs['PlaceCells']['w'] *= 0.01
+        ValNeur3.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+
         #have value update for 3 rewards seperately, then relay between the 3 
         self.reset()
 

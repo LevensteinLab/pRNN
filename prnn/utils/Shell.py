@@ -1542,6 +1542,10 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
         reward_positions = env.objects['objects'][reward_hole_indices]
 
+        self.active_reward_idx  = 0
+        self.success_threshold  = 0.7 
+        self.reward_positions = reward_positions
+
         # Make the agent 
         Ag = Agent(Env)
         Ag.dt = 50e-3  # set discretisation time, large is fine
@@ -1599,41 +1603,18 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
         # • a list of inputs (the place cells we just made) 
         # • a timescale for the discounting of future rewards (tau)
         # • a non-linear activation function (relu)
-        ValNeur1 = ValueNeuron(
+        ValNeur = ValueNeuron(
             Ag, params={
                         "input_layers": [Inputs], 
                         "tau": 10,
                         "eta":0.001,
                         "L2": 0.1,  # L2 regularisation
                         "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
-                        "color": "C2"}
+                        "color": "C2"
+                        "n": 3}
         )
-        ValNeur1.inputs['PlaceCells']['w'] *= 0.01
-        ValNeur1.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
-
-        ValNeur2 = ValueNeuron(
-            Ag, params={
-                        "input_layers": [Inputs], 
-                        "tau": 10,
-                        "eta":0.001,
-                        "L2": 0.1,  # L2 regularisation
-                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
-                        "color": "C2"}
-        )
-        ValNeur2.inputs['PlaceCells']['w'] *= 0.01
-        ValNeur2.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
-
-        ValNeur3 = ValueNeuron(
-            Ag, params={
-                        "input_layers": [Inputs], 
-                        "tau": 10,
-                        "eta":0.001,
-                        "L2": 0.1,  # L2 regularisation
-                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
-                        "color": "C2"}
-        )
-        ValNeur3.inputs['PlaceCells']['w'] *= 0.01
-        ValNeur3.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
+        ValNeur.inputs['PlaceCells']['w'] *= 0.01
+        ValNeur.max_value = np.max(ValNeur.get_state(evaluate_at='all')) #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
 
         #have value update for 3 rewards seperately, then relay between the 3 
         self.reset()
@@ -1673,9 +1654,13 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
 
             self.Reward.update() #switched from self.grid.update()
             self.Inputs.update()
-            self.ValNeur.update() #TODO add the gradient update
+            self.ValNeur.update() 
 
-
+            self.ValNeur.update_weights(reward = self._current_reward_vector())
+            
+            if (self.Reward.firingrate[self.active_reward_idx] > self.success_threshold):
+                # rotate to the next reward channel
+                self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
 
             for i in range(len(self.vision)):
                 self.vision[i].update()
@@ -1848,6 +1833,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
     def reset(self, pos=np.zeros(2), vel=None, seed=False, keep_state=False):
         if not hasattr(self, 'Reward'):
             return
+        self.active_reward_idx = 0
         self.ag.reset_history()
         self.Reward.reset_history()
         for i in range(len(self.vision)):
@@ -1882,4 +1868,10 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell):
             norm = np.linalg.norm(gradV)
             gradV = gradV / norm
             return gradV
+
+    def _current_reward_vector(self):
+        """1‑hot reward vector: only the active channel is non‑zero."""
+        r      = np.zeros(self.ValNeur.n)
+        r[self.active_reward_idx] = self.Reward.firingrate[self.active_reward_idx]
+        return r
 

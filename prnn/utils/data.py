@@ -2,6 +2,7 @@ import numpy as np
 from numpy.random import randint
 import copy
 import torch
+import shutil
 
 from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
@@ -33,7 +34,6 @@ class TrajDataset(Dataset):
 
 
 def generate_trajectories(env, agent, n_trajs, seq_length, folder):
-    folder = folder + '/' + env.name + '-' + agent.name
     top_dir = Path(folder)
     n_generated = 0
     length_generated = 0
@@ -96,10 +96,15 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
             np.save(str(traj_dir / "state.npy"), last_state)
 
 
-def create_dataloader(env, agent, n_trajs, seq_length, folder, batch_size=32, num_workers=0):
-    generate_trajectories(env, agent, n_trajs, seq_length, folder)
+def create_dataloader(env, agent, n_trajs, seq_length, folder, tmp_folder=None, batch_size=32, num_workers=0):
     folder = folder + '/' + env.name + '-' + agent.name
-    dataset = TrajDataset(folder, seq_length, n_trajs, env.getActType(), env.n_obs)
+    generate_trajectories(env, agent, n_trajs, seq_length, folder)
+    if not tmp_folder:
+        tmp_folder = folder
+    else:
+        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name
+        shutil.copytree(folder, tmp_folder, dirs_exist_ok=True)
+    dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
 
     

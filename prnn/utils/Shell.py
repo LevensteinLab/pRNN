@@ -1032,7 +1032,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             vel = self.ag.vel
             pos = self.ag.pos
 
-        if vel:
+        if vel is not None:
             self.ag.pos = pos
         else:
             vel = [0,0]

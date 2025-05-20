@@ -342,7 +342,7 @@ class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
         super().__init__(env, act_enc, env_key)
         "For ratinabox==1.7.1, for other versions you may have to update the code."
-        self.init_agent()
+        self.init_agent(speed, thigmotaxis)
         self.numHDs = HDbins # For One-hot encoding of HD if needed
 
         self.height = int((self.env.extent[3] - self.env.extent[2])/env.dx)
@@ -355,7 +355,7 @@ class RatInABoxShell(Shell):
         self.continuous = True
         self.start_pos = 0
 
-    def init_agent(self):
+    def init_agent(self, speed, thigmotaxis):
         # Create the agent
         ag = Agent(self.env, {
                     'dt': 0.1,
@@ -624,7 +624,8 @@ class RiaBVisionShell(RatInABoxShell):
 
 class RiaBVisionShell2(RatInABoxShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2,
-                 FoV_params={'spatial_resolution': 0.01,
+                 FoV_params={
+                             'spatial_resolution': 0.01,
                              'angle_range': [0, 45],
                              'distance_range': [0.0, 0.33]}
                              ):
@@ -633,13 +634,19 @@ class RiaBVisionShell2(RatInABoxShell):
         # Create vision cells
 
         FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
-        FoV_Walls.sigma_distances = np.full((60,), 0.02)
+        FoV_Walls.sigma_distances = np.full((FoV_Walls.n,), 0.02)
         FoV_Walls.sigma_angles /= 2#np.full((60,), 1.)
         FoV_Objects = [FieldOfViewOVCs(self.ag, params=FoV_params | {
             "object_tuning_type": x
             }) for x in range(env.n_object_types)]
-        FoV_Objects[0].sigma_distances = np.full((60,), wellSigmaDistance)
-        FoV_Objects[0].sigma_angles /= wellSigmaAngleDenominator
+        for k, fov in enumerate(FoV_Objects):
+            # give each layer a *numeric* vector, not the default dict
+            if k == 0:                                  # the “hole” layer
+                fov.sigma_distances = np.full((fov.n,), wellSigmaDistance)
+                fov.sigma_angles   /= wellSigmaAngleDenominator
+            else:                                       # the other object types
+                fov.sigma_distances = np.full((fov.n,), 0.04)   # whatever base σ you want
+                # keep fov.sigma_angles as the array that the constructor created
 
         self.vision = [FoV_Walls] + FoV_Objects
 

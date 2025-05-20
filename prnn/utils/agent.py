@@ -6,9 +6,9 @@ Created on Fri Nov 12 20:05:03 2021
 @author: dl2820
 """
 
-from numpy.random import choice
 import numpy as np
-from ratinabox.utils import get_angle, get_distances_between
+
+from numpy.random import choice
 
 def randActionSequence(tsteps,action_space,action_probability):
     
@@ -46,8 +46,6 @@ class RandomActionAgent:
         act = self.generateActionSequence(tsteps)
 
         render = False
-        # if reset is False:
-        #     raise ValueError('Reset=False not implemented yet...')
             
         obs = [None for t in range(tsteps+1)]
         if reset:
@@ -102,8 +100,6 @@ class RandomHDAgent:
         act = self.generateActionSequence(tsteps)
 
         render = False
-        # if reset is False:
-        #     raise ValueError('Reset=False not implemented yet...')
             
         obs = [None for t in range(tsteps+1)]
         if reset:
@@ -146,12 +142,17 @@ class RatInABoxAgent:
     
 
 def create_agent(envname, env, agentname):
-    if 'Lava' in envname:
-        action_probability = np.array([0.15,0.15,0.6,0.1])
-    else:
-        action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
     if agentname == 'RandomActionAgent':
+        if 'LRoom' in envname:
+            action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
+        else:
+            action_probability = np.array([0.15,0.15,0.6,0.1])
         agent = RandomActionAgent(env.action_space, action_probability)
+
     elif agentname == 'RatInABoxAgent':
         agent = RatInABoxAgent(name=type(env).__name__)
+
+    elif agentname == 'MiniworldAgent':
+        agent = RatInABoxAgent(name="RiaB-to-Miniworld")
+
     return agent

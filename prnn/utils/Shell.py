@@ -336,6 +336,162 @@ class FaramaMinigridShell(GymMinigridShell):
         return self.env.observation_space
     
 
+class MiniworldShell(Shell):
+    def __init__(self, env, act_enc, env_key, vae, HDbins, dx=0.5, **kwargs):
+        super().__init__(env, act_enc, env_key)
+        self.vae = vae
+        self.obs_shape = vae.latent_dim
+        self.numHDs = HDbins
+
+        self.dx = dx
+        self.height = int((env.unwrapped.max_z - env.unwrapped.min_z)/dx)
+        self.width = int((env.unwrapped.max_x - env.unwrapped.min_x)/dx)
+
+        self.true_height = env.unwrapped.max_z - env.unwrapped.min_z
+        self.true_width = env.unwrapped.max_x - env.unwrapped.min_x
+        self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
+
+        self.continuous = True
+        self.start_pos = 0 # TODO: check this!
+
+    def dir2deg(self, dir):
+        return np.rad2deg(dir) # TODO: check this!
+    
+    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
+        if hd_from=='obs':
+            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        elif hd_from=='act':
+            hd = self.act2hd(obs[actoffset], act, actoffset)
+        else:
+            KeyError('hd_from should be either "obs" or "act"')
+        if act is not None:
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    numSuppObs=self.numHDs,
+                                    numActs=self.action_space.n)
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+        obs = obs/255 #normalize image
+
+        if hd_from=='obs':
+            return obs, act
+        else:
+            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
+    
+    def env2np(self, obs, act=None):
+        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             numSuppObs=self.numHDs,
+                                             numActs=self.action_space.n))
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
+        obs = obs/255
+        return obs, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
+        obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
+        return obs
+    
+    def act2hd(self, obs, act, act_offset=0):
+        #TODO: adapt for theta with At-1
+        hd = [self.get_hd(obs)]
+        for a in reversed(act[:act_offset]):
+            hd.insert(0, hd[0] - self.hd_trans[a])
+        for a in act[act_offset:]:
+            hd.append(hd[-1] + self.hd_trans[a] +
+                      4 * ((hd[-1]==0) & (self.hd_trans[a]<0)) -
+                      4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
+        return np.array(hd)
+    
+    def get_agent_pos(self):
+        return self.env.unwrapped.agent_pos
+    
+    def get_agent_dir(self):
+        return self.env.unwrapped.agent_dir
+    
+    def get_hd(self, obs):
+        return obs['direction']
+    
+    def get_visual(self, obs):
+        return np.reshape(obs['image'],(-1))
+
+    def getActSize(self):
+        action = self.encodeAction(act=np.ones(1),
+                                   obs=np.ones(2),
+                                   numActs=self.action_space.n,
+                                   numSuppObs=self.numHDs)
+        act_size = action.size(2)
+        return act_size
+    
+    def getActType(self):
+        return torch.int64
+
+    def getObsSize(self):
+        obs_size = np.prod(self.obs_shape)
+        return obs_size
+    
+    def get_map_bins(self):
+        minmax=(0.5, self.width-1.5,
+                0.5, self.height-1.5)
+        return self.width-2, self.height-2, minmax
+    
+    def get_HD_bins(self):
+        minmax = (-0.5, 4.5)
+        return self.numHDs, minmax
+    
+    def get_viewpoint(self, agent_pos, agent_dir):
+
+        self.env.unwrapped.agent_dir = agent_dir
+        self.env.unwrapped.agent_pos = agent_pos
+        
+        obs = self.env.gen_obs()
+        obs = self.env.observation(obs)
+        
+        return obs['image']/255
+    
+    def load_state(self, state):
+        self.set_agent_pos(state[:2])
+        self.set_agent_dir(state[2])
+    
+    def save_state(self, state):
+        return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
+    
+    def set_agent_pos(self, pos):
+        self.env.unwrapped.agent_pos = pos
+    
+    def set_agent_dir(self, hd):
+        self.env.unwrapped.agent_dir = hd
+    
+    def show_state(self, render, t, **kwargs):
+        plt.imshow(render[t])
+    
+    def show_state_traj(self, start, end, state, render, **kwargs):
+        trajectory_ts = np.arange(start, end)
+        if render is not None:
+            plt.imshow(render[trajectory_ts[-1]])
+        plt.plot((state['agent_pos'][trajectory_ts,0]+0.5)*512/16,
+                    (state['agent_pos'][trajectory_ts,1]+0.5)*512/16,color='r')
+        
+    def step(self, action):
+        return self.env.step(action)
+    
+    # TODO: Do we use mode='human' anywhere? Remove?
+    def render(self, highlight=True, mode=None):
+        return self.env.render(mode=mode, highlight=highlight)
+    
+    def reset(self, seed=False):
+        if seed:
+            self.env.seed(seed)
+        return self.env.reset()
+    
+
 class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
         super().__init__(env, act_enc, env_key)

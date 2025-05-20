@@ -96,9 +96,10 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
             np.save(str(traj_dir / "state.npy"), last_state)
 
 
-def create_dataloader(env, agent, n_trajs, seq_length, folder, tmp_folder=None, batch_size=32, num_workers=0):
+def create_dataloader(env, agent, n_trajs, seq_length, folder, generate=True, tmp_folder=None, batch_size=32, num_workers=0):
     folder = folder + '/' + env.name + '-' + agent.name
-    generate_trajectories(env, agent, n_trajs, seq_length, folder)
+    if generate:
+        generate_trajectories(env, agent, n_trajs, seq_length, folder)
     if not tmp_folder:
         tmp_folder = folder
     else:

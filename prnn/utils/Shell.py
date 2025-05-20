@@ -175,6 +175,7 @@ class GymMinigridShell(Shell):
         self.max_dist = False
         self.loc_mask = [x==None or x.can_overlap() for x in env.grid.grid]
         self.hd_trans = np.array([-1,1,0,0])
+        self.start_pos = 1 # the numbering of occupiable locations starts from this
     
     @property
     def action_space(self):
@@ -352,6 +353,7 @@ class RatInABoxShell(Shell):
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
+        self.start_pos = 0
 
     def init_agent(self):
         # Create the agent
@@ -1271,7 +1273,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             vel = self.ag.velocity
             pos = self.ag.pos
 
-        if vel:
+        if vel is not None:
             self.ag.pos = pos
         else:
             vel = [0,0]
@@ -1435,17 +1437,11 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
 
         remix = np.zeros((*obs_vis.shape[:-1],3))
         remix += np.tile(obs_vis[...,0,None],3)*100/255
-        if 'LRoom' in self.name:
-            remix[...,2] += obs_vis[...,1]
-            remix[...,0] += obs_vis[...,2]
-            remix[...,0] += obs_vis[...,3]
-            remix[...,1] += obs_vis[...,3]
-        else:
-            for i in range(1,obs_vis.shape[-1]):
-                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
-                                     0,
-                                     -1
-                                     ) * self.obs_colors[i][:3]
+        for i in range(1,obs_vis.shape[-1]):
+            remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
+                                    0,
+                                    -1
+                                    ) * self.obs_colors[i][:3]
         remix = remix.clip(max=1)
         remix = remix.reshape(remix.shape[:-2]+(-1,))[None]
 

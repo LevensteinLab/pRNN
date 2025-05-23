@@ -624,29 +624,26 @@ class RiaBVisionShell(RatInABoxShell):
 
 class RiaBVisionShell2(RatInABoxShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2,
-                 FoV_params={
-                             'spatial_resolution': 0.01,
-                             'angle_range': [0, 45],
-                             'distance_range': [0.0, 0.33]}
+                 FoV_params={ #need these parameters to be plugged in
+                           "spatial_resolution": 0.05,
+                           "angle_range": [0, 30],
+                           "distance_range": [0.0, 1.2],
+                           "beta": 10,
+                           "walls_occlude": False}
                              ):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create vision cells
 
         FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
-        FoV_Walls.sigma_distances = np.full((FoV_Walls.n,), 0.02)
-        FoV_Walls.sigma_angles /= 2#np.full((60,), 1.)
+        FoV_Walls.sigma_distances = np.full((60,), 0.02)
+        FoV_Walls.sigma_angles /= 2
         FoV_Objects = [FieldOfViewOVCs(self.ag, params=FoV_params | {
             "object_tuning_type": x
             }) for x in range(env.n_object_types)]
-        for k, fov in enumerate(FoV_Objects):
-            # give each layer a *numeric* vector, not the default dict
-            if k == 0:                                  # the “hole” layer
-                fov.sigma_distances = np.full((fov.n,), wellSigmaDistance)
-                fov.sigma_angles   /= wellSigmaAngleDenominator
-            else:                                       # the other object types
-                fov.sigma_distances = np.full((fov.n,), 0.04)   # whatever base σ you want
-                # keep fov.sigma_angles as the array that the constructor created
+        FoV_Objects[0].sigma_distances = np.full((60,), wellSigmaDistance)
+        FoV_Objects[0].sigma_angles /= wellSigmaAngleDenominator
+        
 
         self.vision = [FoV_Walls] + FoV_Objects
 
@@ -1295,8 +1292,8 @@ class RiaBColorsGridShell(RiaBVisionShell):
 class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma distances and angles (Hadrien)
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, n_repeats = 1):
-        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, n_repeats = 1, wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
         self.n_obs = 2
         self.n_repeats = n_repeats
 

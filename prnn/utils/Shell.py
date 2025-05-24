@@ -224,7 +224,7 @@ class GymMinigridShell(Shell):
         obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
         return obs
     
-    def act2hd(self, obs, act, act_offset=0):
+    def act2hd(self, obs, act, act_offset=0, **kwargs):
         #TODO: adapt for theta with At-1
         hd = [self.get_hd(obs)]
         for a in reversed(act[:act_offset]):
@@ -337,10 +337,8 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class MiniworldShell(Shell):
-    def __init__(self, env, act_enc, env_key, vae, HDbins, dx=0.5, **kwargs):
+    def __init__(self, env, act_enc, env_key, HDbins, dx=0.5, **kwargs):
         super().__init__(env, act_enc, env_key)
-        self.vae = vae
-        self.obs_shape = vae.latent_dim
         self.numHDs = HDbins
 
         self.dx = dx
@@ -357,64 +355,30 @@ class MiniworldShell(Shell):
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
     
-    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
-        if hd_from=='obs':
-            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
-        elif hd_from=='act':
-            hd = self.act2hd(obs[actoffset], act, actoffset)
-        else:
-            KeyError('hd_from should be either "obs" or "act"')
-        if act is not None:
-            act = self.encodeAction(act=act,
-                                    obs=hd,
-                                    numSuppObs=self.numHDs,
-                                    numActs=self.action_space.n)
-
-        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
-        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
-        obs = torch.unsqueeze(obs, dim=0)
-        obs = obs/255 #normalize image
-
-        if hd_from=='obs':
-            return obs, act
-        else:
-            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
-    
-    def env2np(self, obs, act=None):
-        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
-        if act is not None:
-            act = np.array(self.encodeAction(act=act,
-                                             obs=hd,
-                                             numSuppObs=self.numHDs,
-                                             numActs=self.action_space.n))
-
-        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
-        obs = obs/255
-        return obs, act
-
-    def pred2np(self, obs, whichPhase=0, timesteps=None):
-        obs = obs.detach().numpy()
-        if timesteps:
-            obs = obs[:,timesteps,...]
-        obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
-        return obs
-    
-    def act2hd(self, obs, act, act_offset=0):
+    def act2hd(self, state, act, act_offset=0, **kwargs):
         #TODO: adapt for theta with At-1
-        hd = [self.get_hd(obs)]
+        hd = state['dir']
         for a in reversed(act[:act_offset]):
-            hd.insert(0, hd[0] - self.hd_trans[a])
+            prev_hd = hd[0] - a[1]
+            if prev_hd < 0:
+                prev_hd += 2*np.pi
+            elif prev_hd > 2*np.pi:
+                prev_hd -= 2*np.pi
+            hd.insert(0, prev_hd)
         for a in act[act_offset:]:
-            hd.append(hd[-1] + self.hd_trans[a] +
-                      4 * ((hd[-1]==0) & (self.hd_trans[a]<0)) -
-                      4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
+            next_hd = hd[-1] + a[1]
+            if next_hd > 2*np.pi:
+                next_hd -= 2*np.pi
+            elif next_hd < 0:
+                next_hd += 2*np.pi
+            hd.append(next_hd)
         return np.array(hd)
     
     def get_agent_pos(self):
-        return self.env.unwrapped.agent_pos
+        return self.env.unwrapped.agent.pos
     
     def get_agent_dir(self):
-        return self.env.unwrapped.agent_dir
+        return self.env.unwrapped.agent.dir
     
     def get_hd(self, obs):
         return obs['direction']
@@ -490,7 +454,56 @@ class MiniworldShell(Shell):
         if seed:
             self.env.seed(seed)
         return self.env.reset()
+
+
+class MiniworldVAEShell(MiniworldShell):
+    def __init__(self, env, act_enc, env_key, vae, HDbins, dx=0.5, **kwargs):
+        super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
+        self.vae = vae
+        self.obs_shape = vae.latent_dim
+
+    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
+        if hd_from=='obs':
+            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        elif hd_from=='act':
+            hd = self.act2hd(obs[actoffset], act, actoffset)
+        else:
+            KeyError('hd_from should be either "obs" or "act"')
+        if act is not None:
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    numSuppObs=self.numHDs,
+                                    numActs=self.action_space.n)
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+        obs = obs/255 #normalize image
+
+        if hd_from=='obs':
+            return obs, act
+        else:
+            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
+    def env2np(self, obs, act=None):
+        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             numSuppObs=self.numHDs,
+                                             numActs=self.action_space.n))
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
+        obs = obs/255
+        return obs, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:,timesteps,...]
+        obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
+        return obs
+        
 
 class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):

@@ -17,24 +17,28 @@ from PIL import Image
 from tqdm import tqdm
 from omegaconf import DictConfig
 
-from ratinabox.utils import get_angle
-from ratinabox.Agent import Agent
 
-
-class LitAutoEncoder(pl.LightningModule):
-    def __init__(self, learning_rate: float, net_config: tuple, in_channels: int, latent_dim: int):
+class VarAutoEncoder(pl.LightningModule):
+    def __init__(self, learning_rate: float, net_config: tuple,
+                 in_channels: int, latent_dim: int, kld_weight=0.01):
         super().__init__()
         self._learning_rate = learning_rate
-        activation = nn.ReLU()
+        self.activation = nn.ReLU()
         self.in_channels = in_channels
         self.latent_dim = latent_dim
+        self.kld_weight = kld_weight
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
-        in_channels = self.in_channels
 
-        ###########################
-        # 1. Build Encoder
-        ###########################
+        self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
+
+        self.build_decoder(n_channels, kernel_sizes, strides, paddings, output_paddings)
+
+        self.initialize_weights()
+
+        self.save_hyperparameters(ignore=["net_config"])
+
+    def build_encoder(self, in_channels, n_channels, kernel_sizes, strides, paddings):
         modules = []
 
         # CNN
@@ -48,18 +52,17 @@ class LitAutoEncoder(pl.LightningModule):
                     padding=paddings[i],
                 )
             )
-            modules.append(activation)
+            modules.append(self.activation)
             in_channels = n_channels[i]
 
-        # Flatten and Linear encoder
+        # Flatten and assemble
         modules.append(nn.Flatten())
-        modules.append(nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim))
-
         self.encoder = nn.Sequential(*modules)
 
-        ###########################
-        # 2. Build Decoder
-        ###########################
+        self.fc_mu = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
+        self.fc_log_var = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
+
+    def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
         modules = []
 
         n_channels.reverse()
@@ -68,18 +71,15 @@ class LitAutoEncoder(pl.LightningModule):
         paddings.reverse()
         n_channels.append(self.in_channels)
 
-        # Flatten and Linear encoder
-        modules.append(nn.Flatten())
-        decoder_lin = nn.Sequential(
+        # Linear layer to map latent space to feature space
+        self.decoder_input = nn.Sequential(
             nn.Linear(self.latent_dim, n_channels[0] * 16 * 16),
             nn.Unflatten(dim=1, unflattened_size=(n_channels[0], 16, 16)),
-            activation,
+            self.activation,
         )
-        modules.append(decoder_lin)
 
-        # reverse CNN
+        # Reverse CNN
         for i in range(len(n_channels) - 1):
-
             modules.append(
                 nn.ConvTranspose2d(
                     in_channels=n_channels[i],
@@ -88,73 +88,57 @@ class LitAutoEncoder(pl.LightningModule):
                     stride=strides[i],
                     padding=paddings[i],
                     output_padding=output_paddings[i],
-                ),
+                )
             )
-            modules.append(activation)
+            modules.append(self.activation)
 
         self.decoder = nn.Sequential(*modules)
 
-        self.save_hyperparameters(ignore=["net_config"])
+    def initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                nn.init.xavier_normal_(m.weight)  # Xavier initialization for convolutional layers
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)  # Initialize biases to zero
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)  # Xavier initialization for linear layers
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)  # Initialize biases to zero
 
     def encode(self, x):
-        return self.encoder(x)
+        x = self.encoder(x)
+        mu = self.fc_mu(x)
+        log_var = self.fc_log_var(x)
+        return mu, log_var
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        return eps * std + mu
 
     def decode(self, z):
+        z = self.decoder_input(z)
         return self.decoder(z)
 
     def forward(self, x):
-        z = self.encode(x)
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
         x_hat = self.decode(z)
-        return x_hat
-
-    def generate(self, x):
-        return self.forward(x)[0]
+        return x_hat, mu, log_var
 
     def training_step(self, batch, batch_idx):
         x, _ = batch
-        x_hat = self.forward(x)
-        loss = F.mse_loss(x_hat, x)
+        x_hat, mu, log_var = self.forward(x)
+        recons_loss = F.mse_loss(x_hat, x)
+        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        loss = recons_loss + self.kld_weight*kld_loss
         self.log("train_loss", loss)
+        self.log("reconstruction_loss", recons_loss)
+        self.log("kl_divergence", kld_loss)
         return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self._learning_rate)
-
-
-def run_vae_experiment(config: DictConfig):
-    original_cwd = hydra.utils.get_original_cwd()
-    rat_data_module = RatDataModule(
-        data_dir=os.path.abspath(original_cwd + config["hardware"]["smp_dataset_folder_path"]),
-        config=config,
-        batch_size=config["vae"]["train_batch_size"],
-        num_workers=config["hardware"]["num_data_loader_workers"], #!!
-        img_size=config["env"]["img_size"], #!!
-    )
-
-    ae = LitAutoEncoder(
-        learning_rate=config["vae"]["learning_rate"],
-        net_config=config["vae"]["net_config"].values(),
-        in_channels=config["vae"]["in_channels"],
-        latent_dim=config["vae"]["latent_dim"],
-    )
-
-    checkpoint_callback = ModelCheckpoint(
-        monitor="train_loss",
-        filename="rat_ae-{epoch:02d}-{train_loss:.6f}",
-        save_top_k=3,
-        mode="min",
-    )
-
-    tb_logger = pl_loggers.TensorBoardLogger(save_dir=os.getcwd())
-    trainer = pl.Trainer(
-        max_steps=config["vae"]["max_steps"],
-        max_epochs=config["vae"]["max_epochs"],
-        callbacks=[checkpoint_callback],
-        default_root_dir=original_cwd,
-        logger=tb_logger,
-        # profiler="simple",
-    )
-    trainer.fit(ae, datamodule=rat_data_module)
 
 
 class RatDataModule(pl.LightningDataModule):
@@ -182,62 +166,6 @@ class RatDataModule(pl.LightningDataModule):
             pin_memory_device="cuda",
             persistent_workers=True if self._num_workers > 0 else False,
         )
-
-
-class MiniworldRandomAgent(Agent):        
-    def __init__(self, Environment, params={
-                                    "dt": 0.1,
-                                    "speed_mean": 0.2,
-                                    "thigmotaxis": 0.2,
-                                    "wall_repel_distance": 0.2,
-                                    }):
-        
-        super().__init__(Environment, params)
-        self.reset()
-
-    def update(self, dt=None, drift_velocity=None, drift_to_random_strength_ratio=1):
-        super().update(dt, drift_velocity, drift_to_random_strength_ratio)
-        self.history["speed"].append(
-            np.linalg.norm(np.array(self.history["pos"][-1]) - np.array(self.history["pos"][-2]))
-        )
-
-        angle_now = get_angle(np.array(self.history["pos"][-1]) - np.array(self.history["pos"][-2]))
-        angle_before = self.history["angle"][-1]
-        if abs(angle_now - angle_before) > np.pi:
-            if angle_now > angle_before:
-                angle_now -= 2 * np.pi
-            elif angle_now < angle_before:
-                angle_before -= 2 * np.pi
-        self.history["rotation"].append(angle_now - angle_before)
-        self.history["angle"].append(angle_now)
-        return
-
-
-    def generateActionSequence(self, pos, direction, T=1000):
-        self.pos = pos
-        self.velocity = self.speed_std * np.array([np.cos(direction), np.sin(direction)])
-        self.history["pos"] = [self.pos]
-        self.history["vel"] = [self.velocity]
-        self.history["speed"] = [np.linalg.norm(self.velocity)]
-        self.history["angle"] = [get_angle(self.velocity)]
-
-        for i in range(T):
-            self.update()
-
-        traj = np.vstack((np.array(self.history["speed"]) * 10, np.array(self.history["rotation"])))
-
-        return traj[:, 1:]
-    
-    def reset(self):
-        self.reset_history()
-        self.initialise_position_and_velocity()
-        self.history["t"] = [0]
-        self.history["pos"] = [self.pos]
-        self.history["vel"] = [self.velocity]
-        self.history["rot_vel"] = [self.rotational_velocity]
-        self.history["speed"] = [np.linalg.norm(self.velocity)]
-        self.history["rotation"] = [0]
-        self.history["angle"] = [get_angle(self.velocity)]
 
 def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent,
                     view='ego', save_traj=True):

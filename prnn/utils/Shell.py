@@ -623,7 +623,8 @@ class RiaBVisionShell(RatInABoxShell):
 
 
 class RiaBVisionShell2(RatInABoxShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2,
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins,
+                 wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2,
                  FoV_params={ #need these parameters to be plugged in
                            "spatial_resolution": 0.05,
                            "angle_range": [0, 30],
@@ -634,6 +635,8 @@ class RiaBVisionShell2(RatInABoxShell):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create vision cells
+        self.wellSigmaDistance = wellSigmaDistance
+        self.wellSigmaAngleDenominator = wellSigmaAngleDenominator
 
         FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
         FoV_Walls.sigma_distances = np.full((60,), 0.02)
@@ -1292,8 +1295,10 @@ class RiaBColorsGridShell(RiaBVisionShell):
 class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma distances and angles (Hadrien)
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, n_repeats = 1, wellSigmaDistance = 0.02, wellSigmaAngleDenominator = 2):
-        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
+                 wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
+        super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
+                         wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
         self.n_obs = 2
         self.n_repeats = n_repeats
 

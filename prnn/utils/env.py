@@ -34,7 +34,7 @@ Grid_params_default = {"n": 150,
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
              seed=42, FoV_params=FoV_params_default,
-             Grid_params=Grid_params_default):
+             Grid_params=Grid_params_default, sigmaD=0.02, sigmaA=2):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -78,6 +78,18 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         env = make_rat_env(env_key)
         env = RiaBColorsGridShell(env, act_enc, env_key, speed,
                                   thigmotaxis, HDbins, FoV_params, Grid_params)
+        
+    elif package=='ratinabox_colors_Reward':
+        env = make_rat_env(env_key)
+        env = RiaBColorsRewardShell(env, act_enc, env_key, speed,
+                                    thigmotaxis, HDbins, FoV_params,
+                                    sigmaD, sigmaA, seed=seed,
+                                    )
+    
+    elif package=='ratinabox_colors_Reward_Directed':
+        env = make_rat_env(env_key)
+        env = RiaBColorsRewardDirectedShell(env, act_enc, env_key, speed,
+                                    thigmotaxis, HDbins, FoV_params, seed=seed)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')
@@ -121,7 +133,8 @@ class RGBImgPartialObsWrapper_HD_Farama(ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+        rgb_img_partial  = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+
 
         return {
             'mission': obs['mission'],

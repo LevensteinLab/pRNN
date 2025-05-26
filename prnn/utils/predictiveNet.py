@@ -134,6 +134,7 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
               'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
+              'multRNN_5win_i0_o01': multRNN_5win_i0_o01,
               }
 
 
@@ -234,6 +235,7 @@ class PredictiveNet:
 
         return obs_pred, obs_next, h
     
+    #need to adapt the RL input to be compatible with this function 
     def predict_single(self, obs, act):
         """
         Generate pRNN activation from single observation and action.

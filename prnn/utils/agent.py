@@ -155,3 +155,6 @@ def create_agent(envname, env, agentname):
     elif agentname == 'RatInABoxAgent':
         agent = RatInABoxAgent(name=type(env).__name__)
     return agent
+
+
+#make ratinabox RL agent class, 

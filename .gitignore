@@ -19,7 +19,6 @@ trainNet_prnn.py
 
 myenv/
 .venv/
-env/
 
 test.py
 analysis.ipynb

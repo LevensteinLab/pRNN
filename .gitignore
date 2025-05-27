@@ -16,3 +16,32 @@ Figures/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+
+myenv/
+.venv/
+env/
+
+test.py
+analysis.ipynb
+cheeseboardenv.ipynb
+hyperparam_analysis.ipynb
+hyperparam_panel_0.sh
+hyperparam_panel.py
+LN20250430_LogNOrthogonalization.ipynb
+LN20250502_LogNOrthogonalization.ipynb
+RiaBAnalysis.ipynb
+RinB_tutorial.ipynb
+run_pipeline.py
+run_pipeline.sbatch
+TCA tutorial.ipynb
+TCA.ipynb
+test_vae.py
+test.ipynb
+testing.py
+train_example_net.sh
+train_example_net2.sh
+train_example_net3.sh
+train_example_nets.sh
+train_example_nets2.sh
+train_Hadrien_net.sh
+train_vae.sh

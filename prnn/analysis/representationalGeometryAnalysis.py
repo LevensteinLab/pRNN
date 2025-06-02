@@ -160,7 +160,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel('position')
 
         saveFig(plt.gcf(),'ActionRSA_'+netname,savefolder,
-                filetype='pdf')
+                filetype='png')
         plt.show()
     
     def getActionIDs(self,keepIDX=None):
@@ -588,7 +588,7 @@ class representationalGeometryAnalysis:
         
         if netname is not None:
             saveFig(plt.gcf(),'SIDependence_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
         
     def isomapPanel3d(self, colorvar='position', rotate=(0,0)):
@@ -670,12 +670,12 @@ class representationalGeometryAnalysis:
         return
     
     def keyPanel(self):
-        pos = self.WAKEactivity['state']['agent_pos']
-        color = np.arctan((pos[:-1,0]-self.mapcenter[0])/
-                          (pos[:-1,1]-self.mapcenter[1]))
+        pos = np.unique(self.WAKEactivity['state']['agent_pos'],axis=0)
+        color = np.arctan((pos[:,0]-self.mapcenter[0])/
+                          (pos[:,1]-self.mapcenter[1]))
         
         ax = plt.gca()
-        ax.scatter(pos[:-1, 0], pos[:-1, 1], 
+        ax.scatter(pos[:, 0], pos[:, 1], 
                    c=color, marker='.', s=4)
         #ax.view_init(rotate[0]-140, rotate[1]+60)
         ax.xaxis.set_ticks([])
@@ -701,7 +701,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel()
         if netname is not None:
             saveFig(plt.gcf(),'SpatialRSA_'+netname,savefolder,
-                    filetype='pdf')
+                    filetype='png')
         plt.show()
     
     @staticmethod
@@ -749,7 +749,7 @@ class representationalGeometryAnalysis:
             clb.ax.set_ylabel('P[neural|space]')
         
     def WakeSleepFigure(self, netname, savefolder=None, 
-                        isomapRotation=(0,0), withKey =True):
+                        isomapRotation=(0,0), withKey =True, withSleep=True):
         
         plt.figure()
         # plt.subplot(3,8,3)
@@ -773,7 +773,8 @@ class representationalGeometryAnalysis:
             #self.isomapPanel3d('Sleep', rotate=isomapRotation)
             plt.subplot(3,3,1)
             self.isomapPanel('position')
-            self.isomapPanel('Sleep')
+            if withSleep:
+                self.isomapPanel('Sleep')
             if withKey:
                 plt.subplot(6,6,13)
                 self.keyPanel()
@@ -781,7 +782,7 @@ class representationalGeometryAnalysis:
         #plt.tight_layout()
         if savefolder is not None:
             saveFig(plt.gcf(), 'WakeSleepDistance_'+netname, savefolder,
-                    filetype='pdf')
+                    filetype='png')
 
         plt.show()
         
@@ -815,7 +816,7 @@ class representationalGeometryAnalysis:
 
         plt.tight_layout()
         saveFig(plt.gcf(),'AllRSA_'+netname,savefolder,
-                filetype='pdf')
+                filetype='png')
         plt.show()
 
     def hillFitPanel(self, hill_fit, color='k', datalabel='Data'):

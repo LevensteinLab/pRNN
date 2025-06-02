@@ -60,7 +60,7 @@ class thetaRNNLayer(nn.Module):
             input = torch.zeros(internal.size(0),internal.size(1),self.cell.input_size,
                                 device=self.cell.weight_hh.device)
         if state.size(0)==0:
-            state = torch.zeros(internal.size(0),1,self.cell.hidden_size,
+            state = torch.zeros(1,1,self.cell.hidden_size,
                                 device=self.cell.weight_hh.device)
         if internal.size(0)==0:
             internal = torch.zeros(theta+1,input.size(1),self.cell.hidden_size,
@@ -126,7 +126,7 @@ class thetaRNNLayer(nn.Module):
 
 #class RNNCell(jit.ScriptModule):
 class RNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size, musig=None):
+    def __init__(self, input_size, hidden_size, musig=None, **kwargs):
         super(RNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -158,7 +158,7 @@ class RNNCell(nn.Module):
     
     
 class AdaptingRNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size, musig=None):
+    def __init__(self, input_size, hidden_size, musig=None, **kwargs):
         super(AdaptingRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -193,7 +193,7 @@ class AdaptingRNNCell(nn.Module):
 
 #class LayerNormRNNCell(jit.ScriptModule):
 class LayerNormRNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size, musig=[0,1]):
+    def __init__(self, input_size, hidden_size, musig=[0,1], **kwargs):
         super(LayerNormRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -226,7 +226,7 @@ class LayerNormRNNCell(nn.Module):
 
 
 class AdaptingLayerNormRNNCell(nn.Module):
-    def __init__(self, input_size, hidden_size, musig=[0,1]):
+    def __init__(self, input_size, hidden_size, musig=[0,1], **kwargs):
         super(AdaptingLayerNormRNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size

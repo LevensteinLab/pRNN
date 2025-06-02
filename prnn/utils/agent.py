@@ -36,7 +36,7 @@ class RandomActionAgent:
         return action_sequence
     
     
-    def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):   
+    def getObservations(self, env, tsteps, reset=True, includeRender=False, render_highlight=True, **kwargs):   
         """
         Get a sequence of observations. act[t] is the action after observing
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
@@ -47,6 +47,10 @@ class RandomActionAgent:
         render = False
         # if reset is False:
         #     raise ValueError('Reset=False not implemented yet...')
+
+        conspecific = False #This is ugly and shouldn't be here... sorry please don't hate me Alex :')
+        if hasattr(env.env, 'conspecific'):
+            conspecific = True
             
         obs = [None for t in range(tsteps+1)]
         if reset:
@@ -59,7 +63,9 @@ class RandomActionAgent:
                 }
         if includeRender:
             render = [None for t in range(tsteps+1)]
-            render[0] = env.render(mode=None)
+            render[0] = env.render(mode=None, highlight=render_highlight)
+        if conspecific:
+            state['conspecific_pos'] = np.resize(env.env.conspecific.cur_pos,(1,2))
             
         for aa in range(tsteps):
             obs[aa+1] = env.step(act[aa])[0]
@@ -67,8 +73,11 @@ class RandomActionAgent:
                                            np.resize(env.get_agent_pos(),(1,2)),axis=0)
             state['agent_dir'] = np.append(state['agent_dir'],
                                            env.get_agent_dir())
+            if conspecific:
+                state['conspecific_pos'] = np.append(state['conspecific_pos'],
+                                           np.resize(env.env.conspecific.cur_pos,(1,2)),axis=0)
             if includeRender:
-                render[aa+1] = env.render(mode=None)
+                render[aa+1] = env.render(mode=None, highlight=render_highlight)
 
         return obs, act, state, render
     

@@ -15,6 +15,7 @@ from scipy.stats.mstats import spearmanr as spearmanr_m
 from scipy.stats import spearmanr
 import copy
 from scipy.linalg import toeplitz
+from scipy.optimize import curve_fit
 from prnn.utils.ActionEncodings import OneHot
 
 defaultMetric = 'cosine'
@@ -66,6 +67,8 @@ class representationalGeometryAnalysis:
         if len(self.RSA_cb) == 1:
             self.RSA_cb = self.RSA_cb[0]
             self.RSA_cs = self.RSA_cs[0]
+
+        self.hill_fit = self.calculateHillFit(self.WAKEactivity)
         
         self.actEncode_cs = False
         if actRSA:
@@ -279,7 +282,47 @@ class representationalGeometryAnalysis:
         RSA = spearmanr(dists,sp_dists)
 
         return RSA, hist2, sbins, rbins
+
+    def calculateHillFit(self, WAKEactivity, metric='cosine',
+                          usecells = None, spacemetric='euclidean'):
+
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], 
+                                                     metric, usecells)
+        sp_dists = self.calculateSpatialDist(WAKEactivity['state'],keepIDX,
+                                            metric=spacemetric)
+
+        x0_guess = np.mean(dists[sp_dists < 1])
+        t_half_guess = np.mean(sp_dists)
+        xinf_guess = np.mean(dists[sp_dists > t_half_guess])
+
+        initial_guess = [x0_guess, xinf_guess, t_half_guess, 2.0]  # Adjust as needed
+        bounds = ([0, 0, 0, 0.1], [1, 1, np.inf, 10])  # Optional
+
+        popt, pcov = curve_fit(fit_func, sp_dists, dists, p0=initial_guess, bounds=bounds)
+        fitted_x0, fitted_x_inf, fitted_t_half, fitted_n = popt
+     
+        #For Plotting
+        sp_bins = np.arange(-0.5,21.5,1)
+        sp_centers = (sp_bins[:-1] + sp_bins[1:]) / 2
+        bin_indices = np.digitize(sp_dists, sp_bins)
+        hdist_means = [dists[bin_indices == i].mean() for i in range(1, len(sp_bins))]
+        hdist_stds = [dists[bin_indices == i].std() for i in range(1, len(sp_bins))]
+
+        hill_fit = {
+            'x0': fitted_x0,
+            'x_inf': fitted_x_inf,
+            't_half': fitted_t_half,
+            'n': fitted_n,
+            'sp_centers' : sp_centers,
+            'hdist_means' : hdist_means,
+            'hdist_stds' : hdist_stds
+        }
+
+        return hill_fit
     
+
+
+
     #@staticmethod
     def calculateObsDist(self, WAKEactivity_obs, keepIDX=None):
         obs = WAKEactivity_obs.squeeze().detach().numpy()
@@ -604,6 +647,8 @@ class representationalGeometryAnalysis:
                 color,_ = self.getActionIDs()
             else:
                 color = self.WAKEactivity['act']
+        else:
+            color= colorvar
             
         maxplotpoints = 10000    
         X, keepIDX = randSubSample(X, maxplotpoints, axis=0)
@@ -772,7 +817,33 @@ class representationalGeometryAnalysis:
         saveFig(plt.gcf(),'AllRSA_'+netname,savefolder,
                 filetype='pdf')
         plt.show()
-        
+
+    def hillFitPanel(self, hill_fit, color='k', datalabel='Data'):
+        bin_centers = hill_fit['sp_centers']
+        bin_means = hill_fit['hdist_means']
+        bin_stds = hill_fit['hdist_stds']
+
+        fitted_x0 = hill_fit['x0']
+        fitted_x_inf = hill_fit['x_inf']
+        fitted_t_half = hill_fit['t_half']
+        fitted_n = hill_fit['n']
+
+        t_plot = np.linspace(min(bin_centers), max(bin_centers), 100)
+        # --- Generate fitted curve ---
+        y_fitted = hill_saturating(t_plot, fitted_x0, fitted_x_inf, fitted_t_half, fitted_n)
+
+
+        plt.errorbar(bin_centers, bin_means, yerr=bin_stds, fmt='none', capsize=5, 
+                    alpha=0.5, color=color, label=datalabel)
+        plt.plot(t_plot, y_fitted, 'r-', linewidth=2,
+                color=color)
+        plt.plot(0-0.5,fitted_x0,'<',color=color, label=f'dh_0: {fitted_x0:.2f}')
+        plt.plot(t_plot[-1]+1,fitted_x_inf,'<',color=color, label=f'dh_inf: {fitted_x_inf:.2f}')
+        plt.plot(fitted_t_half,1.1,'v',color=color, label=f'dx_1/2: {fitted_t_half:.2f}')
+        plt.xlabel('Spatial Distance')
+        plt.ylabel('Neural Distance (cos)')
+        plt.legend()
+
     def saveAnalysis(self, savefolder):
         return
         
@@ -788,4 +859,13 @@ def drawGroupLines(numelements, labels=None):
         ticks = np.cumsum(numelements)-0.5*numelements
         plt.xticks(ticks=ticks, labels=labels)
         plt.yticks(ticks=ticks, labels=labels)
+
+
+# --- Logistic function with steepness parameter n ---
+def hill_saturating(t, x0, x_inf, t_half, n):
+    return x0 + (x_inf - x0) * (t**n) / (t**n + t_half**n)
+
+# --- Fitting function ---
+def fit_func(t, x0, x_inf, t_half, n):
+    return hill_saturating(t, x0, x_inf, t_half, n)
         

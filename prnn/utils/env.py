@@ -13,7 +13,7 @@ from prnn.examples.RatEnvironment import make_rat_env
 
 
 
-def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
+def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True, seed=42):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell

@@ -10,10 +10,10 @@ from ratinabox.contribs.FieldOfViewNeurons import FieldOfViewNeurons
 from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
 
-actionOptions = {'OnehotHD' : OneHotHD ,
+actionOptions = {'OneHotHD' : OneHotHD ,
                  'SpeedHD' : SpeedHD ,
                  'SpeedNextHD' : SpeedNextHD,
-                 'Onehot' : OneHot,
+                 'OneHot' : OneHot,
                  'Velocities' : Velocities,
                  'NoAct' : NoAct,
                  'HDOnly': HDOnly,
@@ -49,7 +49,7 @@ class Shell:
     def collectObservationSequence(self, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed=None, dataloader=False, reset=True):
+                                   seed=None, dataloader=False, reset=True, render_highlight=True):
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
@@ -76,6 +76,7 @@ class Shell:
             for bb in range(batch_size):
                 obs, act, state, render = agent.getObservations(self,tsteps,
                                                         includeRender=includeRender,
+                                                        render_highlight=render_highlight,
                                                         discretize=discretize,
                                                         inv_x=inv_x,
                                                         inv_y=inv_y,

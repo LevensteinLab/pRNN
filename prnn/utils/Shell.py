@@ -1561,22 +1561,11 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
         np.random.seed(seed)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
-        reward_positions = coords_type_0[reward_hole_indices]  
-
-        # Make the agent 
-        ag = Agent(env)
-        ag.dt = 50e-3  # set discretisation time, large is fine
-        ag.episode_data = {
-            "start_time": [],
-            "end_time": [],
-            "start_pos": [],
-            "end_pos": [],
-            "success_or_failure": [],
-        }  # a dictionary we will use later
+        reward_positions = coords_type_0[reward_hole_indices]
     
         #Create reward neuron (another place cell hidden behind the barrier) 
         self.Reward = PlaceCells(
-        ag,
+        self.ag,
         params={
             "n": 3,
             "place_cell_centres": np.array(reward_positions),
@@ -1589,9 +1578,27 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         )
 
         self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
-        ag.pos = self.home_pos.copy()      # start the agent there
+        self.ag.pos = self.home_pos.copy()      # start the agent there
         
         self.reset(pos=self.home_pos)
+
+    def init_agent(self, speed, thigmotaxis):
+        # Create the agent
+        ag = Agent(self.env, {
+                    'dt': 0.1,
+                    'speed_mean': speed,
+                    'thigmotaxis': thigmotaxis
+                    })
+        
+        self.ag = ag
+        self.ag.episode_data = {
+            "start_time": [],
+            "end_time": [],
+            "start_pos": [],
+            "end_pos": [],
+            "success_or_failure": [],
+        }  # a dictionary we will use later
+        self.ag.exploit_explore_ratio = 0.9  # exploit/explore parameter we will use later
 
     def getObservations(self, tsteps, reset=True, includeRender=False,
                         discretize=False, inv_x=False, inv_y=False):   
@@ -1864,14 +1871,18 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
 
         self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
         self.ag.pos = self.home_pos.copy()      # start the agent there
-        self.all_firing_rates = []
         
         self.reset(pos=self.home_pos)
     
-    def init_agent(self,speed, thigmotaxis):
-        # Make the agent 
-        self.ag = Agent(self.env)
-        self.ag.dt = 50e-3  # set discretisation time, large is fine
+    def init_agent(self, speed, thigmotaxis):
+        # Create the agent
+        ag = Agent(self.env, {
+                    'dt': 0.1,
+                    'speed_mean': speed,
+                    'thigmotaxis': thigmotaxis
+                    })
+        
+        self.ag = ag
         self.ag.episode_data = {
             "start_time": [],
             "end_time": [],
@@ -1894,7 +1905,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             self.reset()
         else:
             self.reset(keep_state=True)
-
+        self.all_firing_rates = np.zeros((tsteps, self.ValNeur.n))
 
         for k in range(tsteps):
 
@@ -1904,7 +1915,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             self.Reward.update()
             self.Inputs.update()
             self.ValNeur.update()                        # firingrate now = V(s_t)
-            self.all_firing_rates.append(self.ValNeur.firingrate.copy())  # Store a copy of the firing rate
+            self.all_firing_rates[k] = self.ValNeur.firingrate.copy()  # Store a copy of the firing rate
 
             # ---------- 2.  plan ----------
             gradV  = self.get_steep_ascent(self.ag.pos)
@@ -1968,8 +1979,6 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
                  'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
                  'mean_vel': self.ag.speed_mean,
                 }
-        
-        self.all_firing_rates = np.array(self.all_firing_rates)
 
         return obs, act, state, render
 

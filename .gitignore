@@ -9,6 +9,7 @@ __pycache__/
 *.vscode
 
 slurm*
+test*
 
 Data/*
 nets/*
@@ -20,7 +21,6 @@ trainNet_prnn.py
 myenv/
 .venv/
 
-test.py
 analysis.ipynb
 cheeseboardenv.ipynb
 hyperparam_analysis.ipynb
@@ -34,9 +34,6 @@ run_pipeline.py
 run_pipeline.sbatch
 TCA tutorial.ipynb
 TCA.ipynb
-test_vae.py
-test.ipynb
-testing.py
 train_example_net.sh
 train_example_net2.sh
 train_example_net3.sh

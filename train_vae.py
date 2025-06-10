@@ -6,7 +6,7 @@ import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import loggers as pl_loggers
 
-from prnn.examples.Miniworld.VAE import RatDataModule, LitAutoEncoder
+from prnn.examples.Miniworld.VAE import RatDataModule, VarAutoEncoder
 
 
 folder_path = os.path.join(os.path.expandvars('${SLURM_TMPDIR}'), 'Miniworld')
@@ -22,11 +22,12 @@ def main(config):
         img_size=64,
     )
     
-    ae = LitAutoEncoder(
+    ae = VarAutoEncoder(
         learning_rate=config["vae"]["learning_rate"],
         net_config=config["vae"]["net_config"].values(),
         in_channels=config["vae"]["in_channels"],
         latent_dim=config["vae"]["latent_dim"],
+        kld_weight=config["vae"]["kld_weight"],
     )
     
     checkpoint_path = os.path.join(folder_path, 'checkpoints')

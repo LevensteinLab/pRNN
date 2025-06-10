@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 
 class VarAutoEncoder(pl.LightningModule):
     def __init__(self, learning_rate: float, net_config: tuple,
-                 in_channels: int, latent_dim: int, kld_weight=0.01):
+                 in_channels: int, latent_dim: int, kld_weight=0.005):
         super().__init__()
         self._learning_rate = learning_rate
         self.activation = nn.ReLU()

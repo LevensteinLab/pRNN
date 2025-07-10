@@ -14,6 +14,7 @@ test*
 Data/*
 nets/*
 Figures/*
+LabNotebook/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
@@ -33,6 +34,7 @@ RinB_tutorial.ipynb
 run_pipeline.py
 run_pipeline.sbatch
 TCA tutorial.ipynb
+TCA tutorial 2.ipynb
 TCA.ipynb
 train_example_net.sh
 train_example_net2.sh

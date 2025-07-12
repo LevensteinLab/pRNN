@@ -1545,7 +1545,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
                          wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
-        self.n_obs = 2
+        self.n_obs = 3
         self.n_repeats = n_repeats
 
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
@@ -1629,7 +1629,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
         obs_grid = np.array(self.grid.history["firingrate"])
         obs_reward = np.tile(obs_reward, self.n_repeats)  
-        obs = (obs_vis,obs_grid, obs_reward)
+        obs = (obs_vis, obs_grid, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
         if discretize:
@@ -1665,7 +1665,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
 
-        obs_vis, obs_Reward = obs
+        obs_vis, obs_grid, obs_Reward = obs
 
         remix = np.zeros((*obs_vis.shape[:-1],3))
         remix += np.tile(obs_vis[...,0,None],3)*50/255
@@ -1694,7 +1694,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         obs_grid = torch.tensor(obs_grid, dtype=torch.float, requires_grad=False)
         obs_grid = torch.unsqueeze(obs_grid, dim=0)
 
-        obs = (remix, obs_Reward, obs_grid)
+        obs = (remix, obs_grid, obs_Reward)
 
         return obs, act
 
@@ -1704,7 +1704,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
         act = np.array(act)
 
-        obs_vis, obs_Reward = obs
+        obs_vis, obs_grid, obs_Reward = obs
 
         remix = np.zeros((*obs_vis.shape[:-1],3))
         remix += np.tile(obs_vis[...,0,None],3)*100/255
@@ -1720,7 +1720,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         obs_Reward = obs_Reward.clip(max=1)[None]
         obs_grid = obs_grid.clip(max=1)[None]
 
-        obs = (remix, obs_Reward, obs_grid)
+        obs = (remix, obs_grid, obs_Reward)
 
         return obs, act
     
@@ -1771,7 +1771,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         return image_from_plot
 
     def getObsSize(self):
-        obs_size = (self.vision[0].n * 3, self.Reward.n)
+        obs_size = (self.vision[0].n * 3, self.grid.n, self.Reward.n)
         return obs_size
     
     def reset(self, pos=None, vel=None, seed=False, keep_state=False):

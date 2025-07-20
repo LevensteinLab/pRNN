@@ -99,7 +99,7 @@ def Continuous(act):
     act = torch.unsqueeze(act, dim=0)
     return act
 
-def ContSpeedRotation(act, meanspeed, **kwargs):
+def ContSpeedRotationRiaB(act, meanspeed, **kwargs):
     # Made for RiaB envs, transforms 2D velocity to linear speed along head direction, then adds rotation
     speed = np.linalg.norm(act[:,1:], axis=1)/meanspeed
     act = np.concatenate((speed[:,None], act[:,0][:,None]/(2*np.pi)), axis=-1)
@@ -107,7 +107,7 @@ def ContSpeedRotation(act, meanspeed, **kwargs):
     act = torch.unsqueeze(act, dim=0)
     return act
 
-def ContSpeedHD(act, meanspeed, **kwargs):
+def ContSpeedHDRiaB(act, meanspeed, **kwargs):
     # Made for RiaB envs, transforms 2D velocity to linear speed along HD, then adds HD
     speed = np.linalg.norm(act[:,1:], axis=1)/meanspeed
     HD = get_angle(act[:,1:], is_array=True)/(2*np.pi)
@@ -116,10 +116,24 @@ def ContSpeedHD(act, meanspeed, **kwargs):
     act = torch.unsqueeze(act, dim=0)
     return act
 
-def ContSpeedOnehotHD(act, meanspeed, nbins=12):
-    act = ContSpeedHD(act, meanspeed)
+def ContSpeedOnehotHDRiaB(act, meanspeed, nbins=12):
+    act = ContSpeedHDRiaB(act, meanspeed)
     HD = (act[...,-1]*nbins).long()
     HD = torch.clamp(HD, min=0, max=nbins-1)
     HD = nn.functional.one_hot(HD, num_classes=nbins)
     act = torch.cat((act[...,:-1], HD), dim=-1)
+    return act
+
+def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
+    # Assuming mean_speed of RiaB random agent is V=0.2, correct the resulting speed for 10*V=2
+    speed = torch.tensor(act[0], requires_grad=False, dtype=torch.float32) / 2
+
+    HD = torch.tensor(obs[:-1], requires_grad=False, dtype=torch.float32)
+    HD = (HD*nbins).long()
+    HD = torch.clamp(HD, min=0, max=nbins-1)
+    HD = nn.functional.one_hot(HD, num_classes=nbins)
+    print(HD.shape, speed.shape)
+    act = torch.cat((speed[:,None], HD), dim=-1)
+    act = torch.unsqueeze(act, dim=0)
+    print(f"Action shape: {act.shape}")
     return act

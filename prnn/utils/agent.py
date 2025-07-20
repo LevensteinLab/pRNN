@@ -187,13 +187,17 @@ class MiniworldRandomAgent(Agent):
 
         return traj[:, -T:]
     
-    def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):   
-        """
-        Get a sequence of observations. act[t] is the action after observing
-        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
-        longer than act
-        """
-        act = self.generateActionSequence(tsteps)
+    def getObservations(self, env, tsteps=0, reset=True, includeRender=False, act=None, **kwargs):   
+        # TODO: check after writing the Shell code
+        if act is None:
+            act = self.generateActionSequence(tsteps)
+        else:
+            tsteps = act.shape[1]
+            if act.shape[0] != 2:
+                raise ValueError("act must be a 2D array with shape (2, tsteps)")
+            
+        if tsteps <= 0:
+            raise ValueError("tsteps must be a positive integer")
 
         render = False
             
@@ -201,25 +205,22 @@ class MiniworldRandomAgent(Agent):
         if reset:
             obs[0] = env.reset()
         else:
-            o = env.env.gen_obs()
-            obs[0] = env.env.observation(o)
-        state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), 
+            obs[0] = env.env.render_obs()
+        state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), # probably resize not needed
                  'agent_dir': env.get_agent_dir()
                 }
         if includeRender:
             render = [None for t in range(tsteps+1)]
-            render[0] = env.render(mode=None)
+            render[0] = env.env.render_top_view()
             
         for aa in range(tsteps):
             obs[aa+1] = env.step(act[aa])[0]
             state['agent_pos'] = np.append(state['agent_pos'],
-                                           np.resize(env.get_agent_pos(),(1,2)),axis=0)
+                                           np.resize(env.get_agent_pos(),(1,2)),axis=0) # probably resize not needed
             state['agent_dir'] = np.append(state['agent_dir'],
                                            env.get_agent_dir())
             if includeRender:
-                render[aa+1] = env.render(mode=None)
-                
-        act = np.ones_like(act) * self.constantAction
+                render[aa+1] = env.env.render_top_view()
 
         return obs, act, state, render
     

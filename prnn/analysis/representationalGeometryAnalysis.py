@@ -184,7 +184,7 @@ class representationalGeometryAnalysis:
                                                             obs_format=None,
                                                             discretize=discretize,
                                                             inv_x=inv_x, inv_y=inv_y)
-        a['obs'],a['act'] = env.env2pred(a['obs_env'],a['act_env'])
+        a['obs'],a['act'] = env.env2pred(a['obs_env'],a['act_env'],a['state'])
         a['obs_pred'], a['obs_next'], h = self.pN.predict(a['obs'],a['act'])
         
         if theta == 'mean':

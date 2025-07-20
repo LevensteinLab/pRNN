@@ -21,9 +21,10 @@ actionOptions = {'OneHotHD' : OneHotHD ,
                  'NoAct' : NoAct,
                  'HDOnly': HDOnly,
                  'Continuous': Continuous,
-                 'ContSpeedRotation': ContSpeedRotation,
-                 'ContSpeedHD': ContSpeedHD,
-                 'ContSpeedOnehotHD': ContSpeedOnehotHD
+                 'ContSpeedRotation': ContSpeedRotationRiaB,
+                 'ContSpeedHD': ContSpeedHDRiaB,
+                 'ContSpeedOnehotHD': ContSpeedOnehotHDRiaB,
+                 'ContSpeedOnehotHDMiniworld': ContSpeedOnehotHDMiniworld
                  }
 
 HDmap = {0: 270,
@@ -89,7 +90,7 @@ class Shell:
                 if save_env:
                     obs_env = obs # save the environment format
                 if obs_format == 'pred': # to train right away
-                    obs, act = self.env2pred(obs, act)
+                    obs, act = self.env2pred(obs, act, state)
                 elif obs_format == 'npgrid': # to save as numpy array
                     obs, act = self.env2np(obs, act)
                 elif obs_format is None:
@@ -182,7 +183,7 @@ class GymMinigridShell(Shell):
     def dir2deg(self, dir):
         return HDmap[dir]
     
-    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
+    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0, **kwargs):
         if hd_from=='obs':
             hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
         elif hd_from=='act':
@@ -355,9 +356,9 @@ class MiniworldShell(Shell):
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
     
-    def act2hd(self, state, act, act_offset=0, **kwargs):
+    def act2hd(self, obs, act, act_offset=0, **kwargs):
         #TODO: adapt for theta with At-1
-        hd = state['dir']
+        hd = [self.get_hd(obs)]
         for a in reversed(act[:act_offset]):
             prev_hd = hd[0] - a[1]
             if prev_hd < 0:
@@ -375,39 +376,35 @@ class MiniworldShell(Shell):
         return np.array(hd)
     
     def get_agent_pos(self):
-        return self.env.unwrapped.agent.pos
+        pos = self.env.unwrapped.agent.pos
+        return np.array([pos[0], pos[2]]) # not correcting for the padding for now
     
     def get_agent_dir(self):
-        return self.env.unwrapped.agent.dir
-    
-    def get_hd(self, obs):
-        return obs['direction']
-    
-    def get_visual(self, obs):
-        return np.reshape(obs['image'],(-1))
+        dir = self.env.unwrapped.agent.dir
+        return get_angle([np.cos(dir), np.sin(dir)]) # returns angle in radians
 
     def getActSize(self):
-        action = self.encodeAction(act=np.ones(1),
-                                   obs=np.ones(2),
-                                   numActs=self.action_space.n,
-                                   numSuppObs=self.numHDs)
+        action = self.encodeAction(act=np.ones((2,2)),
+                                   obs=np.ones(3),
+                                   nbins=self.numHDs)
         act_size = action.size(2)
         return act_size
     
     def getActType(self):
-        return torch.int64
+        return torch.float32
 
     def getObsSize(self):
         obs_size = np.prod(self.obs_shape)
         return obs_size
     
     def get_map_bins(self):
-        minmax=(0.5, self.width-1.5,
-                0.5, self.height-1.5)
-        return self.width-2, self.height-2, minmax
+        # not accounting for padding for now
+        minmax=(0, self.width,
+                0, self.height)
+        return self.width, self.height, minmax
     
     def get_HD_bins(self):
-        minmax = (-0.5, 4.5)
+        minmax = (0, 2*np.pi)
         return self.numHDs, minmax
     
     def get_viewpoint(self, agent_pos, agent_dir):
@@ -415,10 +412,9 @@ class MiniworldShell(Shell):
         self.env.unwrapped.agent_dir = agent_dir
         self.env.unwrapped.agent_pos = agent_pos
         
-        obs = self.env.gen_obs()
-        obs = self.env.observation(obs)
+        obs = self.env.render_obs()[0]
         
-        return obs['image']/255
+        return obs/255
     
     def load_state(self, state):
         self.set_agent_pos(state[:2])
@@ -428,7 +424,7 @@ class MiniworldShell(Shell):
         return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
     
     def set_agent_pos(self, pos):
-        self.env.unwrapped.agent_pos = pos
+        self.env.unwrapped.agent_pos = np.insert(pos, 1, 0)
     
     def set_agent_dir(self, hd):
         self.env.unwrapped.agent_dir = hd
@@ -440,20 +436,17 @@ class MiniworldShell(Shell):
         trajectory_ts = np.arange(start, end)
         if render is not None:
             plt.imshow(render[trajectory_ts[-1]])
-        plt.plot((state['agent_pos'][trajectory_ts,0]+0.5)*512/16,
-                    (state['agent_pos'][trajectory_ts,1]+0.5)*512/16,color='r')
+        plt.scatter(state['agent_pos'][trajectory_ts,0]*56/self.env.size+4,
+                    state['agent_pos'][trajectory_ts,1]*56/self.env.size+4,color='r')
         
     def step(self, action):
         return self.env.step(action)
     
-    # TODO: Do we use mode='human' anywhere? Remove?
-    def render(self, highlight=True, mode=None):
-        return self.env.render(mode=mode, highlight=highlight)
-    
     def reset(self, seed=False):
         if seed:
-            self.env.seed(seed)
-        return self.env.reset()
+            return self.env.reset(seed=seed)[0]
+        else:
+            return self.env.reset()[0]
 
 
 class MiniworldVAEShell(MiniworldShell):
@@ -462,38 +455,38 @@ class MiniworldVAEShell(MiniworldShell):
         self.vae = vae
         self.obs_shape = vae.latent_dim
 
-    def env2pred(self, obs, act=None, hd_from='obs', actoffset=0):
-        if hd_from=='obs':
-            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+    def env2pred(self, obs, act=None, state=None, hd_from='state', actoffset=0):
+        if hd_from=='state':
+            hd = state['agent_dir']
         elif hd_from=='act':
             hd = self.act2hd(obs[actoffset], act, actoffset)
         else:
-            KeyError('hd_from should be either "obs" or "act"')
+            KeyError('hd_from should be either "state" or "act"')
+            
         if act is not None:
             act = self.encodeAction(act=act,
                                     obs=hd,
-                                    numSuppObs=self.numHDs,
-                                    numActs=self.action_space.n)
+                                    nbins=self.numHDs)
 
-        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
         obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
         obs = torch.unsqueeze(obs, dim=0)
-        obs = obs/255 #normalize image
+        mu, log_var = self.vae.encode(obs)
+        obs = self.vae.reparameterize(mu, log_var)
+
 
         if hd_from=='obs':
             return obs, act
         else:
             return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
-    def env2np(self, obs, act=None):
-        hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+    def env2np(self, obs, act=None, state=None):
+        hd = state['agent_dir']
         if act is not None:
             act = np.array(self.encodeAction(act=act,
                                              obs=hd,
-                                             numSuppObs=self.numHDs,
-                                             numActs=self.action_space.n))
+                                             nbins=self.numHDs))
 
-        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
+        obs = np.array(obs)[None]
         obs = obs/255
         return obs, act
 
@@ -644,7 +637,7 @@ class RiaBVisionShell(RatInABoxShell):
 
         return obs, act, state, render
     
-    def env2pred(self, obs, act=None):
+    def env2pred(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
@@ -768,7 +761,7 @@ class RiaBRemixColorsShell(RiaBVisionShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
 
-    def env2pred(self, obs, act=None):
+    def env2pred(self, obs, act=None, **kwargs):
         """
         Convert observation and action input to pytorch arrays
         for input to the predictive net, tensor of shape (N,L,H)
@@ -939,7 +932,7 @@ class RiaBGridShell(RatInABoxShell):
 
         return obs, act, state, render
     
-    def env2pred(self, obs, act=None):
+    def env2pred(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
@@ -1066,7 +1059,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
 
         return obs, act, state, render
 
-    def env2pred(self, obs, act=None):
+    def env2pred(self, obs, act=None, **kwargs):
         """
         Convert observation and action input to pytorch arrays
         for input to the predictive net, tensor of shape (N,L,H)

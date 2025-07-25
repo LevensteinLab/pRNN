@@ -390,7 +390,7 @@ class PredictiveNet:
     def collectObservationSequence(self, env, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed = None, dataloader=False):
+                                   seed = None, dataloader=False, device='cpu'):
         """
         A placeholder for backward compatibility, actual function is moved to Shell
         """
@@ -399,7 +399,8 @@ class PredictiveNet:
                                                                 includeRender,
                                                                 discretize, inv_x, inv_y,
                                                                 seed,
-                                                                dataloader=dataloader)
+                                                                dataloader=dataloader,
+                                                                device=device)
 
         return obs, act, state, render
 
@@ -415,6 +416,8 @@ class PredictiveNet:
         if forceDevice is not None:
             device = forceDevice
         self.pRNN.to(device)
+        if hasattr(self.env_shell, 'encoder'):
+            self.env_shell.encoder.to(device)
         print(f'Training pRNN on {device}...')
             
         # c=100
@@ -423,7 +426,8 @@ class PredictiveNet:
             obs,act,_,_ = self.collectObservationSequence(env, 
                                                           agent, 
                                                           sequence_duration,
-                                                          dataloader=self.useDataLoader)
+                                                          dataloader=self.useDataLoader,
+                                                          device=device)
             try:
                 obs,act = obs.to(device),act.to(device)
             except(AttributeError):
@@ -443,6 +447,8 @@ class PredictiveNet:
         
         self.numTrainingEpochs +=1
         self.pRNN.to('cpu')
+        if hasattr(self.env_shell, 'encoder'):
+            self.env_shell.encoder.to('cpu')
         print("Epoch Complete. Back to the cpu")
 
 
@@ -733,7 +739,8 @@ class PredictiveNet:
             #EV_s
             FAKEinputdata = STA.makeFAKEdata(WAKEactivity,
                                              place_fields,
-                                             n_obs=self.env_shell.n_obs)
+                                             n_obs=self.env_shell.n_obs,
+                                             start_pos=self.env_shell.start_pos)
             EVs = FAKEinputdata['TCcorr']
             if saveTrainingData:
                 self.addTrainingData('sRSA',sRSA)
@@ -1122,7 +1129,7 @@ class PredictiveNet:
                 plt.subplot(6,numtimesteps,3*numtimesteps+tt+1+2*numtimesteps)
                 plt.imshow(np.log10(p_decode[timesteps[tt],:,:].transpose()),
                            interpolation='nearest',alpha = mask.transpose(),
-                          cmap='bone',vmin=-3.25,vmax=0)
+                           cmap='bone',vmin=-3.25,vmax=0)
                 if state is not None:
                     plt.plot(state['agent_pos'][timesteps[tt],0],
                              state['agent_pos'][timesteps[tt],1],
@@ -1140,7 +1147,7 @@ class PredictiveNet:
             if h is not None:
                 plt.subplot(6,numtimesteps,3*numtimesteps+tt+1+2*numtimesteps)
                 plt.scatter(self.pRNN.locations[0][:,0],
-                         -self.pRNN.locations[0][:,1],s=15,c=h[timesteps[tt],:])
+                            -self.pRNN.locations[0][:,1],s=15,c=h[timesteps[tt],:])
                 plt.xticks([])
                 plt.yticks([])
 

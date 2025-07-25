@@ -32,6 +32,7 @@ class LRoom(MiniWorldEnv):
 
     def __init__(self, continuous=True, size=10, **kwargs):
         self.size = size
+        self.padding = 0.5
         self.continuous = continuous
         self.target=False
         super().__init__(self, **kwargs)
@@ -131,8 +132,6 @@ class LRoom(MiniWorldEnv):
         """
         Turn the agent left or right
         """
-
-        orig_dir = self.agent.dir
 
         self.agent.dir += turn_angle
 

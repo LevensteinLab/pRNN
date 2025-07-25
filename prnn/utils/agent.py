@@ -9,7 +9,7 @@ Created on Fri Nov 12 20:05:03 2021
 import numpy as np
 
 from numpy.random import choice
-from ratinabox.utils import get_angle
+from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
 
 def randActionSequence(tsteps,action_space,action_probability):
@@ -187,10 +187,17 @@ class MiniworldRandomAgent(Agent):
 
         return traj[:, -T:]
     
-    def getObservations(self, env, tsteps=0, reset=True, includeRender=False, act=None, **kwargs):   
-        # TODO: check after writing the Shell code
+    def getObservations(self, env, tsteps=0, reset=True, includeRender=False,
+                        act=None, discretize=False, **kwargs):   
+        if reset:
+            env.reset()
+            self.reset()
+            
         if act is None:
-            act = self.generateActionSequence(tsteps)
+            pos = env.env.agent.pos
+            pos = np.array([pos[0] - env.env.padding, env.env.size - pos[2] + env.env.padding]) / 10
+            direction = env.env.agent.dir
+            act = self.generateActionSequence(pos, direction, tsteps)
         else:
             tsteps = act.shape[1]
             if act.shape[0] != 2:
@@ -206,7 +213,7 @@ class MiniworldRandomAgent(Agent):
             obs[0] = env.reset()
         else:
             obs[0] = env.env.render_obs()
-        state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), # probably resize not needed
+        state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)),
                  'agent_dir': env.get_agent_dir()
                 }
         if includeRender:
@@ -214,13 +221,23 @@ class MiniworldRandomAgent(Agent):
             render[0] = env.env.render_top_view()
             
         for aa in range(tsteps):
-            obs[aa+1] = env.step(act[aa])[0]
+            obs[aa+1] = env.step(act[:,aa])[0]
             state['agent_pos'] = np.append(state['agent_pos'],
                                            np.resize(env.get_agent_pos(),(1,2)),axis=0) # probably resize not needed
             state['agent_dir'] = np.append(state['agent_dir'],
                                            env.get_agent_dir())
             if includeRender:
                 render[aa+1] = env.env.render_top_view()
+
+        if discretize: # using RiaB coordinates for the positions to be decoded
+            state['pos_continuous'] = state['agent_pos'].copy()
+            pos = np.array(self.history['pos'])
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.Environment.dx
+            coord = self.Environment.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+            state['agent_pos'] = pos
 
         return obs, act, state, render
     

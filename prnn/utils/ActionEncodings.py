@@ -132,8 +132,6 @@ def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
     HD = (HD*nbins).long()
     HD = torch.clamp(HD, min=0, max=nbins-1)
     HD = nn.functional.one_hot(HD, num_classes=nbins)
-    print(HD.shape, speed.shape)
     act = torch.cat((speed[:,None], HD), dim=-1)
     act = torch.unsqueeze(act, dim=0)
-    print(f"Action shape: {act.shape}")
     return act

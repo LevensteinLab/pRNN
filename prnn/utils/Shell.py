@@ -5,6 +5,8 @@ import random
 
 from matplotlib.collections import EllipseCollection
 
+from torchvision.transforms import ToTensor
+
 from ratinabox.Agent import Agent
 from ratinabox.Neurons import *
 from ratinabox.utils import get_angle, get_distances_between
@@ -54,7 +56,8 @@ class Shell:
     def collectObservationSequence(self, agent, tsteps, batch_size=1,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed=None, dataloader=False, reset=True, save_env=False):
+                                   seed=None, dataloader=False, reset=True,
+                                   save_env=False, device='cpu'):
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
@@ -87,12 +90,16 @@ class Shell:
                                                         inv_x=inv_x,
                                                         inv_y=inv_y,
                                                         reset=reset)
-                if save_env:
-                    obs_env = obs # save the environment format
+
                 if obs_format == 'pred': # to train right away
-                    obs, act = self.env2pred(obs, act, state)
+                    obs, act = self.env2pred(obs, act, state=state,
+                                             device=device)
                 elif obs_format == 'npgrid': # to save as numpy array
-                    obs, act = self.env2np(obs, act)
+                    nps = self.env2np(obs, act, state=state,
+                                      device=device, save_env=save_env)
+                    obs, act = nps[0], nps[1]
+                    if save_env:
+                        obs_env = nps[2]
                 elif obs_format is None:
                     continue
         if save_env:
@@ -299,7 +306,7 @@ class GymMinigridShell(Shell):
         plt.imshow(render[t])
     
     def show_state_traj(self, start, end, state, render, **kwargs):
-        trajectory_ts = np.arange(start, end)
+        trajectory_ts = np.arange(start, end+1)
         if render is not None:
             plt.imshow(render[trajectory_ts[-1]])
         plt.plot((state['agent_pos'][trajectory_ts,0]+0.5)*512/16,
@@ -341,6 +348,7 @@ class MiniworldShell(Shell):
     def __init__(self, env, act_enc, env_key, HDbins, dx=0.5, **kwargs):
         super().__init__(env, act_enc, env_key)
         self.numHDs = HDbins
+        self.obs_shape = self.env.observation_space.shape
 
         self.dx = dx
         self.height = int((env.unwrapped.max_z - env.unwrapped.min_z)/dx)
@@ -392,10 +400,6 @@ class MiniworldShell(Shell):
     
     def getActType(self):
         return torch.float32
-
-    def getObsSize(self):
-        obs_size = np.prod(self.obs_shape)
-        return obs_size
     
     def get_map_bins(self):
         # not accounting for padding for now
@@ -416,6 +420,11 @@ class MiniworldShell(Shell):
         
         return obs/255
     
+    def get_visual(self, obs):
+        obs = ToTensor()(obs)
+        obs = torch.unsqueeze(obs, dim=0)
+        return obs
+    
     def load_state(self, state):
         self.set_agent_pos(state[:2])
         self.set_agent_dir(state[2])
@@ -433,11 +442,17 @@ class MiniworldShell(Shell):
         plt.imshow(render[t])
     
     def show_state_traj(self, start, end, state, render, **kwargs):
-        trajectory_ts = np.arange(start, end)
+        trajectory_ts = np.arange(start, end+1)
         if render is not None:
             plt.imshow(render[trajectory_ts[-1]])
-        plt.scatter(state['agent_pos'][trajectory_ts,0]*56/self.env.size+4,
-                    state['agent_pos'][trajectory_ts,1]*56/self.env.size+4,color='r')
+        if 'pos_continuous' in state.keys():
+            pos = state['pos_continuous']
+        else:
+            pos = state['agent_pos']
+        plt.scatter(pos[trajectory_ts,0]*54/(self.env.size+self.env.padding*2)+4.5,
+                    pos[trajectory_ts,1]*54/(self.env.size+self.env.padding*2)+4.5,
+                    s=1,
+                    color='r')
         
     def step(self, action):
         return self.env.step(action)
@@ -450,12 +465,19 @@ class MiniworldShell(Shell):
 
 
 class MiniworldVAEShell(MiniworldShell):
-    def __init__(self, env, act_enc, env_key, vae, HDbins, dx=0.5, **kwargs):
+    def __init__(self, env, act_enc, env_key, vae, HDbins,
+                 vae_grad=False, dx=0.5, **kwargs):
         super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
-        self.vae = vae
-        self.obs_shape = vae.latent_dim
+        self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda in the training loop
+        if not vae_grad:
+            self.encoder.eval()
 
-    def env2pred(self, obs, act=None, state=None, hd_from='state', actoffset=0):
+    def getObsSize(self):
+        obs_size = self.encoder.latent_dim
+        return obs_size
+
+    def env2pred(self, obs, act=None, state=None, hd_from='state',
+                 actoffset=0, device='cpu'):
         if hd_from=='state':
             hd = state['agent_dir']
         elif hd_from=='act':
@@ -468,33 +490,44 @@ class MiniworldVAEShell(MiniworldShell):
                                     obs=hd,
                                     nbins=self.numHDs)
 
-        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        obs = obs.to(device)
+        mu, log_var = self.encoder.encode(obs)
+        obs = self.encoder.reparameterize(mu, log_var)
         obs = torch.unsqueeze(obs, dim=0)
-        mu, log_var = self.vae.encode(obs)
-        obs = self.vae.reparameterize(mu, log_var)
 
 
-        if hd_from=='obs':
+        if hd_from=='state':
             return obs, act
         else:
             return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
-    def env2np(self, obs, act=None, state=None):
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
         hd = state['agent_dir']
         if act is not None:
             act = np.array(self.encodeAction(act=act,
                                              obs=hd,
                                              nbins=self.numHDs))
 
-        obs = np.array(obs)[None]
-        obs = obs/255
-        return obs, act
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        obs_env = np.array(obs)
+        obs = obs.to(device)
+        mu, log_var = self.encoder.encode(obs)
+        obs = self.encoder.reparameterize(mu, log_var)
+        obs = torch.unsqueeze(obs, dim=0).cpu().detach().numpy()
+
+        if save_env:
+            return obs, act, obs_env
+        else:
+            return obs, act
 
     def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = self.encoder.decode(obs[whichPhase])
         obs = obs.detach().numpy()
         if timesteps:
-            obs = obs[:,timesteps,...]
-        obs = np.reshape(obs[whichPhase,:,:],(-1,)+self.obs_shape)
+            obs = obs[timesteps,...]
+        
+        obs = np.transpose(obs, (0,2,3,1))
         return obs
         
 

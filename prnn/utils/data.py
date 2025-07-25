@@ -33,10 +33,13 @@ class TrajDataset(Dataset):
             return obs, act
 
 
-def generate_trajectories(env, agent, n_trajs, seq_length, folder):
+def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=False):
     top_dir = Path(folder)
     n_generated = 0
     length_generated = 0
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if hasattr(env, 'encoder'):
+        env.encoder.to(device)
 
     # If there is a folder with the same name as the environment,
     # check how many trajectories and of what length are already generated
@@ -60,10 +63,18 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
                 state = np.load(str(child / "state.npy"))
                 env.load_state(state)
                 act = np.load(str(child / "act.npy"))
-                new_obs, new_act, new_state, _ = env.collectObservationSequence(agent,
-                                                                                seq_length - length_generated,
-                                                                                obs_format='npgrid',
-                                                                                reset=False)
+                new_data = env.collectObservationSequence(agent,
+                                                          seq_length - length_generated,
+                                                          obs_format='npgrid',
+                                                          reset=False,
+                                                          save_env=save_raw,
+                                                          device=device)
+                new_obs, new_act, new_state = new_data[0], new_data[1], new_data[2]
+                if save_raw:
+                    raw = np.load(str(child / "raw.npy"))
+                    new_raw = new_data[4]
+                    raw = np.concatenate((raw, new_raw), axis=1)
+                    np.save(str(child / "raw.npy"), raw)
                 if env.n_obs > 1: # for multimodal observations
                     for i in range(env.n_obs):
                         obs = np.load(str(child / ("obs"+str(i)+".npy")))
@@ -85,7 +96,12 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
         for i in range(n_trajs - n_generated):
             traj_dir = top_dir / str(n_generated + i + 1)
             traj_dir.mkdir()
-            obs, act, state, _ = env.collectObservationSequence(agent, seq_length, obs_format='npgrid')
+            data = env.collectObservationSequence(agent, seq_length, obs_format='npgrid',
+                                                  save_env=save_raw, device=device)
+            obs, act, state = data[0], data[1], data[2]
+            if save_raw:
+                raw_data = data[4]
+                np.save(str(traj_dir / "raw.npy"), raw_data)
             last_state = env.save_state(state)
             if env.n_obs > 1: # for multimodal observations
                 for j in range(env.n_obs):
@@ -96,16 +112,21 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder):
             np.save(str(traj_dir / "state.npy"), last_state)
 
 
-def create_dataloader(env, agent, n_trajs, seq_length, folder, generate=True, tmp_folder=None, batch_size=32, num_workers=0):
+def create_dataloader(env, agent, n_trajs, seq_length, folder,
+                      generate=True, tmp_folder=None, batch_size=32,
+                      num_workers=0, save_raw=False, load_raw=False):
     folder = folder + '/' + env.name + '-' + agent.name
     if generate:
-        generate_trajectories(env, agent, n_trajs, seq_length, folder)
+        generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=save_raw)
     if not tmp_folder:
         tmp_folder = folder
     else:
         tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name
         shutil.copytree(folder, tmp_folder, dirs_exist_ok=True)
-    dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
+    if not load_raw:
+        dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
+    else: # will need for simultaneous training of the encoder
+        raise NotImplementedError("Loading raw data not implemented yet")
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
 
     

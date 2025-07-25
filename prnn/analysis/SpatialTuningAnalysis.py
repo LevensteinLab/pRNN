@@ -10,7 +10,7 @@ class SpatialTuningAnalysis:
                  inputControl=False, untrainedControl=False,
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
-                 agent=False, start_pos=1, theta='expand',
+                 agent=False, theta='expand',
                  fig_type='png'):
         
         self.pN = predictiveNet
@@ -18,10 +18,10 @@ class SpatialTuningAnalysis:
         self.untrainedControl = untrainedControl
         self.noRec = compareNoRec
         self.reliabilityMetric = reliabilityMetric
-        self.start_pos = start_pos # the numbering of occupiable locations starts from this
         self.fig_type = fig_type
         
         self.env = predictiveNet.EnvLibrary[0]
+        self.start_pos = self.env.start_pos # the numbering of occupiable locations starts from this
 
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:
@@ -56,7 +56,7 @@ class SpatialTuningAnalysis:
             WAKEactivity = self.runWAKE(self.pNControl, self.env, agent, timesteps_wake,
                                         theta=theta)
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity, self.untrainedFields,
-                                                  start_pos=start_pos, n_obs=self.b_obs)
+                                                  start_pos=self.start_pos, n_obs=self.b_obs)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
@@ -69,7 +69,7 @@ class SpatialTuningAnalysis:
         if inputControl:
             print('Calculating EV_s for input control')
             FAKEinputdata = self.makeFAKEdata(self.WAKEactivity, self.inputFields,inputCells=True,
-                                              start_pos=start_pos, n_obs=self.b_obs)
+                                              start_pos=self.start_pos, n_obs=self.b_obs)
             self.inputReliability = FAKEinputdata['TCcorr']
         
         #Compare to a Recurrence-ablated control

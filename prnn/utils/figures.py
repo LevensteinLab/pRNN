@@ -31,7 +31,7 @@ def TrainingFigure(predictiveNet,
     numPFpanels = 4
     trials = ~predictiveNet.TrainingSaver['SI'].isna()
     index = predictiveNet.TrainingSaver['SI'].index[trials]  
-    PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels))
+    PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels)).astype(int)
     #PFtrainsteps=np.delete(PFtrainsteps,0)
 
     #Final PF panel

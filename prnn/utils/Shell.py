@@ -11,6 +11,7 @@ from ratinabox.Neurons import *
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.contribs.ValueNeuron import ValueNeuron
 
+from prnn.utils import env
 from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
 
@@ -1545,7 +1546,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
                          wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
-        self.n_obs = 3
+        self.n_obs = 2
         self.n_repeats = n_repeats
 
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
@@ -1554,6 +1555,11 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         coords = env.objects["objects"]         # shape (N, 2)
         types  = env.objects["object_types"]    # shape (N,)
 
+        cheeseboard_center = np.array([0.6, 0.6])
+        cheeseboard_radius = 0.6
+        distances = np.linalg.norm(coords - cheeseboard_center, axis=1)
+        self.inside_cheeseboard_mask = distances <= cheeseboard_radius
+
         # Create a mask (Boolean array) for where types == 0
         mask = (types == 0)
         coords_type_0 = coords[mask]
@@ -1561,16 +1567,27 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
         np.random.seed(seed)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
-        reward_positions = coords_type_0[reward_hole_indices]
+        reward_positions = coords_type_0[reward_hole_indices]  
+
+        # Make the agent 
+        ag = Agent(env)
+        ag.dt = 50e-3  # set discretisation time, large is fine
+        ag.episode_data = {
+            "start_time": [],
+            "end_time": [],
+            "start_pos": [],
+            "end_pos": [],
+            "success_or_failure": [],
+        }  # a dictionary we will use later
     
         #Create reward neuron (another place cell hidden behind the barrier) 
         self.Reward = PlaceCells(
-        self.ag,
+        ag,
         params={
             "n": 3,
             "place_cell_centres": np.array(reward_positions),
-            "description": "top_hat",
-            "widths": 0.1,
+            #"description": "top_hat", #commenting out to use gaussian instead
+            "widths": 0.1, 
             "max_fr": 1,
             "color": "C5",
             "wall_geometry": "euclidean",
@@ -1578,27 +1595,9 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         )
 
         self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
-        self.ag.pos = self.home_pos.copy()      # start the agent there
+        ag.pos = self.home_pos.copy()      # start the agent there
         
         self.reset(pos=self.home_pos)
-
-    def init_agent(self, speed, thigmotaxis):
-        # Create the agent
-        ag = Agent(self.env, {
-                    'dt': 0.1,
-                    'speed_mean': speed,
-                    'thigmotaxis': thigmotaxis
-                    })
-        
-        self.ag = ag
-        self.ag.episode_data = {
-            "start_time": [],
-            "end_time": [],
-            "start_pos": [],
-            "end_pos": [],
-            "success_or_failure": [],
-        }  # a dictionary we will use later
-        self.ag.exploit_explore_ratio = 0.9  # exploit/explore parameter we will use later
 
     def getObservations(self, tsteps, reset=True, includeRender=False,
                         discretize=False, inv_x=False, inv_y=False):   
@@ -1626,10 +1625,13 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         act = np.concatenate((rot_vel[:,None], vel), axis=1)
         obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
                               for i in range(len(self.vision))], axis=-1)
+        obs_vis_inside = obs_vis[..., self.inside_cheeseboard_mask]
+        obs_vis_outside = obs_vis[..., ~self.inside_cheeseboard_mask]   
+
         obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
         obs_grid = np.array(self.grid.history["firingrate"])
         obs_reward = np.tile(obs_reward, self.n_repeats)  
-        obs = (obs_vis, obs_grid, obs_reward)
+        obs = ((obs_vis_inside, obs_vis_outside), obs_grid, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
         if discretize:
@@ -1652,50 +1654,46 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
 
         return obs, act, state, render
 
+
     def env2pred(self, obs, act=None):
         """
-        Convert observation and action input to pytorch arrays
-        for input to the predictive net, tensor of shape (N,L,H)
-        N: Batch size
-        L: timesamps
-        H: input_size
-        https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
+        Convert observation and action input to pytorch arrays for input to predictive net.
         """
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
 
-        obs_vis, obs_grid, obs_Reward = obs
+        (obs_vis_inside, obs_vis_outside), obs_reward, obs_grid = obs
 
-        remix = np.zeros((*obs_vis.shape[:-1],3))
-        remix += np.tile(obs_vis[...,0,None],3)*50/255
-        if 'LRoom' in self.name:
-            remix[...,2] += obs_vis[...,1]
-            remix[...,0] += obs_vis[...,2]
-            remix[...,0] += obs_vis[...,3]
-            remix[...,1] += obs_vis[...,3]
-        else:
-            for i in range(1,obs_vis.shape[-1]):
-                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
-                                     0,
-                                     -1
-                                     ) * self.obs_colors[i][:3]
-        remix = remix.clip(max=1)
-        remix = remix.reshape(remix.shape[:-2]+(-1,))
+        # Combine inside and outside into separate RGB channels
+        def vision_to_rgb(obs_vis, scale=50):
+            remix = np.zeros((*obs_vis.shape[:-1], 3))
+            remix += np.tile(obs_vis[..., 0, None], 3) * scale / 255
+            for i in range(1, obs_vis.shape[-1]):
+                remix += np.moveaxis(
+                    np.tile(obs_vis[..., i], [3] + [1] * (len(obs_vis[..., i].shape))),
+                    0,
+                    -1
+                ) * self.obs_colors[i][:3]
+            remix = remix.clip(max=1)
+            remix = remix.reshape(remix.shape[:-2] + (-1,))
+            return remix
+
+        rgb_inside = vision_to_rgb(obs_vis_inside)
+        rgb_outside = vision_to_rgb(obs_vis_outside)
+
+        # Concatenate inside and outside into one input
+        remix = np.concatenate([rgb_inside, rgb_outside], axis=-1)
         remix = torch.tensor(remix, dtype=torch.float, requires_grad=False)
         remix = torch.unsqueeze(remix, dim=0)
 
+        obs_reward = torch.tensor(obs_reward.clip(max=1), dtype=torch.float, requires_grad=False)
+        obs_reward = torch.unsqueeze(obs_reward, dim=0)
 
-        obs_Reward = obs_Reward.clip(max=1)
-        obs_Reward = torch.tensor(obs_Reward, dtype=torch.float, requires_grad=False)
-        obs_Reward = torch.unsqueeze(obs_Reward, dim=0)
-
-        obs_grid = obs_grid.clip(max=1)
-        obs_grid = torch.tensor(obs_grid, dtype=torch.float, requires_grad=False)
+        obs_grid = torch.tensor(obs_grid.clip(max=1), dtype=torch.float, requires_grad=False)
         obs_grid = torch.unsqueeze(obs_grid, dim=0)
 
-        obs = (remix, obs_grid, obs_Reward)
-
+        obs = (remix, obs_reward, obs_grid)
         return obs, act
 
     def env2np(self, obs, act=None):
@@ -1704,25 +1702,31 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
         act = np.array(act)
 
-        obs_vis, obs_grid, obs_Reward = obs
+        (obs_vis_inside, obs_vis_outside), obs_reward, obs_grid = obs
 
-        remix = np.zeros((*obs_vis.shape[:-1],3))
-        remix += np.tile(obs_vis[...,0,None],3)*100/255
-        for i in range(1,obs_vis.shape[-1]):
-            remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
-                                    0,
-                                    -1
-                                    ) * self.obs_colors[i][:3]
-        remix = remix.clip(max=1)
-        remix = remix.reshape(remix.shape[:-2]+(-1,))[None]
+        def vision_to_rgb(obs_vis, scale=100):
+            remix = np.zeros((*obs_vis.shape[:-1], 3))
+            remix += np.tile(obs_vis[..., 0, None], 3) * scale / 255
+            for i in range(1, obs_vis.shape[-1]):
+                remix += np.moveaxis(
+                    np.tile(obs_vis[..., i], [3] + [1] * (len(obs_vis[..., i].shape))),
+                    0,
+                    -1
+                ) * self.obs_colors[i][:3]
+            remix = remix.clip(max=1)
+            remix = remix.reshape(remix.shape[:-2] + (-1,))
+            return remix
 
+        rgb_inside = vision_to_rgb(obs_vis_inside)
+        rgb_outside = vision_to_rgb(obs_vis_outside)
+        remix = np.concatenate([rgb_inside, rgb_outside], axis=-1)[None]
 
-        obs_Reward = obs_Reward.clip(max=1)[None]
+        obs_reward = obs_reward.clip(max=1)[None]
         obs_grid = obs_grid.clip(max=1)[None]
 
-        obs = (remix, obs_grid, obs_Reward)
-
+        obs = (remix, obs_reward, obs_grid)
         return obs, act
+
     
     def pred2np(self, obs, whichPhase=0, timesteps=None):
         """
@@ -1771,7 +1775,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         return image_from_plot
 
     def getObsSize(self):
-        obs_size = (self.vision[0].n * 3, self.grid.n, self.Reward.n)
+        obs_size = (self.vision[0].n * 3, self.Reward.n)
         return obs_size
     
     def reset(self, pos=None, vel=None, seed=False, keep_state=False):
@@ -1808,7 +1812,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
 class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
     #showstatetrajectory
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, wellSigmaDistance= 0.1, wellSigmaAngleDenominator = 2, n_repeats = 1):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, wellSigmaDistance= 0.1, wellSigmaAngleDenominator = 2, n_repeats = 1, time_at_reward=3, num_place_cells=200):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins ,wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
 
         self.n_obs = 2
@@ -1817,6 +1821,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         coords = env.objects["objects"]         # shape (N, 2)
         types  = env.objects["object_types"]    # shape (N,)
 
+        self.time_at_reward = time_at_reward
         # Create a mask (Boolean array) for where types == 0
         mask = (types == 0)
         coords_type_0 = coords[mask]
@@ -1825,14 +1830,16 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
 
         np.random.seed(seed)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
-        reward_positions = env.objects['objects'][reward_hole_indices]
+        reward_positions = coords_type_0[reward_hole_indices]
+        #reward_positions = env.objects['objects'][reward_hole_indices]
 
         self.active_reward_idx  = 0
-        self.success_threshold  = 0.8 #switched from 0.7 to experiment  
+        self.success_threshold  = 0.9 #switched from 0.7 to experiment  
         self.reward_positions = reward_positions
+        
 
         n_pc = 200 
-        self.Inputs = PlaceCells(
+        self.InputsFake = PlaceCells(
             self.ag,
             params={
                 "n": n_pc,
@@ -1846,19 +1853,32 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             params={
                 "n": 3,
                 "place_cell_centres": np.array(reward_positions),
-                "description": "top_hat",
-                "widths": 0.05,
+                #"description": "top_hat", #commenting out to use gaussian instead
+                "widths": 0.1,
                 "max_fr": 1,
                 "color": "C5",
                 "wall_geometry": "euclidean",
             },
         )
 
+
+        np.random.seed(seed+1000)
+        n_pc = num_place_cells #run from 200 to 1000
+        self.Inputs = PlaceCells(
+            self.ag,
+            params={
+                "n": n_pc,
+                #"widths": np.random.uniform(0.04, 0.4, size=(n_pc)), #large and small widths
+                "widths": np.random.uniform(0.04, 0.3, size=(n_pc)),
+                "color": "C1",
+            },
+        )
+
         self.ValNeur = ValueNeuron(
             self.ag, params={
                         "input_layers": [self.Inputs], 
-                        "tau": 10,
-                        "eta":0.001, #switched from 0.001
+                        "tau": 10, #next steps will be increasing tau and decreasing eta
+                        "eta": 0.001,  # switched from 0.001
                         "L2": 0.1,  # L2 regularisation
                         "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
                         "color": "C2",
@@ -1867,22 +1887,30 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         w = self.ValNeur.inputs["PlaceCells"]["w"]
         #self.ValNeur.inputs["PlaceCells"]["w"] = 0.01 * np.random.randn(*w.shape) 
          #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
-        self.ValNeur.max_value = np.full(self.ValNeur.n, 1e-6) 
+
+        # --- shrink initial weights so L2 penalty starts tiny but nonzero ---
+
+        w *= 1e-3
+
+
+        # now set up your max_value tracking as before
+        self.ValNeur.max_value = np.full(self.ValNeur.n, 1e-6)
 
         self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
         self.ag.pos = self.home_pos.copy()      # start the agent there
+        self.all_firing_rates = []
+
+        self.ag.history["active_reward"] = []
+
+
         
         self.reset(pos=self.home_pos)
+
     
-    def init_agent(self, speed, thigmotaxis):
-        # Create the agent
-        ag = Agent(self.env, {
-                    'dt': 0.1,
-                    'speed_mean': speed,
-                    'thigmotaxis': thigmotaxis
-                    })
-        
-        self.ag = ag
+    def init_agent(self,speed, thigmotaxis):
+        # Make the agent 
+        self.ag = Agent(self.env)
+        self.ag.dt = 50e-3  # set discretisation time, large is fine
         self.ag.episode_data = {
             "start_time": [],
             "end_time": [],
@@ -1890,10 +1918,24 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             "end_pos": [],
             "success_or_failure": [],
         }  # a dictionary we will use later
-        self.ag.exploit_explore_ratio = 0.9  # exploit/explore parameter we will use later
+        self.ag.exploit_explore_ratio = 1.0  # exploit/explore parameter we will use later
+
+    def new_curriculum(self, num_sequences, seqlength):
+        self.ValNeur.tau = 10
+        for i in range(num_sequences):
+            self.active_reward_idx = i % 3
+            self.getRandomPos()
+            print("Starting sequence", i, "with active reward channel", self.active_reward_idx)
+            tsteps = seqlength
+            obs, act, state, render = self.getObservations(tsteps, new_curriculum=True)
+            self.ValNeur.plot_rate_map()
+            fig, ax = plt.subplots(figsize=(10,10))
+            self.show_state_traj(0, seqlength, fig, ax)
+        return True
+
 
     def getObservations(self, tsteps, reset=True, includeRender=False,
-                        discretize=False, inv_x=False, inv_y=False):   
+                        discretize=False, inv_x=False, inv_y=False, new_curriculum=False):   
         """
         Get a sequence of observations. act[t] is the action after observing
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
@@ -1905,32 +1947,33 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             self.reset()
         else:
             self.reset(keep_state=True)
-        self.all_firing_rates = np.zeros((tsteps, self.ValNeur.n))
 
+        t_at_goal = 0
         for k in range(tsteps):
 
-            # ---------- 1.  sense → value (state_t) ----------
-            for v in self.vision:                        # vision, place cells, …
-                v.update()
-            self.Reward.update()
-            self.Inputs.update()
-            self.ValNeur.update()                        # firingrate now = V(s_t)
-            self.all_firing_rates[k] = self.ValNeur.firingrate.copy()  # Store a copy of the firing rate
-
-            # ---------- 2.  plan ----------
-            gradV  = self.get_steep_ascent(self.ag.pos)
+            gradV = self.get_steep_ascent(self.ag.pos)
             if gradV is not None:
                 drift_vel = 3 * self.ag.speed_mean * gradV
-                rand_ratio = 0.20
             else:
                 drift_vel = None
-                rand_ratio = 0.00
+                # if the gradient is untrusted, go full random
 
-            # (optional exploration schedule)
-            #explore_horizon = 5_000
-            #self.ag.exploit_explore_ratio = min(1.0, k/explore_horizon)
+          
 
-            self.ag.update(drift_velocity = drift_vel, drift_to_random_strength_ratio = rand_ratio)
+            idx = self.active_reward_idx
+            center_x, center_y = self.Reward.place_cell_centres[idx]
+            radius = 0.1 
+            dx = self.ag.pos[0] - center_x #x-distance from center
+            dy = self.ag.pos[1] - center_y #y-distance from center
+            if (dx*dx + dy*dy) <= radius*radius: #checks if agent is within radius
+                dir_to_reward = self.Reward.place_cell_centres[idx] - self.ag.pos #cheat to sent it to center
+                drift_vel = (
+                    3 * self.ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
+                )
+
+
+
+            self.ag.update(drift_velocity = drift_vel, drift_to_random_strength_ratio = self.ag.exploit_explore_ratio)
 
             for v in self.vision:
                 v.update()
@@ -1938,15 +1981,20 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             self.Inputs.update()
             self.ValNeur.update()
 
-            self.ValNeur.update_weights(reward = self._current_reward_vector())
+            self.ValNeur.update_weights(reward = self.Reward.firingrate)
 
             self.ValNeur.max_value = np.maximum(self.ValNeur.max_value, self.ValNeur.firingrate)
+            self.ag.history["active_reward"].append(self.active_reward_idx)
+
 
             # rotate goal if close enough to the active target
-            if (self.Reward.firingrate[self.active_reward_idx] >
-                self.success_threshold):
-                self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
-                print("Reward channel changed to", self.active_reward_idx)
+            if not new_curriculum:
+                if (self.Reward.firingrate[self.active_reward_idx] > self.success_threshold):
+                    t_at_goal += 1
+                    if(t_at_goal > self.time_at_reward): # if the agent is at the goal for more than 10 timesteps, switch to the next reward
+                        self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
+                        print("Reward channel changed to", self.active_reward_idx)
+                        t_at_goal = 0
 
 
         rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
@@ -1979,8 +2027,26 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
                  'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
                  'mean_vel': self.ag.speed_mean,
                 }
+        
+        self.all_firing_rates = np.array(self.all_firing_rates)
 
         return obs, act, state, render
+    
+    def getRandomPos(self):
+        center = np.array([0.6, 0.6])
+        radius = 0.6
+
+        # pick a random angle
+        theta = np.random.uniform(0, 2*np.pi)
+        # pick a radius with sqrt-uniform to ensure uniform area density
+        r = np.sqrt(np.random.uniform(0, 1)) * radius
+
+        # convert to Cartesian
+        offset = np.array([r * np.cos(theta), r * np.sin(theta)])
+        self.ag.pos = center + offset
+
+        # optional: randomize heading too
+        self.ag.heading = np.random.uniform(0, 2*np.pi)
 
     def env2pred(self, obs, act=None):
         """
@@ -2124,12 +2190,25 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         self.env.extent[1]+=0.5
         self.env.extent[2]-=0.5
         self.env.extent[3]+=0.5
-        self.ag.plot_trajectory(t_start=start_t, t_end=end_t, fig=fig, ax=ax, color="changing")
+
+        fig, ax = self.ag.plot_trajectory(
+            t_start=start_t,
+            t_end=end_t,
+            color="by_reward",
+            reward_trace=self.ag.history["active_reward"],
+            reward_colors={0:"#ff7f0e", 1:"#1f77b4", 2:"#2ca02c"},
+            reward_labels={0:"Reward 0", 1:"Reward 1", 2:"Reward 2"},
+            colorbar=True,
+            fig=fig,
+            ax=ax
+        )
+
+        ax.scatter(self.reward_positions[:, 0], self.reward_positions[:, 1],
+                s=60, c='green', edgecolors='k', zorder=5)
+
         for i in range(len(self.vision)):
             self.vision[i].display_vector_cells(fig, ax, t=end_t)
 
-        ax.scatter(self.reward_positions[:, 0], self.reward_positions[:, 1],
-               s=60, c='green', edgecolors='k', zorder=5)
         # reset the env extent
         self.env.extent[0]+=0.5
         self.env.extent[1]-=0.5
@@ -2174,21 +2253,40 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         """
         idx = self.active_reward_idx
 
-        V = self.ValNeur.get_state(pos=pos)[idx]
-        if V <= 0.05 * self.ValNeur.max_value[idx]:   # per‑channel scale
+        V = self.ValNeur.get_state(evaluate_at=None,pos=pos)[idx][0]
+        if V <= 0.000001 * self.ValNeur.max_value[idx]:   # per‑channel scale
             return None
 
         # finite‑difference gradient for that channel
         dx     = np.array([1e-3, 0])
         dy     = np.array([0, 1e-3])
-        Vx     = self.ValNeur.get_state(pos=pos+dx)[idx]
-        Vy     = self.ValNeur.get_state(pos=pos+dy)[idx]
+        Vx     = self.ValNeur.get_state(evaluate_at=None,pos=pos+dx)[idx][0]
+        Vy     = self.ValNeur.get_state(evaluate_at=None,pos=pos+dy)[idx][0]
         gradV  = np.array([Vx-V, Vy-V])
 
         norm   = np.linalg.norm(gradV)
         if norm < math.exp(-9):
             return None
         return gradV / norm
+    
+
+    # def get_steep_ascent(self, pos):
+    #     idx = self.active_reward_idx
+    #     # skip the value‐threshold gate so you always follow ∇V:
+    #     V = self.ValNeur.get_state(pos=pos)[idx]
+    #     # if you really want a tiny gate, use e.g.: 
+    #     # if V <= 1e-6: return None
+
+    #     # finite-difference gradient
+    #     dx = np.array([1e-3, 0])
+    #     dy = np.array([0, 1e-3])
+    #     Vx     = self.ValNeur.get_state(pos=pos+dx)[idx]
+    #     Vy     = self.ValNeur.get_state(pos=pos+dy)[idx]
+    #     gradV  = np.array([Vx-V, Vy-V])
+    #     norm   = np.linalg.norm(gradV)
+    #     if norm < 1e-9: 
+    #         return None
+    #     return gradV / norm
 
 
     def _current_reward_vector(self):
@@ -2203,5 +2301,3 @@ def sample_in_circle(center, radius, rng=np.random):
     theta = rng.uniform(0.0, 2*np.pi)       # angle
     r     = radius * np.sqrt(rng.uniform()) # radius with √ trick
     return np.asarray(center) + np.array([r*np.cos(theta), r*np.sin(theta)])
-
-

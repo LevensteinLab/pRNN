@@ -21,6 +21,7 @@ trainNet_prnn.py
 
 myenv/
 .venv/
+.newenv/
 
 analysis.ipynb
 cheeseboardenv.ipynb

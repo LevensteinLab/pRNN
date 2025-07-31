@@ -7,9 +7,11 @@ gym.envs.registration.register(
     # kwargs={'continuous': True},
 )
 
-# gym.register(
-#     id="MiniWorld-LRoom-v1",
-#     entry_point="prnn.examples.Miniworld.env:LRoom",
-#     kwargs={'continuous': False},
-# )
+gym.register(
+    id="MiniWorld-LRoom-v1",
+    entry_point="prnn.examples.Miniworld.env:LRoom",
+    kwargs={"walls": ("brick_wall", "marble", "wood_planks"),
+            "floors": ("asphalt", "floor_tiles_bw", "concrete_tiles"),
+            "sheep": True},
+)
 

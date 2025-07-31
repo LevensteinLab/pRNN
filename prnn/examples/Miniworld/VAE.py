@@ -200,5 +200,7 @@ def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent
 
         if save_traj:
             np.save(os.path.join(trajdir, "act.npy"), traj)
+            np.save(os.path.join(trajdir, "pos.npy"), pos)
+            np.save(os.path.join(trajdir, "dir.npy"), direction)
 
     env.close()

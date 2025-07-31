@@ -16,3 +16,5 @@ Figures/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+generate_views.py
+train_vae.py

@@ -359,7 +359,7 @@ class MiniworldShell(Shell):
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
-        self.start_pos = 0 # TODO: check this!
+        self.start_pos = 0
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
@@ -416,9 +416,7 @@ class MiniworldShell(Shell):
         self.env.unwrapped.agent_dir = agent_dir
         self.env.unwrapped.agent_pos = agent_pos
         
-        obs = self.env.render_obs()[0]
-        
-        return obs/255
+        raise NotImplementedError('get_viewpoint is not implemented for MiniworldShell')
     
     def get_visual(self, obs):
         obs = ToTensor()(obs)
@@ -456,6 +454,14 @@ class MiniworldShell(Shell):
         
     def step(self, action):
         return self.env.step(action)
+
+    def pre_save(self):
+        out = self.env
+        self.env = None  # the environment can't be pickled
+        return out
+    
+    def post_save(self, env):
+        self.env = env
     
     def reset(self, seed=False):
         if seed:

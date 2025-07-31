@@ -592,14 +592,19 @@ class PredictiveNet:
     def saveNet(self,savename,savefolder=''):
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
+        # Collect everything else that cannot be pickled
+        if hasattr(self.env_shell, 'pre_save'):
+            tmp = self.env_shell.pre_save()
         # Save the net
         filename = savefolder+'nets/'+savename+'.pkl'
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         with open(filename,'wb') as f:
             pickle.dump(self, f)
-        # Restore the iterators
+        # Restore the iterators and other non-picklable attributes
         for i,env in enumerate(self.EnvLibrary):
             env.DL_iterator = iterators[i]
+        if hasattr(self.env_shell, 'post_save'):
+            self.env_shell.post_save(tmp)
         print("Net Saved to pathname")
 
     def copy(self):

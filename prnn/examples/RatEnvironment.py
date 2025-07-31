@@ -50,7 +50,7 @@ tri = shapegrid['triangle'].nonzero()
 
 def make_rat_env(key):
     # TODO: think about how to make this more general
-    if key == 'RiaB-LRoom':
+    if key == 'RiaB-LRoom' or key == 'MiniWorld-LRoom-v0':
         # Create the L-shaped environment
         Env = Environment(
                           params={"boundary": [[0,0],

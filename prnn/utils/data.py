@@ -4,6 +4,7 @@ import copy
 import torch
 import shutil
 
+from shutil import copytree, ignore_patterns
 from pathlib import Path
 from torch.utils.data import DataLoader, Dataset
 
@@ -111,6 +112,10 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
             np.save(str(traj_dir / "act.npy"), act)
             np.save(str(traj_dir / "state.npy"), last_state)
 
+    
+    if hasattr(env, 'encoder'):
+        env.encoder.to('cpu')
+
 
 def create_dataloader(env, agent, n_trajs, seq_length, folder,
                       generate=True, tmp_folder=None, batch_size=32,
@@ -122,12 +127,13 @@ def create_dataloader(env, agent, n_trajs, seq_length, folder,
         tmp_folder = folder
     else:
         tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name
-        shutil.copytree(folder, tmp_folder, dirs_exist_ok=True)
+        copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("raw.npy", "state.npy"))
     if not load_raw:
         dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
     else: # will need for simultaneous training of the encoder
         raise NotImplementedError("Loading raw data not implemented yet")
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
+    print(f"Dataloader created with {n_trajs} trajectories, sequence length {seq_length}")
 
     
 

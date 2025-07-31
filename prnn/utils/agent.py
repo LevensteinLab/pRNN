@@ -144,7 +144,7 @@ class RatInABoxAgent:
 
 
 class MiniworldRandomAgent(Agent):        
-    def __init__(self, riab_env, params={
+    def __init__(self, riab_env, name='', params={
                                     "dt": 0.1,
                                     "speed_mean": 0.2,
                                     "thigmotaxis": 0.2,
@@ -189,13 +189,17 @@ class MiniworldRandomAgent(Agent):
     
     def getObservations(self, env, tsteps=0, reset=True, includeRender=False,
                         act=None, discretize=False, **kwargs):   
+        obs = [None for t in range(tsteps+1)]
+        
         if reset:
-            env.reset()
+            obs[0] = env.reset()
             self.reset()
+        else:
+            obs[0] = env.env.render_obs()
             
         if act is None:
             pos = env.env.agent.pos
-            pos = np.array([pos[0] - env.env.padding, env.env.size - pos[2] + env.env.padding]) / 10
+            pos = np.array([pos[0] - env.env.padding, env.env.size - pos[2] + env.env.padding]) / env.env.size
             direction = env.env.agent.dir
             act = self.generateActionSequence(pos, direction, tsteps)
         else:
@@ -208,11 +212,6 @@ class MiniworldRandomAgent(Agent):
 
         render = False
             
-        obs = [None for t in range(tsteps+1)]
-        if reset:
-            obs[0] = env.reset()
-        else:
-            obs[0] = env.env.render_obs()
         state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)),
                  'agent_dir': env.get_agent_dir()
                 }
@@ -264,7 +263,9 @@ def create_agent(envname, env, agentname):
     elif agentname == 'RatInABoxAgent':
         agent = RatInABoxAgent(name=type(env).__name__)
 
-    elif agentname == 'MiniworldAgent':
-        agent = RatInABoxAgent(name="RiaB-to-Miniworld")
+    elif agentname == 'MiniworldRandomAgent':
+        from prnn.examples.RatEnvironment import make_rat_env
+        riab_env = make_rat_env(envname)
+        agent = MiniworldRandomAgent(riab_env, name="RiaB-to-Miniworld")
 
     return agent

@@ -20,7 +20,7 @@ class Rat(Agent):
     def __init__(self):
         super().__init__()
         self.cam_height = 0.75
-        self.radius = 0.2
+        self.radius = 0.4
         self.height = 0.9
         self.cam_fwd_disp = 0
 
@@ -30,11 +30,17 @@ class Rat(Agent):
 
 class LRoom(MiniWorldEnv):
 
-    def __init__(self, continuous=True, size=10, **kwargs):
+    def __init__(self, continuous=True, size=10,
+                 walls=("brick_wall","brick_wall","brick_wall"),
+                 floors=("asphalt","asphalt","asphalt"),
+                 sheep=False, **kwargs):
         self.size = size
         self.padding = 0.5
         self.continuous = continuous
         self.target=False
+        self.walls = walls
+        self.floors = floors
+        self.sheep = sheep
         super().__init__(self, **kwargs)
 
         if continuous:
@@ -52,8 +58,8 @@ class LRoom(MiniWorldEnv):
             max_x=x_crest+1,
             min_z=0,
             max_z=y_crest+1,
-            wall_tex="brick_wall",
-            floor_tex="asphalt",
+            wall_tex=self.walls[0],
+            floor_tex=self.floors[0],
             no_ceiling=True,
         )
         room2 = self.add_rect_room(
@@ -61,8 +67,8 @@ class LRoom(MiniWorldEnv):
             max_x=self.size+1,
             min_z=0,
             max_z=y_crest+1,
-            wall_tex="brick_wall",
-            floor_tex="asphalt",
+            wall_tex=self.walls[1],
+            floor_tex=self.floors[1],
             no_ceiling=True,
         )
         room3 = self.add_rect_room(
@@ -70,20 +76,26 @@ class LRoom(MiniWorldEnv):
             max_x=x_crest+1,
             min_z=y_crest+1,
             max_z=self.size+1,
-            wall_tex="brick_wall",
-            floor_tex="asphalt",
+            wall_tex=self.walls[2],
+            floor_tex=self.floors[2],
             no_ceiling=True,
         )
         self.connect_rooms(room1, room2, min_z=room1.min_z, max_z=room1.max_z)
         self.connect_rooms(room1, room3, min_x=room1.min_x, max_x=room1.max_x)
 
         # colorlist = list(COLOR_NAMES)
-
-        self.place_entity(
-            MeshEnt(mesh_name="building", height=20),
-            pos=np.array([40, 0, 35]),
-            dir=-math.pi,
-        )
+        if self.sheep:
+            self.place_entity(
+                MeshEnt(mesh_name="sheep", height=25),
+                pos=np.array([40, 0, 35]),
+                dir=-math.pi,
+            )
+        else:
+            self.place_entity(
+                MeshEnt(mesh_name="building", height=20),
+                pos=np.array([40, 0, 35]),
+                dir=-math.pi,
+            )
 
         self.place_entity(
             MeshEnt(mesh_name="barrel", height=25),

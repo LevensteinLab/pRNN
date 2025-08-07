@@ -53,11 +53,12 @@ class Shell:
         self.DL_iterator = None
         return iterator
 
-    def collectObservationSequence(self, agent, tsteps, batch_size=1,
-                                   obs_format='pred', includeRender=False,
-                                   discretize=False, inv_x=False, inv_y=False,
-                                   seed=None, dataloader=False, reset=True,
-                                   save_env=False, device='cpu'):
+    def collectObservationSequence(self, agent, tsteps, obs_format='pred',
+                                   includeRender=False, discretize=False,
+                                   inv_x=False, inv_y=False, seed=None,
+                                   dataloader=False, reset=True,
+                                   save_env=False, device='cpu',
+                                   compute_loss=False):
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
@@ -69,6 +70,8 @@ class Shell:
             np.random.seed(seed)
         
         if dataloader:
+            # Assuming here that the dataloader has a specified sequence length,
+            # and we don't use it to get trajectories of other lengths
             if not self.DL_iterator:
                 self.DL_iterator = iter(self.dataLoader)
             try:
@@ -76,32 +79,35 @@ class Shell:
             except StopIteration:
                 self.DL_iterator = iter(self.dataLoader)
                 data = next(self.DL_iterator)
-            obs = [o[:,:tsteps+1] for o in data[:self.n_obs]]
-            if len(obs) == 1:
-                obs = obs[0]
-            act = data[self.n_obs][:,:tsteps]
+            act = data[self.n_obs]
             state = None
             render = None
+            obs = [*data[:self.n_obs]]
+            if len(obs) == 1:
+                obs = obs[0]
+            if self.dataLoader.dataset.raw:
+                obs, act = self.env2pred(obs, act, state=state,
+                                         device=device,
+                                         compute_loss=compute_loss,
+                                         from_raw=True)
         else:
-            for bb in range(batch_size): #TODO: fix for batch_size>1
-                obs, act, state, render = agent.getObservations(self,tsteps,
-                                                        includeRender=includeRender,
-                                                        discretize=discretize,
-                                                        inv_x=inv_x,
-                                                        inv_y=inv_y,
-                                                        reset=reset)
+            obs, act, state, render = agent.getObservations(self,tsteps,
+                                                    includeRender=includeRender,
+                                                    discretize=discretize,
+                                                    inv_x=inv_x,
+                                                    inv_y=inv_y,
+                                                    reset=reset)
 
-                if obs_format == 'pred': # to train right away
-                    obs, act = self.env2pred(obs, act, state=state,
-                                             device=device)
-                elif obs_format == 'npgrid': # to save as numpy array
-                    nps = self.env2np(obs, act, state=state,
-                                      device=device, save_env=save_env)
-                    obs, act = nps[0], nps[1]
-                    if save_env:
-                        obs_env = nps[2]
-                elif obs_format is None:
-                    continue
+            if obs_format == 'pred': # to train right away
+                obs, act = self.env2pred(obs, act, state=state,
+                                            device=device,
+                                            compute_loss=compute_loss)
+            elif obs_format == 'npgrid': # to save as numpy array
+                nps = self.env2np(obs, act, state=state,
+                                    device=device, save_env=save_env)
+                obs, act = nps[0], nps[1]
+                if save_env:
+                    obs_env = nps[2]
         if save_env:
             return obs, act, state, render, obs_env
         else:
@@ -191,13 +197,13 @@ class GymMinigridShell(Shell):
         return HDmap[dir]
     
     def env2pred(self, obs, act=None, hd_from='obs', actoffset=0, **kwargs):
-        if hd_from=='obs':
-            hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
-        elif hd_from=='act':
-            hd = self.act2hd(obs[actoffset], act, actoffset)
-        else:
-            KeyError('hd_from should be either "obs" or "act"')
         if act is not None:
+            if hd_from=='obs':
+                hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
+            elif hd_from=='act':
+                hd = self.act2hd(obs[actoffset], act, actoffset)
+            else:
+                raise KeyError('hd_from should be either "obs" or "act"')
             act = self.encodeAction(act=act,
                                     obs=hd,
                                     numSuppObs=self.numHDs,
@@ -213,7 +219,7 @@ class GymMinigridShell(Shell):
         else:
             return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
-    def env2np(self, obs, act=None):
+    def env2np(self, obs, act=None, **kwargs):
         hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
         if act is not None:
             act = np.array(self.encodeAction(act=act,
@@ -472,41 +478,57 @@ class MiniworldShell(Shell):
 
 class MiniworldVAEShell(MiniworldShell):
     def __init__(self, env, act_enc, env_key, vae, HDbins,
-                 vae_grad=False, dx=0.5, **kwargs):
+                 dx=0.5, **kwargs):
         super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
         self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda in the training loop
-        if not vae_grad:
-            self.encoder.eval()
+        self.encoder.eval() # If needs to be trained, it will be set to train mode in the training loop
 
     def getObsSize(self):
         obs_size = self.encoder.latent_dim
         return obs_size
 
     def env2pred(self, obs, act=None, state=None, hd_from='state',
-                 actoffset=0, device='cpu'):
-        if hd_from=='state':
-            hd = state['agent_dir']
-        elif hd_from=='act':
-            hd = self.act2hd(obs[actoffset], act, actoffset)
-        else:
-            KeyError('hd_from should be either "state" or "act"')
-            
-        if act is not None:
+                 actoffset=0, device='cpu', compute_loss=False,
+                 from_raw=False):    
+        if act is not None and not from_raw:
+            if hd_from=='state':
+                hd = state['agent_dir']
+            elif hd_from=='act':
+                hd = self.act2hd(obs[actoffset], act, actoffset)
+            else:
+                raise KeyError('hd_from should be either "state" or "act"')
             act = self.encodeAction(act=act,
                                     obs=hd,
                                     nbins=self.numHDs)
 
-        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
-        obs = obs.to(device)
-        mu, log_var = self.encoder.encode(obs)
-        obs = self.encoder.reparameterize(mu, log_var)
-        obs = torch.unsqueeze(obs, dim=0)
+        if from_raw:
+            obs = obs.to(device)
+            shape = obs.shape
+            obs = obs.view(-1, *shape[2:])
+            if compute_loss:
+                x_hat, mu, log_var, z = self.encoder(obs)
+                self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
+            else:
+                mu, log_var = self.encoder.encode(obs)
+                z = self.encoder.reparameterize(mu, log_var)
+            z = z.view((-1, 1, shape[1], *z.shape[1:]))
 
+        else:
+            obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+            obs = obs.to(device)
+
+            if compute_loss:
+                x_hat, mu, log_var, z = self.encoder(obs)
+                self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
+            else:
+                mu, log_var = self.encoder.encode(obs)
+                z = self.encoder.reparameterize(mu, log_var)
+                z = torch.unsqueeze(z, dim=0)
 
         if hd_from=='state':
-            return obs, act
+            return z, act
         else:
-            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
+            return z, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
         hd = state['agent_dir']
@@ -688,7 +710,7 @@ class RiaBVisionShell(RatInABoxShell):
 
         return obs, act
     
-    def env2np(self, obs, act=None):
+    def env2np(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
@@ -836,7 +858,7 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
         return obs, act
 
-    def env2np(self, obs, act=None):
+    def env2np(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
@@ -981,8 +1003,8 @@ class RiaBGridShell(RatInABoxShell):
         obs = torch.unsqueeze(obs, dim=0)
 
         return obs, act
-    
-    def env2np(self, obs, act=None):
+
+    def env2np(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean
@@ -1140,7 +1162,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
 
         return obs, act
 
-    def env2np(self, obs, act=None):
+    def env2np(self, obs, act=None, **kwargs):
         if act is not None:
             act = self.encodeAction(act=act, meanspeed=self.ag.speed_mean, nbins=self.numHDs)
             act[:,:,0] = act[:,:,0]/self.ag.speed_mean

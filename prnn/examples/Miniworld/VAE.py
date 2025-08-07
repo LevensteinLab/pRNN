@@ -18,7 +18,122 @@ from tqdm import tqdm
 from omegaconf import DictConfig
 
 
-class VarAutoEncoder(pl.LightningModule):
+class VAE(nn.Module):
+    def __init__(self, learning_rate: float, net_config: tuple,
+                 in_channels: int, latent_dim: int, kld_weight=0.005):
+        super().__init__()
+        self.learning_rate = learning_rate
+        self.activation = nn.ReLU()
+        self.in_channels = in_channels
+        self.latent_dim = latent_dim
+        self.kld_weight = kld_weight
+
+        n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
+
+        self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
+
+        self.build_decoder(n_channels, kernel_sizes, strides, paddings, output_paddings)
+
+        self.initialize_weights()
+
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+
+    def build_encoder(self, in_channels, n_channels, kernel_sizes, strides, paddings):
+        modules = []
+
+        # CNN
+        for i in range(len(n_channels)):
+            modules.append(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=n_channels[i],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                )
+            )
+            modules.append(self.activation)
+            in_channels = n_channels[i]
+
+        # Flatten and assemble
+        modules.append(nn.Flatten())
+        self.encoder = nn.Sequential(*modules)
+
+        self.fc_mu = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
+        self.fc_log_var = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
+
+    def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+        modules = []
+
+        n_channels.reverse()
+        kernel_sizes.reverse()
+        strides.reverse()
+        paddings.reverse()
+        n_channels.append(self.in_channels)
+
+        # Linear layer to map latent space to feature space
+        self.decoder_input = nn.Sequential(
+            nn.Linear(self.latent_dim, n_channels[0] * 16 * 16),
+            nn.Unflatten(dim=1, unflattened_size=(n_channels[0], 16, 16)),
+            self.activation,
+        )
+
+        # Reverse CNN
+        for i in range(len(n_channels) - 1):
+            modules.append(
+                nn.ConvTranspose2d(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    output_padding=output_paddings[i],
+                )
+            )
+            modules.append(self.activation)
+
+        self.decoder = nn.Sequential(*modules)
+
+    def initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                nn.init.xavier_normal_(m.weight)  # Xavier initialization for convolutional layers
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)  # Initialize biases to zero
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)  # Xavier initialization for linear layers
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)  # Initialize biases to zero
+
+    def encode(self, x):
+        x = self.encoder(x)
+        mu = self.fc_mu(x)
+        log_var = self.fc_log_var(x)
+        return mu, log_var
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        return eps * std + mu
+
+    def decode(self, z):
+        z = self.decoder_input(z)
+        return self.decoder(z)
+
+    def forward(self, x):
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
+        x_hat = self.decode(z)
+        return x_hat, mu, log_var, z
+
+    def compute_loss(self, x, x_hat, mu, log_var):
+        recons_loss = F.mse_loss(x_hat, x)
+        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        loss = recons_loss + self.kld_weight * kld_loss
+        return {"loss": loss, "reconstruction loss": recons_loss, "kld loss": kld_loss}
+
+
+class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
     def __init__(self, learning_rate: float, net_config: tuple,
                  in_channels: int, latent_dim: int, kld_weight=0.005):
         super().__init__()

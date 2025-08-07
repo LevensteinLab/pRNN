@@ -157,7 +157,8 @@ class PredictiveNet:
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
-                 fig_type='png', **architecture_kwargs):
+                 fig_type='png', train_encoder=False, enc_loss_weight=1.0,
+                 **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -189,6 +190,8 @@ class PredictiveNet:
                             eg_lr=eg_lr, eg_weight_decay=eg_weight_decay)
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
+        self.train_encoder = train_encoder
+        self.enc_loss_weight = enc_loss_weight
 
         #Set up the training trackers
         self.TrainingSaver = pd.DataFrame()
@@ -283,9 +286,15 @@ class PredictiveNet:
         else:
             target_sparsity, target_rate, decor = None, None, False
 
+        if self.train_encoder:
+            enc_loss = self.env_shell.loss['loss']
+            self.env_shell.encoder.optimizer.zero_grad()
+        else:
+            enc_loss = 0
+
         homeoloss, sparsity, meanrate = self.homeostaticLoss(h,target_sparsity,target_rate,decor)
 
-        loss = with_homeostat*homeoloss+predloss   
+        loss = with_homeostat*homeoloss + predloss + self.enc_loss_weight*enc_loss
 
         if learningRate is not None:
             oldlr = self.optimizer.param_groups[0]['lr']
@@ -295,6 +304,8 @@ class PredictiveNet:
         self.optimizer.zero_grad()  #Clear the gradients
         loss.backward()             #Backpropagate w.r.t the loss
         self.optimizer.step()       #Adjust the parameters
+        if self.train_encoder:
+            self.env_shell.encoder.optimizer.step()
         
         if learningRate is not None:
             self.optimizer.param_groups[0]['lr'] = oldlr
@@ -387,7 +398,7 @@ class PredictiveNet:
         return homeoloss, sparsity.mean().item(), meanrate.mean().item()
 
 
-    def collectObservationSequence(self, env, agent, tsteps, batch_size=1,
+    def collectObservationSequence(self, env, agent, tsteps,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
                                    seed = None, dataloader=False, device='cpu'):
@@ -395,7 +406,7 @@ class PredictiveNet:
         A placeholder for backward compatibility, actual function is moved to Shell
         """
         obs, act, state, render = env.collectObservationSequence(agent, tsteps,
-                                                                batch_size, obs_format,
+                                                                obs_format,
                                                                 includeRender,
                                                                 discretize, inv_x, inv_y,
                                                                 seed,
@@ -409,8 +420,7 @@ class PredictiveNet:
                             sequence_duration=2000, num_trials=100,
                             with_homeostat=False,
                             learningRate=None,
-                            forceDevice=None,
-                            batch_size=1):
+                            forceDevice=None):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if forceDevice is not None:
@@ -418,6 +428,10 @@ class PredictiveNet:
         self.pRNN.to(device)
         if hasattr(self.env_shell, 'encoder'):
             self.env_shell.encoder.to(device)
+            if not self.train_encoder:
+                self.env_shell.encoder.eval()
+            else:
+                self.env_shell.encoder.train()
         print(f'Training pRNN on {device}...')
             
         # c=100
@@ -449,6 +463,7 @@ class PredictiveNet:
         self.pRNN.to('cpu')
         if hasattr(self.env_shell, 'encoder'):
             self.env_shell.encoder.to('cpu')
+            self.env_shell.encoder.eval()
         print("Epoch Complete. Back to the cpu")
 
 

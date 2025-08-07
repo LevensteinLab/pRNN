@@ -152,6 +152,7 @@ class MiniworldRandomAgent(Agent):
                                     }):
         
         super().__init__(riab_env, params)
+        self.name = name
         self.reset()
 
     def update(self, dt=None, drift_velocity=None, drift_to_random_strength_ratio=1):
@@ -252,20 +253,20 @@ class MiniworldRandomAgent(Agent):
         self.history["angle"] = [get_angle(self.velocity)]
     
 
-def create_agent(envname, env, agentname):
-    if agentname == 'RandomActionAgent':
+def create_agent(envname, env, agentkey, agentname):
+    if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
         else:
             action_probability = np.array([0.15,0.15,0.6,0.1])
         agent = RandomActionAgent(env.action_space, action_probability)
 
-    elif agentname == 'RatInABoxAgent':
+    elif agentkey == 'RatInABoxAgent':
         agent = RatInABoxAgent(name=type(env).__name__)
 
-    elif agentname == 'MiniworldRandomAgent':
+    elif agentkey == 'MiniworldRandomAgent':
         from prnn.examples.RatEnvironment import make_rat_env
         riab_env = make_rat_env(envname)
-        agent = MiniworldRandomAgent(riab_env, name="RiaB-to-Miniworld")
+        agent = MiniworldRandomAgent(riab_env, name=agentname)
 
     return agent

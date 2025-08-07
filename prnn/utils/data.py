@@ -17,6 +17,7 @@ class TrajDataset(Dataset):
         self.seq_length = seq_length
         self.act_type = act_datatype # different depending on the environment
         self.n_obs = n_obs
+        self.raw = False
 
     def __len__(self):
         return self.n_trajs
@@ -32,6 +33,19 @@ class TrajDataset(Dataset):
             obs = np.load(self._data_dir + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
             obs = torch.tensor(obs, dtype=torch.float32)
             return obs, act
+
+class TrajRawDataset(TrajDataset):
+    def __init__(self, folder: str, seq_length: int, n_trajs: int,
+                 act_datatype=None, n_obs=1):
+        super().__init__(folder, seq_length, n_trajs, act_datatype, n_obs)
+        self.raw = True
+
+    def __getitem__(self, index):
+        act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
+        act = torch.tensor(act, dtype=self.act_type)
+        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:,:self.seq_length+1]
+        raw = torch.tensor(raw, dtype=torch.float32)
+        return raw, act
 
 
 def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=False):
@@ -131,7 +145,7 @@ def create_dataloader(env, agent, n_trajs, seq_length, folder,
     if not load_raw:
         dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
     else: # will need for simultaneous training of the encoder
-        raise NotImplementedError("Loading raw data not implemented yet")
+        dataset = TrajRawDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
     print(f"Dataloader created with {n_trajs} trajectories, sequence length {seq_length}")
 

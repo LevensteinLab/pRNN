@@ -583,7 +583,14 @@ class PredictiveNet:
                     group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder=''):
+    def saveNet(self,savename,savefolder='',cpu=False):
+        if cpu:
+            self.pRNN.to('cpu')
+            self.resetOptimizer(self.learningRate, self.weight_decay,
+                            trainBias=self.trainArgs.trainBias,
+                            bias_lr=self.trainArgs.bias_lr,
+                            eg_lr=self.trainArgs.eg_lr,
+                            eg_weight_decay=self.trainArgs.eg_weight_decay)
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Save the net

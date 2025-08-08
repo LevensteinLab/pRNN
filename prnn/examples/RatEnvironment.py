@@ -35,12 +35,48 @@ tri = shapegrid['triangle'].nonzero()
 
 #functions for the cheeseboard environment: 
 
-#creates the cirlce boundary for the cheeseboard
+#creates the circle boundary for the cheeseboard
 def create_circular_boundary(radius=1, num_points=100, center=(0, 0)):
     """Creates a circular boundary as a list of points."""
     theta = np.linspace(0, 2 * np.pi, num_points, endpoint=True)
     boundary = [[center[0] + radius * np.cos(t), center[1] + radius * np.sin(t)] for t in theta]
     return boundary
+
+def create_circular_boundary_startbox(radius=0.6, center=(0.6, 0.6), num_points=300,box_x2=1.35, box_y1=0.45, box_y2=0.75,
+    num_arc_points=400):
+
+    cx, cy = center
+
+    # Compute join points (ON the circle at y=box_y2 and y=box_y1)
+    x_top = cx + np.sqrt(radius**2 - (box_y2 - cy)**2)
+    x_bot = cx + np.sqrt(radius**2 - (box_y1 - cy)**2)
+    top_join = [x_top, box_y2]
+    bottom_join = [x_bot, box_y1]
+
+    # Angles for join points
+    theta_top = np.arctan2(box_y2 - cy, x_top - cx)
+    theta_bot = np.arctan2(box_y1 - cy, x_bot - cx)
+
+    # Ensure CCW: arc from top_join -> all the way around to bottom_join (not including join points)
+    if theta_bot <= theta_top:
+        theta_bot += 2 * np.pi
+
+    arc_angles = np.linspace(theta_top, theta_bot, num_arc_points, endpoint=False)[1:]  # skip the first, which is top_join
+    arc_points = np.column_stack((
+        cx + radius * np.cos(arc_angles),
+        cy + radius * np.sin(arc_angles)
+    ))
+
+    # Assemble polygon (start at top_join, arc, bottom_join, box, back to top_join)
+    boundary = [top_join]
+    boundary.extend(arc_points.tolist())
+    boundary.append(bottom_join)
+    boundary.append([box_x2, box_y1])
+    boundary.append([box_x2, box_y2])
+    boundary.append(top_join)  # close
+
+    return boundary
+
 
 
 #generates the food holes inside the environment
@@ -153,6 +189,15 @@ def add_nonuniform_objects2(env, dist = 0.6, gap = 0.05, num_objects = 64, rando
     newangles_radians = [math.radians(angle) for angle in newangles_degrees]
     newpositions = [(d * math.cos(theta) + 0.6, d * math.sin(theta) + 0.6) for theta in newangles_radians]
 
+    box_x1 = 1  # Use your computed values for x_top and x_bot
+    box_x2 = 1.35
+    box_y1 = 0.45
+    box_y2 = 0.75
+
+    # Filter out positions in the box
+    newpositions = [pos for pos in newpositions if not (box_x1 <= pos[0] <= box_x2 and box_y1 <= pos[1] <= box_y2)]
+    print("len(newpositions):", len(newpositions))
+
     if(random):
         random.shuffle(newpositions)
 
@@ -170,18 +215,15 @@ def add_nonuniform_objects2(env, dist = 0.6, gap = 0.05, num_objects = 64, rando
     env.add_object([newpositions[21][0], newpositions[21][1]], type='new')
     for i in range(26,32):
         env.add_object([newpositions[i][0], newpositions[i][1]], type='same')
-    for i in range(60,64):
-        env.add_object([newpositions[i][0], newpositions[i][1]], type='same')
 
     env.add_object([newpositions[42][0], newpositions[42][1]], type='new')
     for i in range(52,55):
         env.add_object([newpositions[i][0], newpositions[i][1]], type='same')
-    for i in [3,4,35,41,42,43,57,60]:
+    for i in [3,4,35,41,42,43,57]:
         env.add_object([newpositions[i][0], (newpositions[i][1]+0.05)], type='same')   
 
     env.add_object([newpositions[58][0], newpositions[58][1]], type='new')
-    for i in [59,61,62]:
-         env.add_object([newpositions[i][0], newpositions[i][1]], type='same')
+
 
     
 
@@ -264,7 +306,7 @@ def make_rat_env(key):
 
     if key == 'cheeseboard2':
         # Define a circular environment
-        circle_boundary = create_circular_boundary(radius=.6, num_points=200, center=(0.6, 0.6))
+        circle_boundary = create_circular_boundary_startbox(radius=.6, num_points=200, center=(0.6, 0.6))
 
         # Initialize the Environment with a circular boundary
         Env = Environment(params={"boundary": circle_boundary,
@@ -285,9 +327,9 @@ def make_rat_env(key):
 
         for n in range(plus[0].size):
             if n==0:
-                Env.add_object([(arr[plus[0][n]+9])+.7,arr[plus[1][n]+9]], type='new')
+                Env.add_object([(arr[plus[0][n]+9])+0.7,arr[plus[1][n]+9] + 0.5], type='new')
             else:
-                Env.add_object([(arr[plus[0][n]+9])+.7,arr[plus[1][n]+9]], type='same')
+                Env.add_object([(arr[plus[0][n]+9])+.7,arr[plus[1][n]+9] + 0.5], type='same')
 
         for n in range(x[0].size):
             if n==0:

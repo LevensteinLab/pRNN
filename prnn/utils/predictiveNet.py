@@ -617,6 +617,8 @@ class PredictiveNet:
         filename = savefolder+'nets/'+savename+'.pkl'
         with open(filename,'rb') as f:
             predAgent = pickle.load(f)
+        # with open(filename, 'rb') as f:
+        #     predAgent = torch.load(f, map_location=torch.device('cpu'), weights_only=False)
         if not hasattr(predAgent, "env_shell"): # backward compatibility for the nets trained before Shell update
             from prnn.utils.Shell import GymMinigridShell
             for i in range(len(predAgent.EnvLibrary)):

@@ -1303,6 +1303,9 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         self.n_obs = 2
         self.n_repeats = n_repeats
 
+        self.home_pos = np.asarray([1.3,0.6])
+        self.ag.pos = self.home_pos.copy()      # start the agent there
+
         coords = env.objects["objects"]         # shape (N, 2)
         types  = env.objects["object_types"]    # shape (N,)
 
@@ -1339,9 +1342,6 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
             "wall_geometry": "euclidean",
         },
         )
-
-        self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
-        ag.pos = self.home_pos.copy()      # start the agent there
         
         self.reset(pos=self.home_pos)
 
@@ -1812,7 +1812,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
 class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
     #showstatetrajectory
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, wellSigmaDistance= 0.1, wellSigmaAngleDenominator = 2, n_repeats = 1, time_at_reward=3, num_place_cells=200):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, seed, wellSigmaDistance= 0.1, wellSigmaAngleDenominator = 2, n_repeats = 1, time_at_reward=1, num_place_cells=200, training_length = 60000):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins ,wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
 
         self.n_obs = 2
@@ -1828,33 +1828,44 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         if len(coords_type_0) < 3:
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
 
-        np.random.seed(seed)
+        np.random.seed(seed+101)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
+        #order the reward positions based on proximity to the home base
+        home_base = np.array([1.3, 0.6])
+        distances = np.linalg.norm(coords_type_0[reward_hole_indices] - home_base, axis=1)
+        reward_hole_indices = reward_hole_indices[np.argsort(distances)]
+        closest_reward = coords_type_0[reward_hole_indices][0]
+        #second reward is the one closest to the first reward
+        distances = np.linalg.norm(coords_type_0[reward_hole_indices][1:] - closest_reward, axis=1)
+        second_reward_index = np.argsort(distances)[0] + 1 #+1
+        reward_hole_indices = np.concatenate([[reward_hole_indices[0]], [reward_hole_indices[second_reward_index]], reward_hole_indices[2:]], axis=0)
+
+
+
         reward_positions = coords_type_0[reward_hole_indices]
         #reward_positions = env.objects['objects'][reward_hole_indices]
+
+
+
+        #add reward position for home base 
+        reward_positions = np.concatenate([reward_positions, np.array([[1.21, 0.6]])], axis=0)
+
 
         self.active_reward_idx  = 0
         self.success_threshold  = 0.9 #switched from 0.7 to experiment  
         self.reward_positions = reward_positions
-        
 
-        n_pc = 200 
-        self.InputsFake = PlaceCells(
-            self.ag,
-            params={
-                "n": n_pc,
-                "widths": np.random.uniform(0.04, 0.4, size=(n_pc)), #large and small widths
-                "color": "C1",
-            },
-        )
+        self.total_tsteps = 0 
+        self.total_training_length = training_length
+        
 
         self.Reward = PlaceCells(
             self.ag,
             params={
-                "n": 3,
+                "n": 4,
                 "place_cell_centres": np.array(reward_positions),
                 #"description": "top_hat", #commenting out to use gaussian instead
-                "widths": 0.1,
+                "widths": 0.025,
                 "max_fr": 1,
                 "color": "C5",
                 "wall_geometry": "euclidean",
@@ -1877,12 +1888,12 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         self.ValNeur = ValueNeuron(
             self.ag, params={
                         "input_layers": [self.Inputs], 
-                        "tau": 10, #next steps will be increasing tau and decreasing eta
-                        "eta": 0.001,  # switched from 0.001
+                        "tau": 15, #default was 10, this seems to work better
+                        "eta": 0.001,  
                         "L2": 0.1,  # L2 regularisation
                         "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
                         "color": "C2",
-                        "n": 3}
+                        "n": 4}
         )
         w = self.ValNeur.inputs["PlaceCells"]["w"]
         #self.ValNeur.inputs["PlaceCells"]["w"] = 0.01 * np.random.randn(*w.shape) 
@@ -1896,7 +1907,7 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         # now set up your max_value tracking as before
         self.ValNeur.max_value = np.full(self.ValNeur.n, 1e-6)
 
-        self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+        self.home_pos = np.asarray([1.3,0.6])
         self.ag.pos = self.home_pos.copy()      # start the agent there
         self.all_firing_rates = []
 
@@ -1909,7 +1920,8 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
     
     def init_agent(self,speed, thigmotaxis):
         # Make the agent 
-        self.ag = Agent(self.env)
+        self.ag = Agent(self.env, 
+                        params = {"wall_repel_distance": 0.03, "wall_repel_strength": 0.5})
         self.ag.dt = 50e-3  # set discretisation time, large is fine
         self.ag.episode_data = {
             "start_time": [],
@@ -1935,22 +1947,28 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
 
 
     def getObservations(self, tsteps, reset=True, includeRender=False,
-                        discretize=False, inv_x=False, inv_y=False, new_curriculum=False):   
+                        discretize=False, inv_x=False, inv_y=False, new_curriculum=False, set_explore_ratio = False, explore_ratio = 0.1):   
         """
         Get a sequence of observations. act[t] is the action after observing
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
         longer than act
         """
+        switches = 0
 
         render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
         if reset:
             self.reset()
-        else:
-            self.reset(keep_state=True)
+        # else:
+        #     self.reset(keep_state=True)
 
         t_at_goal = 0
+
+        if(set_explore_ratio):
+            self.ag.exploit_explore_ratio = explore_ratio
         for k in range(tsteps):
 
+            if(not set_explore_ratio):
+                self.ag.exploit_explore_ratio = 0.1 + (self.total_tsteps / self.total_training_length) * 0.3 #continuous increase of the exploit/explore ratio
             gradV = self.get_steep_ascent(self.ag.pos)
             if gradV is not None:
                 drift_vel = 3 * self.ag.speed_mean * gradV
@@ -1961,15 +1979,22 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
           
 
             idx = self.active_reward_idx
-            center_x, center_y = self.Reward.place_cell_centres[idx]
-            radius = 0.1 
-            dx = self.ag.pos[0] - center_x #x-distance from center
-            dy = self.ag.pos[1] - center_y #y-distance from center
-            if (dx*dx + dy*dy) <= radius*radius: #checks if agent is within radius
+            if(idx == 3):
+                center_x, center_y = self.Reward.place_cell_centres[idx]
                 dir_to_reward = self.Reward.place_cell_centres[idx] - self.ag.pos #cheat to sent it to center
                 drift_vel = (
                     3 * self.ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
                 )
+            else:
+                center_x, center_y = self.Reward.place_cell_centres[idx]
+                radius = 0.1 
+                dx = self.ag.pos[0] - center_x #x-distance from center
+                dy = self.ag.pos[1] - center_y #y-distance from center
+                if (dx*dx + dy*dy) <= radius*radius: #checks if agent is within radius
+                    dir_to_reward = self.Reward.place_cell_centres[idx] - self.ag.pos #cheat to sent it to center
+                    drift_vel = (
+                        3 * self.ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
+                    )
 
 
 
@@ -1995,6 +2020,15 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
                         self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
                         print("Reward channel changed to", self.active_reward_idx)
                         t_at_goal = 0
+                        switches += 1
+            self.total_tsteps += 1
+            if(self.total_tsteps % 10000 == 0):
+                print("Exploit/Explore ratio: ", self.ag.exploit_explore_ratio)
+                self.ValNeur.plot_rate_map()
+                if (k > 0):
+                    fig, ax = plt.subplots(figsize=(10,10))
+                    self.show_state_traj(self.total_tsteps - 10000, self.total_tsteps - 1, fig, ax)
+
 
 
         rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
@@ -2029,6 +2063,8 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
                 }
         
         self.all_firing_rates = np.array(self.all_firing_rates)
+
+        print("Number of switches:", switches)
 
         return obs, act, state, render
     
@@ -2196,8 +2232,8 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             t_end=end_t,
             color="by_reward",
             reward_trace=self.ag.history["active_reward"],
-            reward_colors={0:"#ff7f0e", 1:"#1f77b4", 2:"#2ca02c"},
-            reward_labels={0:"Reward 0", 1:"Reward 1", 2:"Reward 2"},
+            reward_colors={0:"#ff7f0e", 1:"#1f77b4", 2:"#2ca02c", 3: "#d62728"},
+            reward_labels={0:"Reward 0", 1:"Reward 1", 2:"Reward 2", 3: "Home base"},
             colorbar=True,
             fig=fig,
             ax=ax
@@ -2235,6 +2271,8 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
             self.ag.pos = pos
         else:
             vel = [0,0]
+
+        self.total_tsteps = 0 
 
         self.ag.save_velocity = vel
         self.ag.save_to_history()

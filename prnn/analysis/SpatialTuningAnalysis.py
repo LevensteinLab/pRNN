@@ -11,7 +11,7 @@ class SpatialTuningAnalysis:
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
                  agent=False, start_pos=1, theta='expand',
-                 fig_type='png', n_obs=1):
+                 fig_type='png'):
         
         self.pN = predictiveNet
         self.inputControl = inputControl
@@ -20,9 +20,9 @@ class SpatialTuningAnalysis:
         self.reliabilityMetric = reliabilityMetric
         self.start_pos = start_pos # the numbering of occupiable locations starts from this
         self.fig_type = fig_type
-        self.n_obs = n_obs
         
         self.env = predictiveNet.EnvLibrary[0]
+        self.n_obs = self.env.n_obs
 
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:

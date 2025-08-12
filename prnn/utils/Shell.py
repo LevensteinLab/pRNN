@@ -1558,8 +1558,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
                          wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
-        
-        self.n_obs = 2
+        self.n_obs = 3
         self.n_repeats = n_repeats
 
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader

@@ -18,6 +18,10 @@ import json
 import time
 import random
 from pathlib import Path    
+try:
+    import wandb
+except ImportError:
+    print("wandb not installed, will not log to wandb")
 
 
 import pynapple as nap
@@ -157,8 +161,9 @@ class PredictiveNet:
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
-                 fig_type='png', train_encoder=False, enc_loss_weight=1.0,
-                 **architecture_kwargs):
+                 fig_type='png', train_encoder=False, encoder_grad=False,
+                 enc_loss_weight=1.0, enc_loss_power=1.0,
+                 wandb_log=False, **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -191,13 +196,16 @@ class PredictiveNet:
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
         self.train_encoder = train_encoder
+        self.encoder_grad = encoder_grad # wether to pass the pRNN gradients to the encoder
         self.enc_loss_weight = enc_loss_weight
+        self.enc_loss_power = enc_loss_power
 
         #Set up the training trackers
         self.TrainingSaver = pd.DataFrame()
         self.numTrainingTrials = -1
         self.numTrainingEpochs = -1
         self.fig_type = fig_type
+        self.wandb_log = wandb_log
 
         #The homeostatic targets
         self.target_rate = target_rate
@@ -273,6 +281,13 @@ class PredictiveNet:
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
         """
+        if self.train_encoder:
+            enc_loss = self.env_shell.loss['loss']
+            self.env_shell.encoder.optimizer.zero_grad() 
+            if not self.encoder_grad:
+                obs = obs.detach()
+        else:
+            enc_loss = 0
 
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
         if type(obs_pred) == tuple:
@@ -286,15 +301,9 @@ class PredictiveNet:
         else:
             target_sparsity, target_rate, decor = None, None, False
 
-        if self.train_encoder:
-            enc_loss = self.env_shell.loss['loss']
-            self.env_shell.encoder.optimizer.zero_grad()
-        else:
-            enc_loss = 0
-
         homeoloss, sparsity, meanrate = self.homeostaticLoss(h,target_sparsity,target_rate,decor)
 
-        loss = with_homeostat*homeoloss + predloss + self.enc_loss_weight*enc_loss
+        loss = with_homeostat*homeoloss + predloss + self.enc_loss_weight*enc_loss**self.enc_loss_power
 
         if learningRate is not None:
             oldlr = self.optimizer.param_groups[0]['lr']
@@ -311,7 +320,10 @@ class PredictiveNet:
             self.optimizer.param_groups[0]['lr'] = oldlr
 
         steploss = predloss.item()
-        self.recordTrainingTrial(steploss)
+        if self.train_encoder:
+            self.recordTrainingTrial(steploss, enc_loss)
+        else:
+            self.recordTrainingTrial(steploss)
 
         return steploss, sparsity, meanrate
     
@@ -401,7 +413,8 @@ class PredictiveNet:
     def collectObservationSequence(self, env, agent, tsteps,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed = None, dataloader=False, device='cpu'):
+                                   seed = None, dataloader=False, device='cpu',
+                                   compute_loss=False):
         """
         A placeholder for backward compatibility, actual function is moved to Shell
         """
@@ -411,7 +424,8 @@ class PredictiveNet:
                                                                 discretize, inv_x, inv_y,
                                                                 seed,
                                                                 dataloader=dataloader,
-                                                                device=device)
+                                                                device=device,
+                                                                compute_loss=compute_loss)
 
         return obs, act, state, render
 
@@ -441,7 +455,8 @@ class PredictiveNet:
                                                           agent, 
                                                           sequence_duration,
                                                           dataloader=self.useDataLoader,
-                                                          device=device)
+                                                          device=device,
+                                                          compute_loss=self.train_encoder)
             try:
                 obs,act = obs.to(device),act.to(device)
             except(AttributeError):
@@ -492,13 +507,16 @@ class PredictiveNet:
         print("Epoch Complete. Back to the cpu")
 
 
-    def recordTrainingTrial(self,loss):
+    def recordTrainingTrial(self, loss, enc_loss=None):
         self.numTrainingTrials += 1 #Increase the counter
-        newTrial = pd.DataFrame({'loss':loss}, index=[0])#, 'learning_rate':self.learningRate}
+        newTrial = pd.DataFrame({'loss':loss}, index=[0])
         try:
             self.TrainingSaver = pd.concat((self.TrainingSaver,newTrial), ignore_index=True)
         except:
             self.TrainingSaver = pd.concat((self.TrainingSaver.to_frame(),newTrial), ignore_index=True)
+        if self.wandb_log: 
+        # Encoder loss is logged only in W&B
+            wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 'encoder loss':enc_loss})
         return
 
     def addTrainingData(self,key,data):
@@ -825,6 +843,11 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
+        if self.wandb_log: #TODO: work out the rest of the logging
+            if calculatesRSA:
+                wandb.log({'mean SI': SI['SI'].mean(), 'sRSA': sRSA, 'SWdist': SWdist})
+            else:
+                wandb.log({'mean SI': SI['SI'].mean()})
         return place_fields, SI, decoder
 
 
@@ -1174,6 +1197,8 @@ class PredictiveNet:
         if savename is not None:
             saveFig(plt.gcf(),savename+'_ObservationSequence',savefolder,
                     filetype=self.fig_type)
+        if self.wandb_log:
+            wandb.log({'Observation Sequence': wandb.Image(plt.gcf())})
         plt.show()
 
         return

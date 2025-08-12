@@ -292,8 +292,8 @@ def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent
         imgdir = os.path.join(trajdir, "Images")
         os.makedirs(imgdir, exist_ok=True)
 
-        pos = env.agent.pos
-        direction = env.agent.dir
+        pos = env.unwrapped.agent.pos
+        direction = env.unwrapped.agent.dir
 
         traj = agent.generateActionSequence(np.array([pos[0] - 0.5, env.size - pos[2] + 0.5]) / 10,
                                             direction, time)

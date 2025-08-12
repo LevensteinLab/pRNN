@@ -23,9 +23,9 @@ actionOptions = {'OneHotHD' : OneHotHD ,
                  'NoAct' : NoAct,
                  'HDOnly': HDOnly,
                  'Continuous': Continuous,
-                 'ContSpeedRotation': ContSpeedRotationRiaB,
-                 'ContSpeedHD': ContSpeedHDRiaB,
-                 'ContSpeedOnehotHD': ContSpeedOnehotHDRiaB,
+                 'ContSpeedRotationRiaB': ContSpeedRotation,
+                 'ContSpeedHDRiaB': ContSpeedHD,
+                 'ContSpeedOnehotHDRiaB': ContSpeedOnehotHD,
                  'ContSpeedOnehotHDMiniworld': ContSpeedOnehotHDMiniworld
                  }
 
@@ -351,17 +351,16 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class MiniworldShell(Shell):
-    def __init__(self, env, act_enc, env_key, HDbins, dx=0.5, **kwargs):
+    def __init__(self, env, act_enc, env_key, HDbins, dx=5/8, **kwargs):
         super().__init__(env, act_enc, env_key)
         self.numHDs = HDbins
-        self.obs_shape = self.env.observation_space.shape
 
         self.dx = dx
-        self.height = int((env.unwrapped.max_z - env.unwrapped.min_z)/dx)
-        self.width = int((env.unwrapped.max_x - env.unwrapped.min_x)/dx)
+        self.height = int((env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2)/dx)
+        self.width = int((env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2)/dx)
 
-        self.true_height = env.unwrapped.max_z - env.unwrapped.min_z
-        self.true_width = env.unwrapped.max_x - env.unwrapped.min_x
+        self.true_height = env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2
+        self.true_width = env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
@@ -408,7 +407,6 @@ class MiniworldShell(Shell):
         return torch.float32
     
     def get_map_bins(self):
-        # not accounting for padding for now
         minmax=(0, self.width,
                 0, self.height)
         return self.width, self.height, minmax
@@ -478,7 +476,7 @@ class MiniworldShell(Shell):
 
 class MiniworldVAEShell(MiniworldShell):
     def __init__(self, env, act_enc, env_key, vae, HDbins,
-                 dx=0.5, **kwargs):
+                 dx=5/8, **kwargs):
         super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
         self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda in the training loop
         self.encoder.eval() # If needs to be trained, it will be set to train mode in the training loop

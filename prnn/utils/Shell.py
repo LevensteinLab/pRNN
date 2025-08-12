@@ -1298,7 +1298,7 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
-        self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+        self.home_pos = np.asarray([1.21,0.6])
         self.n_repeats = n_repeats
         self.n_obs = 2
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
@@ -1316,9 +1316,16 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         coords_type_0 = coords[mask]
         if len(coords_type_0) < 3:
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
-        np.random.seed(seed)
+
+        np.random.seed(seed+101)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
-        reward_positions = coords_type_0[reward_hole_indices]  
+
+        home_base = np.array([1.3, 0.6])
+        reward_positions = coords_type_0[reward_hole_indices]
+
+        #add reward position for home base 
+        reward_positions = np.concatenate([reward_positions, np.array([[1.21, 0.6]])], axis=0)
+
 
         # Make the agent 
         ag = Agent(env)
@@ -1335,10 +1342,10 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         self.Reward = PlaceCells(
         ag,
         params={
-            "n": 3,
+            "n": 4,
             "place_cell_centres": np.array(reward_positions),
-            "description": "top_hat",
-            "widths": 0.1,
+            # "description": "top_hat",
+            "widths": 0.025,
             "max_fr": 1,
             "color": "C5",
             "wall_geometry": "euclidean",
@@ -1529,7 +1536,7 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
 
         if pos is None:
             if not hasattr(self, "home_pos"):
-                self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+                self.home_pos = np.array([1.21,0.6])
             pos = self.home_pos
 
         if vel:
@@ -1551,6 +1558,7 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
                          wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
+        
         self.n_obs = 2
         self.n_repeats = n_repeats
 
@@ -1560,19 +1568,21 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         coords = env.objects["objects"]         # shape (N, 2)
         types  = env.objects["object_types"]    # shape (N,)
 
-        cheeseboard_center = np.array([0.6, 0.6])
-        cheeseboard_radius = 0.6
-        distances = np.linalg.norm(coords - cheeseboard_center, axis=1)
-        self.inside_cheeseboard_mask = distances <= cheeseboard_radius
-
         # Create a mask (Boolean array) for where types == 0
         mask = (types == 0)
         coords_type_0 = coords[mask]
         if len(coords_type_0) < 3:
             raise ValueError("Not enough holes in the environment to set the specified number of rewards.")
-        np.random.seed(seed)
+
+
+        np.random.seed(seed+101)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
-        reward_positions = coords_type_0[reward_hole_indices]  
+
+        home_base = np.array([1.3, 0.6])
+        reward_positions = coords_type_0[reward_hole_indices]
+
+        #add reward position for home base 
+        reward_positions = np.concatenate([reward_positions, np.array([[1.21, 0.6]])], axis=0)
 
         # Make the agent 
         ag = Agent(env)
@@ -1589,17 +1599,17 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
         self.Reward = PlaceCells(
         ag,
         params={
-            "n": 3,
+            "n": 4,
             "place_cell_centres": np.array(reward_positions),
             #"description": "top_hat", #commenting out to use gaussian instead
-            "widths": 0.1, 
+            "widths": 0.025, 
             "max_fr": 1,
             "color": "C5",
             "wall_geometry": "euclidean",
         },
         )
 
-        self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+        self.home_pos = np.array([1.21,0.6])
         ag.pos = self.home_pos.copy()      # start the agent there
         
         self.reset(pos=self.home_pos)
@@ -1846,11 +1856,8 @@ class RiaBColorsRewardDirectedShell(RiaBVisionShell2):
         reward_hole_indices = np.concatenate([[reward_hole_indices[0]], [reward_hole_indices[second_reward_index]], reward_hole_indices[2:]], axis=0)
 
 
-
         reward_positions = coords_type_0[reward_hole_indices]
         #reward_positions = env.objects['objects'][reward_hole_indices]
-
-
 
         #add reward position for home base 
         reward_positions = np.concatenate([reward_positions, np.array([[1.21, 0.6]])], axis=0)

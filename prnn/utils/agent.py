@@ -199,9 +199,9 @@ class MiniworldRandomAgent(Agent):
             obs[0] = env.env.render_obs()
             
         if act is None:
-            pos = env.env.agent.pos
+            pos = env.env.unwrapped.agent.pos
             pos = np.array([pos[0] - env.env.padding, env.env.size - pos[2] + env.env.padding]) / env.env.size
-            direction = env.env.agent.dir
+            direction = env.env.unwrapped.agent.dir
             act = self.generateActionSequence(pos, direction, tsteps)
         else:
             tsteps = act.shape[1]

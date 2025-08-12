@@ -72,7 +72,7 @@ class SpatialTuningAnalysis:
             FAKEinputdata = self.makeFAKEdata(self.WAKEactivity, self.inputFields,inputCells=True,
                                               start_pos=start_pos, n_obs=self.n_obs)
             self.inputReliability = FAKEinputdata['TCcorr']
-        
+            self.inputReliability = self.inputReliability[~np.isnan(self.inputReliability)]
         #Compare to a Recurrence-ablated control
         if self.noRec:
             pN_noRec = self.makeNoRecNet(self.pN)

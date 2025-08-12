@@ -1298,12 +1298,14 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
                  wellSigmaDistance, wellSigmaAngleDenominator, seed, n_repeats = 1):
+        self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+        self.n_repeats = n_repeats
+        self.n_obs = 2
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
                          wellSigmaDistance, wellSigmaAngleDenominator, FoV_params)
-        self.n_obs = 2
-        self.n_repeats = n_repeats
+    
 
-        self.home_pos = np.asarray([1.3,0.6])
+
         self.ag.pos = self.home_pos.copy()      # start the agent there
 
         coords = env.objects["objects"]         # shape (N, 2)
@@ -1370,8 +1372,7 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         act = np.concatenate((rot_vel[:,None], vel), axis=1)
         obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
                               for i in range(len(self.vision))], axis=-1)
-        obs_reward = np.array(self.Reward.history["firingrate"]) #switched from self.grid.history["firingrate"]
-        obs_reward = np.tile(obs_reward, self.n_repeats)  
+        obs_reward = np.asarray(self.Reward.history["firingrate"])      # (T,)
         obs = (obs_vis, obs_reward)
 
         pos = np.array(self.ag.history['pos'])
@@ -1427,11 +1428,13 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
         remix = remix.reshape(remix.shape[:-2]+(-1,))
         remix = torch.tensor(remix, dtype=torch.float, requires_grad=False)
         remix = torch.unsqueeze(remix, dim=0)
+        # remix = remix.reshape(1, remix.shape[1], -1)          # (1, T, H_vis)
 
 
         obs_Reward = obs_Reward.clip(max=1)
         obs_Reward = torch.tensor(obs_Reward, dtype=torch.float, requires_grad=False)
         obs_Reward = torch.unsqueeze(obs_Reward, dim=0)
+        # obs_Reward = obs_Reward.reshape(1, obs_Reward.shape[1], -1)  # (1, T, R)
 
         obs = (remix, obs_Reward)
 
@@ -1525,7 +1528,9 @@ class RiaBColorsRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma
             pos = self.ag.pos
 
         if pos is None:
-            pos = self.home_pos 
+            if not hasattr(self, "home_pos"):
+                self.home_pos = sample_in_circle(center=[0.6, 0.6], radius=0.6)
+            pos = self.home_pos
 
         if vel:
             self.ag.pos = pos

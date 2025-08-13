@@ -313,6 +313,7 @@ def make_rat_env(key):
                                   "dx": 1/16,
                                   "scale": 1})
         Env.object_colormap = 'tab10'
+        Env.home_pos = np.asarray([1.21,0.6])
 
         generate_wells(Env, board_radius=0.6, num_holes = 150, offset=0.1)
 

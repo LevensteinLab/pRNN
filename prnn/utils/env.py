@@ -32,8 +32,8 @@ Grid_params_default = {"n": 150,
                        }
 
 def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
-             speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
-             seed=42, FoV_params=FoV_params_default,
+             speed=0.2, thigmotaxis=0.5, HDbins=12, wrap=True,
+             seed=42, FoV_params=FoV_params_default, repeats=np.ones(1),
              Grid_params=Grid_params_default, sigmaD=0.02, sigmaA=2):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
@@ -90,12 +90,14 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         env = make_rat_env(env_key)
         env = RiaBColorsGridRewardShell(env, act_enc, env_key, speed,
                                         thigmotaxis, HDbins, FoV_params,
-                                        Grid_params, sigmaD, sigmaA, seed=seed, n_repeats=1)
+                                        Grid_params, sigmaD, sigmaA, seed=seed,
+                                        repeats=repeats)
     
     elif package=='ratinabox_colors_Reward_Directed':
         env = make_rat_env(env_key)
         env = RiaBColorsRewardDirectedShell(env, act_enc, env_key, speed,
-                                    thigmotaxis, HDbins, FoV_params, seed=seed)
+                                    thigmotaxis, HDbins, FoV_params, seed=seed,
+                                    repeats=repeats)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

@@ -633,6 +633,8 @@ class PredictiveNet:
                                                             predAgent.encodeAction.__name__,
                                                             predAgent.trainArgs.env)
             predAgent.env_shell = predAgent.EnvLibrary[0]
+        if not hasattr(predAgent.env_shell, 'repeats'):
+            predAgent.env_shell.repeats = np.array([1])
         if not hasattr(predAgent.pRNN, "hidden_size"):
             predAgent.pRNN.hidden_size = predAgent.hidden_size
         if not suppressText:

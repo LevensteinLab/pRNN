@@ -44,6 +44,7 @@ class Shell:
         self.DL_iterator = None
         self.n_obs = 1 #default number of observation modalities
         self.repeats = np.array([1], dtype=int) # repeats elevate the signal from an observation modality
+        self.multiply = False # if True, repeats are multiplied by the number of repeats, otherwise they are repeated
 
     def addDataLoader(self, dataloader):
         self.dataLoader = dataloader
@@ -98,8 +99,12 @@ class Shell:
                 if obs_format == 'pred': # to train right away
                     obs, act = self.env2pred(obs, act)
                     if (self.repeats != 1).any():
-                        for i in np.where(self.repeats!=1)[0]:
-                            obs[i] = obs[i].repeat(1,1,self.repeats[i])
+                        if not self.multiply:
+                            for i in np.where(self.repeats!=1)[0]:
+                                obs[i] = obs[i].repeat(1,1,self.repeats[i])
+                        else:
+                            for i in np.where(self.repeats!=1)[0]:
+                                obs[i] = obs[i] * self.repeats[i]
                 elif obs_format == 'npgrid': # to save as numpy array
                     obs, act = self.env2np(obs, act)
                 elif obs_format is None:
@@ -347,7 +352,7 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class RatInABoxShell(Shell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, **kwargs):
         super().__init__(env, act_enc, env_key)
         "For ratinabox==1.7.1, for other versions you may have to update the code."
         self.init_agent(speed, thigmotaxis)
@@ -422,8 +427,8 @@ class RiaBVisionShell(RatInABoxShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins,
                  FoV_params={'spatial_resolution': 0.01,
                              'angle_range': [0, 45],
-                             'distance_range': [0.0, 0.33]}
-                             ):
+                             'distance_range': [0.0, 0.33]},
+                 **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create vision cells
@@ -639,8 +644,8 @@ class RiaBVisionShell2(RiaBVisionShell):
                            "angle_range": [0, 30],
                            "distance_range": [0.0, 1.2],
                            "beta": 10,
-                           "walls_occlude": False}
-                             ):
+                           "walls_occlude": False},
+                 **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.repeats = repeats
 
@@ -705,7 +710,8 @@ class RiaBVisionShell2(RiaBVisionShell):
 
 
 class RiaBRemixColorsShell(RiaBVisionShell):
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
+                 **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
 
     def env2pred(self, obs, act=None):
@@ -825,7 +831,7 @@ class RiaBRemixColorsShell(RiaBVisionShell):
 
 class RiaBGridShell(RatInABoxShell):
     def __init__(self, env, act_enc, env_key, speed,
-                 thigmotaxis, HDbins, Grid_params):
+                 thigmotaxis, HDbins, Grid_params, **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create grid cells
@@ -948,7 +954,7 @@ class RiaBGridShell(RatInABoxShell):
 
 class RiaBColorsGridShell(RiaBVisionShell):
     def __init__(self, env, act_enc, env_key, speed,
-                 thigmotaxis, HDbins, FoV_params, Grid_params):
+                 thigmotaxis, HDbins, FoV_params, Grid_params, **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params)
         self.n_obs = 2
         # Create grid cells
@@ -1157,10 +1163,12 @@ class RiaBColorsRewardShell(RiaBVisionShell2):
 
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
-                 wellSigmaDistance, wellSigmaAngleDenominator, seed, repeats = np.array([1,1])):
+                 SigmaD, SigmaA, seed,
+                 repeats = np.array([1,1]), multiply=False, **kwargs):
         self.n_obs = 2
+        self.multiply = multiply
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
-                         wellSigmaDistance, wellSigmaAngleDenominator,
+                         SigmaD, SigmaA,
                          repeats, FoV_params)
 
         coords = env.objects["objects"]         # shape (N, 2)
@@ -1385,10 +1393,12 @@ class RiaBColorsRewardShell(RiaBVisionShell2):
 class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif sigma distances and angles (Hadrien)
 
 
-    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params, Grid_params,
-                 wellSigmaDistance, wellSigmaAngleDenominator, seed, repeats = np.array([1,1,1])):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis,
+                 HDbins, FoV_params, Grid_params,
+                 SigmaD, SigmaA, seed, repeats = np.array([1,1,1,1]),
+                 **kwargs):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
-                         wellSigmaDistance, wellSigmaAngleDenominator,
+                         SigmaD, SigmaA,
                          repeats, FoV_params)
         self.n_obs = 4
 
@@ -1605,12 +1615,12 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
     #showstatetrajectory
 
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
-                 seed, wellSigmaDistance= 0.1, wellSigmaAngleDenominator = 2,
+                 seed, SigmaD= 0.1, SigmaA = 2,
                  repeats = np.array([1,1]), time_at_reward=1, num_place_cells=200,
-                 training_length = 60000):
+                 training_length = 60000, multiply=False):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins,
-                         FoV_params, wellSigmaDistance, wellSigmaAngleDenominator,
-                         seed, repeats)
+                         FoV_params, SigmaD, SigmaA,
+                         seed, repeats, multiply)
 
         self.time_at_reward = time_at_reward
 

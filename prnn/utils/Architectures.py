@@ -1632,3 +1632,31 @@ class multRNN_5win_i12_o02(pRNN_multimodal):
                           actMask=None,
                           inIDs=(1,2), outIDs=(0,2),
                           )
+
+
+class multRNN_5win_i2_o2(pRNN_multimodal):
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, **cell_kwargs):
+        super(multRNN_5win_i2_o2, self).__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f,
+                          predOffset=0, actOffset=0,
+                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
+                          actMask=None,
+                          inIDs=(2), outIDs=(2),
+                          )
+
+
+class multRNN_5win_i2_o23(pRNN_multimodal):
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, **cell_kwargs):
+        super(multRNN_5win_i2_o23, self).__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f,
+                          predOffset=0, actOffset=0,
+                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
+                          actMask=None,
+                          inIDs=(2), outIDs=(2,3),
+                          )

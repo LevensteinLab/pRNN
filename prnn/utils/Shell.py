@@ -79,8 +79,12 @@ class Shell:
                 data = next(self.DL_iterator)
             obs = data[:self.n_obs]
             if (self.repeats != 1).any():
-                for i in np.where(self.repeats!=1)[0]:
-                    obs[i] = obs[i].repeat(1,1,1,self.repeats[i])
+                if not self.multiply:
+                    for i in np.where(self.repeats!=1)[0]:
+                        obs[i] = obs[i].repeat(1,1,1,self.repeats[i])
+                else:
+                    for i in np.where(self.repeats!=1)[0]:
+                        obs[i] = obs[i] * self.repeats[i]
             if len(obs) == 1:
                 obs = obs[0]
             act = data[self.n_obs]

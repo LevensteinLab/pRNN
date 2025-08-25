@@ -1644,7 +1644,7 @@ class multRNN_5win_i2_o2(pRNN_multimodal):
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=None,
-                          inIDs=(2), outIDs=(2),
+                          inIDs=(2,), outIDs=(2,),
                           )
 
 
@@ -1658,5 +1658,5 @@ class multRNN_5win_i2_o23(pRNN_multimodal):
                           predOffset=0, actOffset=0,
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=None,
-                          inIDs=(2), outIDs=(2,3),
+                          inIDs=(2,), outIDs=(2,3),
                           )

@@ -8,16 +8,13 @@ Created on Tue Nov  9 22:00:57 2021
 import numpy as np
 import matplotlib.pyplot as plt
 
+from omegaconf import OmegaConf
+
 from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
 
 from prnn.utils.Shell import *
 from prnn.examples.RatEnvironment import make_rat_env
-
-FoV_params_default = {"spatial_resolution": 0.01,
-                      "angle_range": [0, 45],
-                      "distance_range": [0.0, 0.33]
-                      }
 
 Grid_params_default = {"n": 150,
                        "gridscale_distribution": "modules",
@@ -31,10 +28,8 @@ Grid_params_default = {"n": 150,
                        "phase_offset": (0, 2 * np.pi),
                        }
 
-def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
-             speed=0.2, thigmotaxis=0.5, HDbins=12, wrap=True,
-             seed=42, FoV_params=FoV_params_default, repeats=np.ones(1),
-             Grid_params=Grid_params_default, sigmaD=0.02, sigmaA=2):
+def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD', riab_cfg=None,
+             HDbins=12, wrap=True, seed=42, repeats=np.ones(1), multiply=False):
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -61,43 +56,63 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
 
     elif package=='ratinabox_vision':        
         env = make_rat_env(env_key)
-        env = RiaBVisionShell(env, act_enc, env_key, speed,
-                              thigmotaxis, HDbins, FoV_params)
+        env = RiaBVisionShell(env, act_enc, env_key, HDbins=HDbins,
+                              speed=riab_cfg['speed'],
+                              thigmotaxis=riab_cfg['thigmotaxis'],
+                              FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
-        env = RiaBRemixColorsShell(env, act_enc, env_key, speed,
-                                   thigmotaxis, HDbins, FoV_params)
+        env = RiaBRemixColorsShell(env, act_enc, env_key, HDbins=HDbins,
+                                   speed=riab_cfg['speed'],
+                                   thigmotaxis=riab_cfg['thigmotaxis'],
+                                   FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),)
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
-        env = RiaBGridShell(env, act_enc, env_key, speed,
-                            thigmotaxis, HDbins, Grid_params)
+        env = RiaBGridShell(env, act_enc, env_key, HDbins=HDbins,
+                            speed=riab_cfg['speed'],
+                            thigmotaxis=riab_cfg['thigmotaxis'],
+                            Grid_params=Grid_params_default,)
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
-        env = RiaBColorsGridShell(env, act_enc, env_key, speed,
-                                  thigmotaxis, HDbins, FoV_params, Grid_params)
-        
+        env = RiaBColorsGridShell(env, act_enc, env_key, HDbins=HDbins,
+                                  speed=riab_cfg['speed'],
+                                  thigmotaxis=riab_cfg['thigmotaxis'],
+                                  FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
+                                  Grid_params=Grid_params_default)
+
     elif package=='ratinabox_colors_Reward':
         env = make_rat_env(env_key)
-        env = RiaBColorsRewardShell(env, act_enc, env_key, speed,
-                                    thigmotaxis, HDbins, FoV_params,
-                                    sigmaD, sigmaA, seed=seed,
-                                    )
+        env = RiaBColorsRewardShell(env, act_enc, env_key, HDbins=HDbins,
+                                    speed=riab_cfg['speed'],
+                                    thigmotaxis=riab_cfg['thigmotaxis'],
+                                    FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
+                                    SigmaD=riab_cfg['sigmaD'],
+                                    SigmaA=riab_cfg['sigmaA'], seed=seed,
+                                    repeats=repeats, multiply=multiply)
         
     elif package=='ratinabox_colors_Reward_Grid':
         env = make_rat_env(env_key)
-        env = RiaBColorsGridRewardShell(env, act_enc, env_key, speed,
-                                        thigmotaxis, HDbins, FoV_params,
-                                        Grid_params, sigmaD, sigmaA, seed=seed,
-                                        repeats=repeats)
+        env = RiaBColorsGridRewardShell(env, act_enc, env_key, HDbins=HDbins,
+                                        speed=riab_cfg['speed'],
+                                        thigmotaxis=riab_cfg['thigmotaxis'],
+                                        FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
+                                        Grid_params=Grid_params_default,
+                                        SigmaD=riab_cfg['sigmaD'],
+                                        SigmaA=riab_cfg['sigmaA'], seed=seed,
+                                        repeats=repeats, multiply=multiply)
     
     elif package=='ratinabox_colors_Reward_Directed':
         env = make_rat_env(env_key)
-        env = RiaBColorsRewardDirectedShell(env, act_enc, env_key, speed,
-                                    thigmotaxis, HDbins, FoV_params, seed=seed,
-                                    repeats=repeats)
+        env = RiaBColorsRewardDirectedShell(env, act_enc, env_key, HDbins=HDbins,
+                                            speed=riab_cfg['speed'],
+                                            thigmotaxis=riab_cfg['thigmotaxis'],
+                                            FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
+                                            SigmaD=riab_cfg['sigmaD'],
+                                            SigmaA=riab_cfg['sigmaA'], seed=seed,
+                                            repeats=repeats, multiply=multiply)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

@@ -1615,18 +1615,17 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
         self.time_at_reward = time_at_reward
 
         self.active_reward_idx  = 0
-        self.success_threshold  = 0.9 #switched from 0.7 to experiment  
+        self.success_threshold  = 0.9 
 
         self.total_tsteps = 0 
         self.total_training_length = training_length
 
         np.random.seed(seed+1000)
-        n_pc = num_place_cells #run from 200 to 1000
+        n_pc = num_place_cells 
         self.Inputs = PlaceCells(
             self.ag,
             params={
                 "n": n_pc,
-                #"widths": np.random.uniform(0.04, 0.4, size=(n_pc)), #large and small widths
                 "widths": np.random.uniform(0.04, 0.3, size=(n_pc)),
                 "color": "C1",
             },
@@ -1637,26 +1636,20 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
                         "input_layers": [self.Inputs], 
                         "tau": 15, #default was 10, this seems to work better
                         "eta": 0.001,  
-                        "L2": 0.1,  # L2 regularisation
+                        "L2": 0.1,  
                         "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
                         "color": "C2",
                         "n": 4}
         )
         w = self.ValNeur.inputs["PlaceCells"]["w"]
-        #self.ValNeur.inputs["PlaceCells"]["w"] = 0.01 * np.random.randn(*w.shape) 
-         #to be periodically updated, a scale for how "big" the vf is so we know where the threshold is
 
-        # --- shrink initial weights so L2 penalty starts tiny but nonzero ---
 
         w *= 1e-3
-
-
         # now set up your max_value tracking as before
         self.ValNeur.max_value = np.full(self.ValNeur.n, 1e-6)
 
-        # self.all_firing_rates = []
-
         self.ag.history["active_reward"] = []
+        self.ag.history["num_switches"] = []
         
         self.reset()
 
@@ -1778,7 +1771,6 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
                     t_at_goal += 1
                     if(t_at_goal > self.time_at_reward): # if the agent is at the goal for more than n timesteps, switch to the next reward
                         self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
-                        print("Reward channel changed to", self.active_reward_idx)
                         t_at_goal = 0
                         switches += 1
             self.total_tsteps += 1
@@ -1819,10 +1811,8 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
                  'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
                  'mean_vel': self.ag.speed_mean,
                 }
-        
-        # self.all_firing_rates = np.array(self.all_firing_rates)
 
-        print("Number of switches:", switches)
+        self.ag.history["num_switches"].append(switches)
 
         return obs, act, state, render
     
@@ -1877,6 +1867,47 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
             return None
         return gradV / norm
     
+    def show_state_traj(self, start, end, fig, ax, **kwargs):
+        start_t = self.ag.history["t"][start]
+        end_t = self.ag.history["t"][end]
+        # create a little space around the env
+        self.env.extent[0]-=0.5
+        self.env.extent[1]+=0.5
+        self.env.extent[2]-=0.5
+        self.env.extent[3]+=0.5
+
+        fig, ax = self.ag.plot_trajectory(
+            t_start=start_t,
+            t_end=end_t,
+            color="by_reward",
+            reward_trace=self.ag.history["active_reward"],
+            reward_colors={0:"#ff7f0e", 1:"#1f77b4", 2:"#2ca02c", 3: "#d62728"},
+            reward_labels={0:"Reward 0", 1:"Reward 1", 2:"Reward 2", 3: "Home base"},
+            colorbar=True,
+            fig=fig,
+            ax=ax
+        )
+
+        ax.scatter(self.reward_positions[:, 0], self.reward_positions[:, 1],
+                s=60, c='green', edgecolors='k', zorder=5)
+
+        for i in range(len(self.vision)):
+            self.vision[i].display_vector_cells(fig, ax, t=end_t)
+
+        # reset the env extent
+        self.env.extent[0]+=0.5
+        self.env.extent[1]-=0.5
+        self.env.extent[2]+=0.5
+        self.env.extent[3]-=0.5
+
+    def plot_num_switches(self):
+        switches = self.ag.history["num_switches"]
+        plt.figure()
+        plt.plot(switches)
+        plt.xlabel("k steps")
+        plt.ylabel("Number of Switches")
+        plt.title("Number of Switches Per K Steps")
+        plt.show()
 
     # def get_steep_ascent(self, pos):
     #     idx = self.active_reward_idx

@@ -196,7 +196,6 @@ def add_nonuniform_objects2(env, dist = 0.6, gap = 0.05, num_objects = 64, rando
 
     # Filter out positions in the box
     newpositions = [pos for pos in newpositions if not (box_x1 <= pos[0] <= box_x2 and box_y1 <= pos[1] <= box_y2)]
-    print("len(newpositions):", len(newpositions))
 
     if(random):
         random.shuffle(newpositions)

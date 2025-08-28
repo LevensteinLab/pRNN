@@ -15,9 +15,11 @@ Data/*
 nets/*
 Figures/*
 LabNotebook/*
+prnn/examples/Miniworld/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+trainNet_Hadrien.py
 
 myenv/
 .venv/

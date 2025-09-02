@@ -842,7 +842,7 @@ class RiaBRemixColorsShell(RiaBVisionShell):
             remix[...,1] += obs[...,3]
         else:
             for i in range(1,obs.shape[-1]):
-                remix += np.moveaxis(np.tile(obs[...,i], [2]+[1]*(len(obs[...,i].shape))),
+                remix += np.moveaxis(np.tile(obs[...,i], [3]+[1]*(len(obs[...,i].shape))),
                                      0,
                                      -1
                                      ) * self.obs_colors[i][:3]
@@ -871,7 +871,7 @@ class RiaBRemixColorsShell(RiaBVisionShell):
             remix[...,1] += obs[...,3]
         else:
             for i in range(1,obs.shape[-1]):
-                remix += np.moveaxis(np.tile(obs[...,i], [2]+[1]*(len(obs[...,i].shape))),
+                remix += np.moveaxis(np.tile(obs[...,i], [3]+[1]*(len(obs[...,i].shape))),
                                      0,
                                      -1
                                      ) * self.obs_colors[i][:3]
@@ -1142,7 +1142,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             remix[...,1] += obs_vis[...,3]
         else:
             for i in range(1,obs_vis.shape[-1]):
-                remix += np.moveaxis(np.tile(obs_vis[...,i], [2]+[1]*(len(obs_vis[...,i].shape))),
+                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
                                      0,
                                      -1
                                      ) * self.obs_colors[i][:3]
@@ -1177,7 +1177,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
             remix[...,1] += obs_vis[...,3]
         else:
             for i in range(1,obs_vis.shape[-1]):
-                remix += np.moveaxis(np.tile(obs_vis[...,i], [2]+[1]*(len(obs_vis[...,i].shape))),
+                remix += np.moveaxis(np.tile(obs_vis[...,i], [3]+[1]*(len(obs_vis[...,i].shape))),
                                      0,
                                      -1
                                      ) * self.obs_colors[i][:3]

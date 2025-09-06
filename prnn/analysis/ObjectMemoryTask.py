@@ -176,7 +176,7 @@ class ObjectMemoryTask:
         if netname is not None:
             saveFig(plt.gcf(),'ObjectLearning_'+netname,savefolder,
                     filetype='png')
-        plt.show()
+        # plt.show()
         
         
     def objPixelChangePanel(self, objectLearning):

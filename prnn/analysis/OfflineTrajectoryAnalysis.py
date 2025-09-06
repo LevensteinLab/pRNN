@@ -269,7 +269,7 @@ class OfflineTrajectoryAnalysis:
         if netname is not None:
             saveFig(plt.gcf(),netname+'_TransitionProbability',savefolder,
                     filetype='png')
-        plt.show()
+        # plt.show()
         
     
     
@@ -459,7 +459,7 @@ class OfflineTrajectoryAnalysis:
             saveFig(plt.gcf(),netname+'_SpontaneousTrajectory',savefolder,
                     filetype='png')
 
-        plt.show()
+        # plt.show()
 
     def compareViewStatsPanel(self,ViewSimilarity):
         MSE_real = ViewSimilarity['MSE_real'][0]

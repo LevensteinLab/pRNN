@@ -287,7 +287,7 @@ while predictiveNet.numTrainingEpochs<numepochs:
     # predictiveNet.addTrainingData('replay_view_adapt',OTA.ViewSimilarity['meanstd_sleep'][0][0])
 
 
-    plt.show()
+    # plt.show()
     plt.close('all')
     predictiveNet.saveNet(args.savefolder+savename)
 

@@ -400,7 +400,7 @@ class ExperienceReplayAnalysis:
             saveFig(plt.gcf(),netname+'_LRReplayPanel',savefolder,
                     filetype='png')
             
-        plt.show()
+        # plt.show()
     
     def plotLRPanel(self, occ_overlap, lrs, meanLR=None, metric='Trial-Sleep Corr.',showxlabel=True):
         

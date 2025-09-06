@@ -257,7 +257,7 @@ class DiffusionReplayAnalysis:
             saveFig(plt.gcf(),netname+'_DiffusionFigure',savefolder,
                     filetype='png')
         
-        plt.show()
+        # plt.show()
         
     def diffusionFitPanel(self,delays, msd, diffusionFit = None, msd_wake=None,
                           showTrialPoints=True, color='k', halflims = True, errorshade=False):
@@ -412,7 +412,7 @@ class DiffusionReplayAnalysis:
         if netname is not None:
             saveFig(plt.gcf(),netname+'_STDPanel',savefolder,
                     filetype='png')
-        plt.show()
+        # plt.show()
         
         
     def continuityDistPanel(self,delay_dist):

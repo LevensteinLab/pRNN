@@ -60,7 +60,7 @@ def TrainingFigure(predictiveNet,
     if savename is not None: 
         saveFig(plt.gcf(),savename+'_TrainingFigure',savefolder,
                 filetype='png')
-    plt.show()
+    # plt.show()
     
     return
 
@@ -217,7 +217,7 @@ def SpontActivityFigure(predictiveNet, compareWAKEagent=None,
         saveFig(plt.gcf(),savename+'_SpontActivityFigure',savefolder,
                 filetype='png')
 
-    plt.show()
+    # plt.show()
     
 
 def SpontActivityExamples(predictiveNet, examples=((0,0.1),(0,0.25),(0,0.4)),
@@ -274,7 +274,7 @@ def SpontActivityExamples(predictiveNet, examples=((0,0.1),(0,0.25),(0,0.4)),
         saveFig(plt.gcf(),savename+'_SpontaneousExamples',savefolder,
                 filetype='png')
 
-    plt.show()
+    # plt.show()
 
 
 def SpontTrajectoryFigure(predictiveNet, decoder, noisemag=0, noisestd=0.25,  
@@ -348,7 +348,7 @@ def SpontTrajectoryFigure(predictiveNet, decoder, noisemag=0, noisestd=0.25,
         saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
                 filetype='png')
 
-    plt.show()
+    # plt.show()
 
 
 
@@ -420,7 +420,7 @@ def OfflineTrajectoryProps(predictiveNet, decoder,
         saveFig(plt.gcf(),savename+'_OfflineTrajectoryProps',savefolder,
                 filetype='png')
     
-    plt.show()
+    # plt.show()
     
     
 from sklearn import manifold
@@ -505,4 +505,4 @@ def IsoMapFigure(predictiveNet,env,agent, noisemag=0, noisestd=0.25,
     if savename is not None:
         saveFig(plt.gcf(),savename+'_Isomap',savefolder,
                 filetype='png')
-    plt.show()
+    # plt.show()

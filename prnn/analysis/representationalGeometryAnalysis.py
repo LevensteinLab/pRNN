@@ -132,7 +132,7 @@ class representationalGeometryAnalysis:
         drawGroupLines(numacts,actionlabels)
         clb = plt.colorbar()
         clb.ax.set_ylabel('Neural Distance')
-        #plt.show()
+        # plt.show()
     
     def samediffActionPanel(self,RSA):
         RSA, hist2, sbins, rbins, dists, actsort, numacts = RSA
@@ -160,7 +160,7 @@ class representationalGeometryAnalysis:
 
         saveFig(plt.gcf(),'ActionRSA_'+netname,savefolder,
                 filetype=self.fig_type)
-        plt.show()
+        # plt.show()
     
     def getActionIDs(self,keepIDX=None):
         #actnp = self.WAKEactivity['act'].detach().numpy()
@@ -548,7 +548,7 @@ class representationalGeometryAnalysis:
         if netname is not None:
             saveFig(plt.gcf(),'SIDependence_'+netname,savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
         
     def isomapPanel3d(self, colorvar='position', rotate=(0,0)):
         X = self.WAKEactivity['h']
@@ -659,7 +659,7 @@ class representationalGeometryAnalysis:
         if netname is not None:
             saveFig(plt.gcf(),'SpatialRSA_'+netname,savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
     
     @staticmethod
     def calculateSleepWakeDist(h_wake, h_sleep, metric=defaultMetric):
@@ -741,7 +741,7 @@ class representationalGeometryAnalysis:
             saveFig(plt.gcf(), 'WakeSleepDistance_'+netname, savefolder,
                     filetype=self.fig_type)
 
-        plt.show()
+        # plt.show()
         
         
     def AllRSAFigure(self, netname, savefolder):
@@ -774,7 +774,7 @@ class representationalGeometryAnalysis:
         plt.tight_layout()
         saveFig(plt.gcf(),'AllRSA_'+netname,savefolder,
                 filetype=self.fig_type)
-        plt.show()
+        # plt.show()
         
     def saveAnalysis(self, savefolder):
         return

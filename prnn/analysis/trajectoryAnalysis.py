@@ -45,7 +45,7 @@ def calculateCoverage(trajectory, envbounds, showFig=False, mask=None):
         plt.text(1, 1, f"{coverage['nonuniformity']:0.1}", fontsize=10,color='r')
         plt.xticks([])
         plt.yticks([])
-        plt.show()
+        # plt.show()
         
     return coverage
 

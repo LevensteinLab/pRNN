@@ -256,7 +256,7 @@ class SpontaneousActivityAnalysis:
             saveFig(plt.gcf(),netname+'_OfflineActivity',savefolder,
                     filetype='png')
 
-        plt.show()
+        # plt.show()
     
     
     def OfflineActivityStatsFigure(self,netname,savefolder):
@@ -298,7 +298,7 @@ class SpontaneousActivityAnalysis:
             saveFig(plt.gcf(),netname+'_OfflineStats',savefolder,
                     filetype='png')
 
-        plt.show()
+        # plt.show()
 
         
     def continuityPanel(self,continuity,SWsim = None):

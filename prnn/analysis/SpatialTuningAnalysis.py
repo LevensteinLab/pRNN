@@ -298,7 +298,7 @@ class SpatialTuningAnalysis:
         if netname is not None:
             saveFig(fg,'TCReliability_'+netname,savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
         
         
     def TCExamplesFigure(self, netname=None, savefolder=None,
@@ -334,7 +334,7 @@ class SpatialTuningAnalysis:
         if netname is not None:
             saveFig(fg,'TCExamples_'+netname,savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
         
         
     def SpatialTuningFigure(self, netname=None, savefolder=None, exgrid=4,
@@ -372,7 +372,7 @@ class SpatialTuningAnalysis:
         if netname is not None:
             saveFig(fg,'SpatialTuning_'+netname,savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
         
     
     def RecAblationFigure(self, netname=None, savefolder=None):
@@ -400,7 +400,7 @@ class SpatialTuningAnalysis:
             plt.subplot(6,6,counter)
             self.tuningCurvepanel(excell,noRecCell=True, title=False)
             #counter+=1
-        plt.show()
+        # plt.show()
         
     def saveAnalysis(self,savename,savefolder=None):
         #TODO: default to an analysis folder in pN.savefolder

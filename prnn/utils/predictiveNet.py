@@ -1078,7 +1078,7 @@ class PredictiveNet:
             if savename is not None:
                 saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
                         filetype=self.fig_type)
-            plt.show()
+            # plt.show()
 
         return decoded
 
@@ -1213,7 +1213,7 @@ class PredictiveNet:
                     filetype=self.fig_type)
         if self.wandb_log:
             wandb.log({'Observation Sequence': wandb.Image(plt.gcf())})
-        plt.show()
+        # plt.show()
 
         return
 
@@ -1238,8 +1238,8 @@ class PredictiveNet:
         if savename is not None:
             saveFig(fig,savename+'_LearningCurve',savefolder,
                     filetype=self.fig_type)
-        if axis is None:
-            plt.show()
+        # if axis is None:
+            # plt.show()
 
         return
 
@@ -1341,8 +1341,8 @@ class PredictiveNet:
             saveFig(fig,savename+'_TuningCurves',savefolder,
                     filetype=self.fig_type)
 
-        if nofig:
-            plt.show()
+        # if nofig:
+            # plt.show()
         return
 
 
@@ -1379,7 +1379,7 @@ class PredictiveNet:
         if savename is not None:
             saveFig(fig,savename+'_DelayDist',savefolder,
                     filetype=self.fig_type)
-        plt.show()
+        # plt.show()
 
         return dd
 

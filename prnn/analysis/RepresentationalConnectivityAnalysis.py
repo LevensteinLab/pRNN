@@ -207,7 +207,7 @@ class RepresentationalConnectivityAnalysis:
         if netname is not None:
             saveFig(plt.gcf(),netname+'_RepConnectivity',savefolder,
                     filetype='png')
-        plt.show()
+        # plt.show()
         
         
         
@@ -270,6 +270,7 @@ class RepresentationalConnectivityAnalysis:
         
     
     def AllWeightspanel(self, pairData):
+        import random
         
         randoffset = 0.07*random.randn(*pairData['PeakDist'].shape)
 

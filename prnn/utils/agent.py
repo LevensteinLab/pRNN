@@ -253,7 +253,7 @@ class MiniworldRandomAgent(Agent):
         self.history["angle"] = [get_angle(self.velocity)]
     
 
-def create_agent(envname, env, agentkey, agentname):
+def create_agent(envname, env, agentkey, agentname=""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
@@ -267,6 +267,7 @@ def create_agent(envname, env, agentkey, agentname):
     elif agentkey == 'MiniworldRandomAgent':
         from prnn.examples.RatEnvironment import make_rat_env
         riab_env = make_rat_env(envname)
+        agentname = agentname if agentname != "" else "MiniworldRandomAgent"
         agent = MiniworldRandomAgent(riab_env, name=agentname)
 
     return agent

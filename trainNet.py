@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser()
 ## General parameters
 
 parser.add_argument("--env",
-                    default='MiniGrid-LRoom-18x18-v0',
+                    default='MiniGrid-LRoom-16x16-v0',
                     # default='RiaB-LRoom',
                     help="name of the environment to train on (Default: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
 
@@ -233,7 +233,6 @@ if predictiveNet.numTrainingTrials == -1:
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
-    print(predictiveNet.env_shell)
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
                                                   bitsec= False,

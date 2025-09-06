@@ -126,10 +126,10 @@ parser.add_argument("--namext", default='',
                     help="Extension to the savename?")
 
 parser.add_argument("--actenc",
-                    default='OnehotHD',
-                    # default='ContSpeedOnehotHD',
-                    help="Action encoding, options: OnehotHD (default),SpeedHD, Onehot, Velocities, \
-                        Continuous, ContSpeedRotation, ContSpeedHD, ContSpeedOnehotHD")
+                    default='OneHotHD',
+                    # default='ContSpeedOneHotHD',
+                    help="Action encoding, options: OneHotHD (default),SpeedHD, OneHot, Velocities, \
+                        Continuous, ContSpeedRotation, ContSpeedHD, ContSpeedOneHotHD")
 
 parser.add_argument('--saveTrainData', action='store_true', default=True)
 parser.add_argument('--no-saveTrainData', dest='saveTrainData', action='store_false')
@@ -253,8 +253,7 @@ while predictiveNet.numTrainingEpochs<numepochs:
     print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,
-                            num_trials=num_trials,
-                            batch_size=batchsize)
+                            num_trials=num_trials,)
     print('Calculating Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                  trainDecoder=True, trainHDDecoder = True,

@@ -116,7 +116,7 @@ def ContSpeedHD(act, meanspeed, **kwargs):
     act = torch.unsqueeze(act, dim=0)
     return act
 
-def ContSpeedOnehotHD(act, meanspeed, nbins=12):
+def ContSpeedOneHotHD(act, meanspeed, nbins=12):
     act = ContSpeedHD(act, meanspeed)
     HD = (act[...,-1]*nbins).long()
     HD = torch.clamp(HD, min=0, max=nbins-1)
@@ -124,7 +124,7 @@ def ContSpeedOnehotHD(act, meanspeed, nbins=12):
     act = torch.cat((act[...,:-1], HD), dim=-1)
     return act
 
-def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
+def ContSpeedOneHotHDMiniworld(act, obs, nbins=12):
     # Assuming mean_speed of RiaB random agent is V=0.2, correct the resulting speed for 10*V=2
     speed = torch.tensor(act[0], requires_grad=False, dtype=torch.float32) / 2
 

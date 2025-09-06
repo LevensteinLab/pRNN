@@ -25,8 +25,8 @@ actionOptions = {'OneHotHD' : OneHotHD ,
                  'Continuous': Continuous,
                  'ContSpeedRotationRiaB': ContSpeedRotation,
                  'ContSpeedHDRiaB': ContSpeedHD,
-                 'ContSpeedOnehotHDRiaB': ContSpeedOnehotHD,
-                 'ContSpeedOnehotHDMiniworld': ContSpeedOnehotHDMiniworld
+                 'ContSpeedOneHotHDRiaB': ContSpeedOneHotHD,
+                 'ContSpeedOneHotHDMiniworld': ContSpeedOneHotHDMiniworld
                  }
 
 HDmap = {0: 270,

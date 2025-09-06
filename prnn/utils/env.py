@@ -116,7 +116,8 @@ class RGBImgPartialObsWrapper_HD_Farama(ObservationWrapper):
 
             
     def observation(self, obs):
-        rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+        env = self.unwrapped
+        rgb_img_partial = env.get_frame(tile_size=self.tile_size, agent_pov=True)
 
         return {
             'mission': obs['mission'],

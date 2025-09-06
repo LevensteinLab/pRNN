@@ -14,9 +14,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 import pickle
-import json
 import time
-import random
 from pathlib import Path    
 try:
     import wandb
@@ -45,99 +43,99 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 #import timeit
 
 
-from prnn.utils.Architectures import *
+import prnn.utils.Architectures as arch 
 
-netOptions = {'vRNN' : vRNN,
-              'vRNN_LayerNorm' : vRNN_LayerNorm,
-              'thRNN_LayerNorm': thRNN_LayerNorm,
-              'vRNN_LayerNormAdapt' : vRNN_LayerNormAdapt,
-              'vRNN_CANN' : vRNN_CANN,
-              'vRNN_CANN_FFonly' : vRNN_CANN_FFonly,
-              'vRNN_adptCANN_FFonly' : vRNN_adptCANN_FFonly,
-              'vRNN_0win'  :  vRNN_0win,
-              'vRNN_1win'  :  vRNN_1win,
-              'vRNN_2win'  :  vRNN_2win,
-              'vRNN_3win'  :  vRNN_3win,
-              'vRNN_4win'  :  vRNN_4win,
-              'vRNN_5win'  :  vRNN_5win,
-              'vRNN_1win_mask'  :  vRNN_1win_mask,
-              'vRNN_2win_mask'  :  vRNN_2win_mask,
-              'vRNN_3win_mask'  :  vRNN_3win_mask,
-              'vRNN_4win_mask'  :  vRNN_4win_mask,
-              'vRNN_5win_mask'  :  vRNN_5win_mask,
-              'thRNN_0win'  :  thRNN_0win,
-              'thRNN_1win'  :  thRNN_1win,
-              'thRNN_2win' : thRNN_2win,
-              'thRNN_3win' : thRNN_3win,
-              'thRNN_4win' : thRNN_4win,
-              'thRNN_5win' : thRNN_5win,
-              'thRNN_6win' : thRNN_6win,
-              'thRNN_7win' : thRNN_7win,
-              'thRNN_8win' : thRNN_8win,
-              'thRNN_9win' : thRNN_9win,
-              'thRNN_10win' : thRNN_10win,
-              'thRNN_0win_prevAct' : thRNN_0win_prevAct,
-              'thRNN_1win_prevAct' : thRNN_1win_prevAct,
-              'thRNN_2win_prevAct' : thRNN_2win_prevAct,
-              'thRNN_3win_prevAct' : thRNN_3win_prevAct,
-              'thRNN_4win_prevAct' : thRNN_4win_prevAct,
-              'thRNN_5win_prevAct' : thRNN_5win_prevAct,
-              'thRNN_6win_prevAct' : thRNN_6win_prevAct,
-              'thRNN_7win_prevAct' : thRNN_7win_prevAct,
-              'thRNN_8win_prevAct' : thRNN_8win_prevAct,
-              'thRNN_9win_prevAct' : thRNN_9win_prevAct,
-              'thRNN_10win_prevAct' : thRNN_10win_prevAct,
-              'thRNN_1win_mask'  :  thRNN_1win_mask,
-              'thRNN_2win_mask'  :  thRNN_2win_mask,
-              'thRNN_3win_mask'  :  thRNN_3win_mask,
-              'thRNN_4win_mask'  :  thRNN_4win_mask,
-              'thRNN_5win_mask'  :  thRNN_5win_mask,
-              'AutoencoderFF'  :  AutoencoderFF,
-              'AutoencoderRec'  :  AutoencoderRec,
-              'AutoencoderPred'  :  AutoencoderPred,
-              'AutoencoderFFPred'  :  AutoencoderFFPred,
-              'AutoencoderFF_LN'  :  AutoencoderFF_LN,
-              'AutoencoderRec_LN'  :  AutoencoderRec_LN,
-              'AutoencoderPred_LN'  :  AutoencoderPred_LN,
-              'AutoencoderFFPred_LN'  :  AutoencoderFFPred_LN,
-              'AutoencoderMaskedO'  :  AutoencoderMaskedO,
-              'AutoencoderMaskedOA'  :  AutoencoderMaskedOA,
-              'AutoencoderMaskedO_noout'  :  AutoencoderMaskedO_noout,
-              'AutoencoderMaskedOA_noout'  :  AutoencoderMaskedOA_noout,
-              'thcycRNN_3win' :  thcycRNN_3win,
-              'thcycRNN_5win' :  thcycRNN_5win,
-              'thcycRNN_5win_first' : thcycRNN_5win_first,
-              'thcycRNN_5win_full' : thcycRNN_5win_full,
-              'thcycRNN_5win_hold' : thcycRNN_5win_hold,
-              'thcycRNN_5win_firstc' : thcycRNN_5win_firstc,
-              'thcycRNN_5win_fullc' : thcycRNN_5win_fullc,
-              'thcycRNN_5win_holdc' : thcycRNN_5win_holdc,
-              'thcycRNN_5win_first_adapt' : thcycRNN_5win_first_adapt,
-              'thcycRNN_5win_full_adapt' : thcycRNN_5win_full_adapt,
-              'thcycRNN_5win_hold_adapt' : thcycRNN_5win_hold_adapt,
-              'thcycRNN_5win_firstc_adapt' : thcycRNN_5win_firstc_adapt,
-              'thcycRNN_5win_fullc_adapt' : thcycRNN_5win_fullc_adapt,
-              'thcycRNN_5win_holdc_adapt' : thcycRNN_5win_holdc_adapt,
-              'thcycRNN_5win_first_prevAct' : thcycRNN_5win_first_prevAct,
-              'thcycRNN_5win_full_prevAct' : thcycRNN_5win_full_prevAct,
-              'thcycRNN_5win_hold_prevAct' : thcycRNN_5win_hold_prevAct,
-              'thcycRNN_5win_firstc_prevAct' : thcycRNN_5win_firstc_prevAct,
-              'thcycRNN_5win_fullc_prevAct' : thcycRNN_5win_fullc_prevAct,
-              'thcycRNN_5win_holdc_prevAct' : thcycRNN_5win_holdc_prevAct,
-              'thRNN_0win_noLN'  :  thRNN_0win_noLN,
-              'thRNN_1win_noLN'  :  thRNN_1win_noLN,
-              'thRNN_2win_noLN' : thRNN_2win_noLN,
-              'thRNN_3win_noLN' : thRNN_3win_noLN,
-              'thRNN_4win_noLN' : thRNN_4win_noLN,
-              'thRNN_5win_noLN' : thRNN_5win_noLN,
-              'thRNN_6win_noLN' : thRNN_6win_noLN,
-              'sgpRNN_5win'     : sgpRNN_5win,
-              'lognRNN_rollout' : lognRNN_rollout,
-              'lognRNN_mask' : lognRNN_mask,
-              'multRNN_5win_i01_o01': multRNN_5win_i01_o01,
-              'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
-              'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
-              'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
+netOptions = {'vRNN' : arch.vRNN,
+              'vRNN_LayerNorm' : arch.vRNN_LayerNorm,
+              'thRNN_LayerNorm': arch.thRNN_LayerNorm,
+              'vRNN_LayerNormAdapt' : arch.vRNN_LayerNormAdapt,
+              'vRNN_CANN' : arch.vRNN_CANN,
+              'vRNN_CANN_FFonly' : arch.vRNN_CANN_FFonly,
+              'vRNN_adptCANN_FFonly' : arch.vRNN_adptCANN_FFonly,
+              'vRNN_0win'  :  arch.vRNN_0win,
+              'vRNN_1win'  :  arch.vRNN_1win,
+              'vRNN_2win'  :  arch.vRNN_2win,
+              'vRNN_3win'  :  arch.vRNN_3win,
+              'vRNN_4win'  :  arch.vRNN_4win,
+              'vRNN_5win'  :  arch.vRNN_5win,
+              'vRNN_1win_mask'  :  arch.vRNN_1win_mask,
+              'vRNN_2win_mask'  :  arch.vRNN_2win_mask,
+              'vRNN_3win_mask'  :  arch.vRNN_3win_mask,
+              'vRNN_4win_mask'  :  arch.vRNN_4win_mask,
+              'vRNN_5win_mask'  :  arch.vRNN_5win_mask,
+              'thRNN_0win'  :  arch.thRNN_0win,
+              'thRNN_1win'  :  arch.thRNN_1win,
+              'thRNN_2win' : arch.thRNN_2win,
+              'thRNN_3win' : arch.thRNN_3win,
+              'thRNN_4win' : arch.thRNN_4win,
+              'thRNN_5win' : arch.thRNN_5win,
+              'thRNN_6win' : arch.thRNN_6win,
+              'thRNN_7win' : arch.thRNN_7win,
+              'thRNN_8win' : arch.thRNN_8win,
+              'thRNN_9win' : arch.thRNN_9win,
+              'thRNN_10win' : arch.thRNN_10win,
+              'thRNN_0win_prevAct' : arch.thRNN_0win_prevAct,
+              'thRNN_1win_prevAct' : arch.thRNN_1win_prevAct,
+              'thRNN_2win_prevAct' : arch.thRNN_2win_prevAct,
+              'thRNN_3win_prevAct' : arch.thRNN_3win_prevAct,
+              'thRNN_4win_prevAct' : arch.thRNN_4win_prevAct,
+              'thRNN_5win_prevAct' : arch.thRNN_5win_prevAct,
+              'thRNN_6win_prevAct' : arch.thRNN_6win_prevAct,
+              'thRNN_7win_prevAct' : arch.thRNN_7win_prevAct,
+              'thRNN_8win_prevAct' : arch.thRNN_8win_prevAct,
+              'thRNN_9win_prevAct' : arch.thRNN_9win_prevAct,
+              'thRNN_10win_prevAct' : arch.thRNN_10win_prevAct,
+              'thRNN_1win_mask'  :  arch.thRNN_1win_mask,
+              'thRNN_2win_mask'  :  arch.thRNN_2win_mask,
+              'thRNN_3win_mask'  :  arch.thRNN_3win_mask,
+              'thRNN_4win_mask'  :  arch.thRNN_4win_mask,
+              'thRNN_5win_mask'  :  arch.thRNN_5win_mask,
+              'AutoencoderFF'  :  arch.AutoencoderFF,
+              'AutoencoderRec'  :  arch.AutoencoderRec,
+              'AutoencoderPred'  :  arch.AutoencoderPred,
+              'AutoencoderFFPred'  :  arch.AutoencoderFFPred,
+              'AutoencoderFF_LN'  :  arch.AutoencoderFF_LN,
+              'AutoencoderRec_LN'  :  arch.AutoencoderRec_LN,
+              'AutoencoderPred_LN'  :  arch.AutoencoderPred_LN,
+              'AutoencoderFFPred_LN'  :  arch.AutoencoderFFPred_LN,
+              'AutoencoderMaskedO'  :  arch.AutoencoderMaskedO,
+              'AutoencoderMaskedOA'  :  arch.AutoencoderMaskedOA,
+              'AutoencoderMaskedO_noout'  :  arch.AutoencoderMaskedO_noout,
+              'AutoencoderMaskedOA_noout'  :  arch.AutoencoderMaskedOA_noout,
+              'thcycRNN_3win' :  arch.thcycRNN_3win,
+              'thcycRNN_5win' :  arch.thcycRNN_5win,
+              'thcycRNN_5win_first' : arch.thcycRNN_5win_first,
+              'thcycRNN_5win_full' : arch.thcycRNN_5win_full,
+              'thcycRNN_5win_hold' : arch.thcycRNN_5win_hold,
+              'thcycRNN_5win_firstc' : arch.thcycRNN_5win_firstc,
+              'thcycRNN_5win_fullc' : arch.thcycRNN_5win_fullc,
+              'thcycRNN_5win_holdc' : arch.thcycRNN_5win_holdc,
+              'thcycRNN_5win_first_adapt' : arch.thcycRNN_5win_first_adapt,
+              'thcycRNN_5win_full_adapt' : arch.thcycRNN_5win_full_adapt,
+              'thcycRNN_5win_hold_adapt' : arch.thcycRNN_5win_hold_adapt,
+              'thcycRNN_5win_firstc_adapt' : arch.thcycRNN_5win_firstc_adapt,
+              'thcycRNN_5win_fullc_adapt' : arch.thcycRNN_5win_fullc_adapt,
+              'thcycRNN_5win_holdc_adapt' : arch.thcycRNN_5win_holdc_adapt,
+              'thcycRNN_5win_first_prevAct' : arch.thcycRNN_5win_first_prevAct,
+              'thcycRNN_5win_full_prevAct' : arch.thcycRNN_5win_full_prevAct,
+              'thcycRNN_5win_hold_prevAct' : arch.thcycRNN_5win_hold_prevAct,
+              'thcycRNN_5win_firstc_prevAct' : arch.thcycRNN_5win_firstc_prevAct,
+              'thcycRNN_5win_fullc_prevAct' : arch.thcycRNN_5win_fullc_prevAct,
+              'thcycRNN_5win_holdc_prevAct' : arch.thcycRNN_5win_holdc_prevAct,
+              'thRNN_0win_noLN'  :  arch.thRNN_0win_noLN,
+              'thRNN_1win_noLN'  :  arch.thRNN_1win_noLN,
+              'thRNN_2win_noLN' : arch.thRNN_2win_noLN,
+              'thRNN_3win_noLN' : arch.thRNN_3win_noLN,
+              'thRNN_4win_noLN' : arch.thRNN_4win_noLN,
+              'thRNN_5win_noLN' : arch.thRNN_5win_noLN,
+              'thRNN_6win_noLN' : arch.thRNN_6win_noLN,
+              'sgpRNN_5win'     : arch.sgpRNN_5win,
+              'lognRNN_rollout' : arch.lognRNN_rollout,
+              'lognRNN_mask' : arch.lognRNN_mask,
+              'multRNN_5win_i01_o01': arch.multRNN_5win_i01_o01,
+              'multRNN_5win_i1_o0': arch.multRNN_5win_i1_o0,
+              'multRNN_5win_i01_o0': arch.multRNN_5win_i01_o0,
+              'multRNN_5win_i0_o1': arch.multRNN_5win_i0_o1,
               }
 
 
@@ -225,7 +223,7 @@ class PredictiveNet:
         Note: state input is used for CANN control in internal functions
         """
         if batched:
-            if type(obs) == list:
+            if isinstance(obs, list):
                 obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
             else:
                 obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
@@ -290,7 +288,7 @@ class PredictiveNet:
             enc_loss = 0
 
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
-        if type(obs_pred) == tuple:
+        if isinstance(obs_pred, tuple):
             obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
@@ -450,7 +448,6 @@ class PredictiveNet:
             
         # c=100
         for bb in range(num_trials):
-            tic = time.time()
             obs,act,_,_ = self.collectObservationSequence(env, 
                                                           agent, 
                                                           sequence_duration,
@@ -525,7 +522,7 @@ class PredictiveNet:
     def addTrainingData(self,key,data):
         if isinstance(data,pd.Series) or isinstance(data,pd.DataFrame):
             data = data.values
-        if not key in self.TrainingSaver and (isinstance(data,np.ndarray)
+        if (key not in self.TrainingSaver) and (isinstance(data,np.ndarray)
                                               or isinstance(data,list)
                                               or isinstance(data,dict)):
             self.TrainingSaver.at[self.numTrainingTrials,key] = 0
@@ -938,7 +935,7 @@ class PredictiveNet:
                                                                         seed=seed
                                                                         )
         obs_pred, obs_next, h  = self.predict(obs,act)
-        if type(obs_pred) == tuple:
+        if isinstance(obs_pred, tuple):
             obs_pred = obs_pred[1]
         
         k=0
@@ -949,7 +946,7 @@ class PredictiveNet:
             h = h[0:1,:,:]
         elif rolloutdim=='mean':
             h = torch.mean(h,dim=0,keepdims=True)
-        if type(obs_pred) == list:  
+        if isinstance(obs_pred, list):  
             obs_pred = [obs[0:1,:,:] for obs in obs_pred]
         else:
             obs_pred = obs_pred[0:1,:,:]
@@ -1001,7 +998,7 @@ class PredictiveNet:
         obs,act,state, render  = self.collectObservationSequence(env,agent,timesteps,
                                                            includeRender = True)
         obs_pred, obs_next, h = self.predict(obs,act)
-        if type(obs_pred) == tuple:
+        if isinstance(obs_pred, tuple):
             obs_pred = obs_pred[1]
 
         decoded = None
@@ -1018,7 +1015,7 @@ class PredictiveNet:
         #h = h[0:1,:,:]
         h = torch.mean(h,dim=0,keepdims=True) #this is what's used to train the decoder...
         if obs_pred is not None:
-            if type(obs_pred) == list:  
+            if isinstance(obs_pred, list):  
                 obs_pred = [obs[0:1,:,:] for obs in obs_pred]
             else:
                 obs_pred = obs_pred[0:1,:,:]
@@ -1054,7 +1051,6 @@ class PredictiveNet:
             maxp = np.max(p,axis=(1,2))
             dx = np.sum(np.abs(decoded.values[:-1,:] - decoded.values[1:,:]),
                         axis=1)
-            dd = delaydist(decoded.values,numdelays=10)
 
             pdhist,pbinedges,dtbinedges = np.histogram2d(dx,np.log10(maxp[:-1]),
                                     bins=[np.arange(0,15),np.linspace(-1.25,-0.75,11)])

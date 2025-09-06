@@ -4,12 +4,10 @@ import numpy as np
 import copy
 from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis as OTA
 from scipy.stats import spearmanr
-from scipy.spatial import distance
 from prnn.utils.agent import RandomActionAgent
 import torch
 from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 import time
 from prnn.analysis.OfflineTrajectoryAnalysis import makeAdaptingNet
 

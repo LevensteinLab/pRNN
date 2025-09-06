@@ -5,7 +5,6 @@ Created on Tue Nov  9 22:00:57 2021
 
 @author: dl2820
 """
-import numpy as np
 import math
 import matplotlib.pyplot as plt
 
@@ -23,7 +22,6 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
         import gym
-        import gym_minigrid
         from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
         if wrap:
             env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
@@ -34,8 +32,6 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
 
     elif package=='farama-minigrid':
         import gymnasium as gym
-        import minigrid
-        import prnn.examples.Lroom
         if wrap:
             env = RGBImgPartialObsWrapper_HD_Farama(gym.make(env_key),tile_size=1)
         else:
@@ -120,8 +116,6 @@ class RGBImgPartialObsWrapper_HD_Farama(ObservationWrapper):
 
             
     def observation(self, obs):
-        env = self.unwrapped
-
         rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
 
         return {

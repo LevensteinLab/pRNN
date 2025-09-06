@@ -12,8 +12,7 @@ https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.
 import torch.nn as nn
 from torch.nn import Parameter
 import torch
-import torch.jit as jit
-from typing import List, Tuple
+from typing import Tuple
 from torch import Tensor
 import numbers
 import numpy as np

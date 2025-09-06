@@ -5,7 +5,6 @@ import pandas as pd
 from prnn.utils.general import saveFig
 import matplotlib.pyplot as plt
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis
-import time
 
 class RepresentationalConnectivityAnalysis:
     def __init__(self, predictiveNet, reliability_thresh = 0.5):
@@ -275,8 +274,8 @@ class RepresentationalConnectivityAnalysis:
         randoffset = 0.07*random.randn(*pairData['PeakDist'].shape)
 
         plt.scatter(pairData['PeakDist']+randoffset,pairData['weight'],
-               c=np.log10(pairData[cmap]),s=1)
-        plt.colorbar(label='log'+cmap)
+               c=np.log10(pairData['cmap']),s=1)
+        plt.colorbar(label='log'+'cmap')
         plt.xlabel('Distance')
         plt.ylabel('Weight')
         plt.xlim([-1,20.5])

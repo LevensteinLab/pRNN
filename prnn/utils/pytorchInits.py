@@ -6,8 +6,9 @@ Created on Tue May 10 12:33:09 2022
 @author: dl2820
 """
 import torch
-from torch import nn
 import numpy as np
+
+from prnn.utils.CANNtools import multiCANNmatrix
 
 def init_(tensor, weights):
     with torch.no_grad():
@@ -17,7 +18,6 @@ def init_(tensor, weights):
     
         
 
-from prnn.utils.CANNtools import multiCANNmatrix
 def CANN_(tensor, size, Nmaps, selfconnect=False, width=1, peak=None, inh=0):
     Ncells = tensor.size(0)
     if peak is None:

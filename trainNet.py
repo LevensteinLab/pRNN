@@ -43,7 +43,7 @@ parser.add_argument("--agent",
                     help="name of the agent for environment exploration (Default: RandomActionAgent, other option: RatInABoxAgent)")
 
 parser.add_argument("--envPackage",
-                    default='gym-minigrid',
+                    default='farama-minigrid',
                     # default='ratinabox_remix',
                     help="which package the environment comes from? (Default: gym-minigrid; other options: farama-minigrid, ratinabox, ratinabox_remix)")
 
@@ -233,6 +233,7 @@ if predictiveNet.numTrainingTrials == -1:
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
+    print(predictiveNet.env_shell)
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
                                                   bitsec= False,

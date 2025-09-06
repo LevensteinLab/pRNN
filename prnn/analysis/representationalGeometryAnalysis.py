@@ -13,8 +13,6 @@ from prnn.utils.agent import RandomActionAgent
 from sklearn import manifold
 from scipy.stats.mstats import spearmanr as spearmanr_m
 from scipy.stats import spearmanr
-import copy
-from scipy.linalg import toeplitz
 from prnn.utils.ActionEncodings import OneHot
 
 defaultMetric = 'cosine'
@@ -107,8 +105,10 @@ class representationalGeometryAnalysis:
                                                   np.max(actID)+0.5,
                                                   np.max(actID)+2))
         
-        if metric == 'cityblock' :  goodmax = 0.4
-        elif metric == 'cosine'  :  goodmax = 1
+        if metric == 'cityblock':  
+            goodmax = 0.4
+        elif metric == 'cosine':
+            goodmax = 1
         
         (hist2,sbins,rbins) = np.histogram2d(dists, actdist, 
                                              bins=[np.linspace(0,goodmax,25),

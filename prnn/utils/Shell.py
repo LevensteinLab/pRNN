@@ -4,29 +4,29 @@ import matplotlib
 import random
 
 from matplotlib.collections import EllipseCollection
+import matplotlib.pyplot as plt
 
 from torchvision.transforms import ToTensor
 
 from ratinabox.Agent import Agent
-from ratinabox.Neurons import *
+import ratinabox.Neurons as RiaB_Neurons
 from ratinabox.utils import get_angle, get_distances_between
 
-from prnn.utils.ActionEncodings import *
-from prnn.utils.general import saveFig
+import prnn.utils.ActionEncodings as act_enc
 
-actionOptions = {'OneHotHD' : OneHotHD ,
-                 'OneHotHDPrevAct' : OneHotHDPrevAct,
-                 'SpeedHD' : SpeedHD ,
-                 'SpeedNextHD' : SpeedNextHD,
-                 'OneHot' : OneHot,
-                 'Velocities' : Velocities,
-                 'NoAct' : NoAct,
-                 'HDOnly': HDOnly,
-                 'Continuous': Continuous,
-                 'ContSpeedRotationRiaB': ContSpeedRotation,
-                 'ContSpeedHDRiaB': ContSpeedHD,
-                 'ContSpeedOneHotHDRiaB': ContSpeedOneHotHD,
-                 'ContSpeedOneHotHDMiniworld': ContSpeedOneHotHDMiniworld
+actionOptions = {'OneHotHD' : act_enc.OneHotHD ,
+                 'OneHotHDPrevAct' : act_enc.OneHotHDPrevAct,
+                 'SpeedHD' : act_enc.SpeedHD ,
+                 'SpeedNextHD' : act_enc.SpeedNextHD,
+                 'OneHot' : act_enc.OneHot,
+                 'Velocities' : act_enc.Velocities,
+                 'NoAct' : act_enc.NoAct,
+                 'HDOnly': act_enc.HDOnly,
+                 'Continuous': act_enc.Continuous,
+                 'ContSpeedRotationRiaB': act_enc.ContSpeedRotation,
+                 'ContSpeedHDRiaB': act_enc.ContSpeedHD,
+                 'ContSpeedOneHotHDRiaB': act_enc.ContSpeedOneHotHD,
+                 'ContSpeedOneHotHDMiniworld': act_enc.ContSpeedOneHotHDMiniworld
                  }
 
 HDmap = {0: 270,
@@ -636,8 +636,8 @@ class RiaBVisionShell(RatInABoxShell):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 
         # Create vision cells
-        FoV_Walls = FieldOfViewBVCs(self.ag, params=FoV_params)
-        FoV_Objects = [FieldOfViewOVCs(self.ag, params=FoV_params | {
+        FoV_Walls = RiaB_Neurons.FieldOfViewBVCs(self.ag, params=FoV_params)
+        FoV_Objects = [RiaB_Neurons.FieldOfViewOVCs(self.ag, params=FoV_params | {
             "object_tuning_type": x
             }) for x in range(env.n_object_types)]
         
@@ -942,7 +942,7 @@ class RiaBGridShell(RatInABoxShell):
 
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params=Grid_params)
+        self.grid = RiaB_Neurons.GridCells(self.ag, params=Grid_params)
 
         self.reset()
 
@@ -1065,7 +1065,7 @@ class RiaBColorsGridShell(RiaBVisionShell):
         self.n_obs = 2
         # Create grid cells
         np.random.seed(42) # Otherwise there will be a discrepancy with the data from dataloader
-        self.grid = GridCells(self.ag, params=Grid_params)
+        self.grid = RiaB_Neurons.GridCells(self.ag, params=Grid_params)
         
         self.reset()
 

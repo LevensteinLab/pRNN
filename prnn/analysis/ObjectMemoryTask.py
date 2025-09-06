@@ -1,5 +1,4 @@
 from prnn.utils.env import make_env
-import copy
 from prnn.utils.agent import RandomActionAgent
 import numpy as np
 import matplotlib.pyplot as plt

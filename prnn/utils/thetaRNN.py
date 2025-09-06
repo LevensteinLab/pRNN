@@ -9,17 +9,16 @@ https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.
 @author: dl2820
 """
 
+import torch
 import torch.nn as nn
 from torch.nn import Parameter
-import torch
-#import torch.jit as jit
-from typing import List, Tuple
+import torch.nn.functional as F
 from torch import Tensor
+
+from typing import Tuple
 import numbers
 import numpy as np
 import math
-
-import torch.nn.utils.prune as prune
 
 
 #class RNNLayer(jit.ScriptModule):
@@ -438,8 +437,6 @@ def sparse_lognormal_(
 
 
 #Unit Tests
-
-import torch.nn.functional as F
 def test_script_thrnn_layer(seq_len, input_size, hidden_size, trunc, theta):
     inp = torch.randn(1,seq_len,input_size)
     inp = F.pad(inp,(0,0,0,theta))

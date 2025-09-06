@@ -7,7 +7,6 @@ Created on Tue May 10 12:49:31 2022
 """
 
 import numpy as np
-from scipy.spatial.distance import cdist
 
 
 def expKernel(dist,width=1):

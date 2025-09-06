@@ -3,7 +3,6 @@ import numpy as np
 from scipy.stats import spearmanr
 import matplotlib.pyplot as plt
 from prnn.utils.general import saveFig, savePkl, loadPkl
-from copy import deepcopy
 
 class SpatialTuningAnalysis:
     def __init__(self,predictiveNet,timesteps_wake = 5000, 
@@ -155,12 +154,13 @@ class SpatialTuningAnalysis:
             FAKEactivity['h'] = np.zeros_like(WAKEactivity['h'])
             
         for cell,(k,tuning_curve) in enumerate(tuning_curves.items()):
-            if np.isnan(tuning_curve).all(): continue
+            if np.isnan(tuning_curve).all(): 
+                continue
             FAKEactivity['h'][:,cell] = tuning_curve[position[:WAKE_h.shape[0],0]-start_pos,
                                                      position[:WAKE_h.shape[0],1]-start_pos]
         
         if metric == 'EVspace':
-            spaceRemoved = WAKE_h-FAKEactivity['h'];
+            spaceRemoved = WAKE_h-FAKEactivity['h']
             EVSpace = 1 - np.var(spaceRemoved,axis=0) / (np.var(WAKE_h,axis=0))
             EVSpace[np.isinf(EVSpace)] = 0
             FAKEactivity['TCcorr'] = EVSpace

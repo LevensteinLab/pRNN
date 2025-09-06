@@ -8,7 +8,6 @@ Created on Tue Jan 18 16:15:54 2022
 import numpy as np
 import matplotlib.pyplot as plt
 from prnn.utils.general import saveFig
-from prnn.utils.general import delaydist
 import prnn.analysis.trajectoryAnalysis as trajectoryAnalysis
 
 
@@ -100,7 +99,8 @@ def SpontActivityFigure(predictiveNet, compareWAKEagent=None,
                     coverage[i,j] = c['nonuniformity']
                     c = trajectoryAnalysis.calculateContinuity(decoded[onset:],showFig=False)
                     continuity[i,j] = c['underthresh']
-                if np.isnan(meanrate[i,j]): meanrate[i,j] = np.inf
+                if np.isnan(meanrate[i,j]): 
+                    meanrate[i,j] = np.inf
                 simcounts[i,j]+=1
                 
     

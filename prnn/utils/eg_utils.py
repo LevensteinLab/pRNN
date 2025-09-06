@@ -2,10 +2,9 @@ import torch
 import torch.nn as nn
 import math
 import random
-import warnings
 import numpy as np
 
-from typing import List, Optional, Callable 
+from typing import List, Optional
 from torch import Tensor
 from torch.nn import RNNCellBase
 from torch.optim.optimizer import Optimizer, required

@@ -12,6 +12,8 @@ from errno import EEXIST
 import os 
 
 import pickle
+import pynapple as nap
+from scipy.special import rel_entr
 
 #from sklearn import linear_model #For Wiener Filter and Wiener Cascade
 
@@ -64,7 +66,8 @@ def mkdir_p(mypath):
     except OSError as exc: # Python >2.5
         if exc.errno == EEXIST and os.path.isdir(mypath):
             pass
-        else: raise      
+        else: 
+            raise      
     return
 
 
@@ -78,7 +81,6 @@ def fit_exp_linear(t, y, C=0):
     return A, K
 
 
-from scipy.special import rel_entr
 def kl_divergence(p, q):
  	#return np.sum(p[i] * np.log2(p[i]/q[i]) for i in range(len(p)))
     return np.sum(rel_entr(p,q))
@@ -120,8 +122,6 @@ def delaydist(signal,numdelays=10, maxdist=15, firstdelay=1, sqdist=False,
     #delaydistcorr = np.corrcoef(alldelays,alldists)[0,1]
     return delay_dist, delay_kl #, delaydistcorr
 
-
-import pynapple as nap
 def state2nap(state):
     data = np.vstack((state['agent_pos'][:-1,0],state['agent_pos'][:-1,1])).T
     state_nap = nap.TsdFrame(t=np.arange(np.size(data,0)),

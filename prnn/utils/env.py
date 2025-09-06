@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
 
-from prnn.utils.Shell import *
+import prnn.utils.Shell as shell
 from prnn.examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
 
-def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
+def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
              seed=42, FoV_params=FoV_params_default,
              Grid_params=Grid_params_default, encoder=None):
@@ -30,7 +30,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         else:
             env = gym.make(env_key)
         env.reset()
-        env = GymMinigridShell(env, act_enc, env_key)
+        env = shell.GymMinigridShell(env, act_enc, env_key)
 
     elif package=='farama-minigrid':
         import gymnasium as gym
@@ -41,26 +41,26 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
         else:
             env = gym.make(env_key)
         env.reset(seed=seed)
-        env = FaramaMinigridShell(env, act_enc, env_key)
+        env = shell.FaramaMinigridShell(env, act_enc, env_key)
 
     elif package=='ratinabox_vision':        
         env = make_rat_env(env_key)
-        env = RiaBVisionShell(env, act_enc, env_key, speed,
+        env = shell.RiaBVisionShell(env, act_enc, env_key, speed,
                               thigmotaxis, HDbins, FoV_params)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
-        env = RiaBRemixColorsShell(env, act_enc, env_key, speed,
+        env = shell.RiaBRemixColorsShell(env, act_enc, env_key, speed,
                                    thigmotaxis, HDbins, FoV_params)
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
-        env = RiaBGridShell(env, act_enc, env_key, speed,
+        env = shell.RiaBGridShell(env, act_enc, env_key, speed,
                             thigmotaxis, HDbins, Grid_params)
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
-        env = RiaBColorsGridShell(env, act_enc, env_key, speed,
+        env = shell.RiaBColorsGridShell(env, act_enc, env_key, speed,
                                   thigmotaxis, HDbins, FoV_params, Grid_params)
         
     elif package=='miniworld_vae':
@@ -77,7 +77,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
                     max_episode_steps=math.inf,
         )
         env.reset(seed=seed)
-        env = MiniworldVAEShell(env, act_enc, env_key,
+        env = shell.MiniworldVAEShell(env, act_enc, env_key,
                                 encoder, HDbins)
 
     else:

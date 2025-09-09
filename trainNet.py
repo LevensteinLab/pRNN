@@ -242,7 +242,7 @@ if predictiveNet.numTrainingTrials == -1:
     predictiveNet.calculateDecodingPerformance(env,agent,decoder,
                                                 savename=savename, savefolder=figfolder,
                                                 saveTrainingData=True)
-    predictiveNet.plotDelayDist(env, agent, decoder)
+    # predictiveNet.plotDelayDist(env, agent, decoder)
 
 #TODO: Put in time counter here and ETA...
 #TODO: take this out later. for backwards compatibility

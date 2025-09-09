@@ -90,7 +90,10 @@ class VAE(nn.Module):
                     output_padding=output_paddings[i],
                 )
             )
-            modules.append(self.activation)
+            if i < len(n_channels) - 2:  # No activation after final layer
+                modules.append(self.activation)
+            else:
+                modules.append(nn.Sigmoid())  # Final activation for image output
 
         self.decoder = nn.Sequential(*modules)
 

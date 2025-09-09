@@ -209,8 +209,9 @@ class representationalGeometryAnalysis:
                                                    noisestd)
         a['h'] = np.squeeze(h_t.detach().numpy())
         return a
-        
-    def fitIsomap(self,WAKEactivity, SLEEPactivity, usecells=None, n_neighbors=150):
+
+    @staticmethod    
+    def fitIsomap(WAKEactivity, SLEEPactivity, usecells=None, n_neighbors=150):
         print('Fitting Isomap')
         #X = self.WAKEactivity['h']
         h_wake = WAKEactivity['h']

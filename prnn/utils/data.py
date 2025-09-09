@@ -26,7 +26,7 @@ class TrajDataset(Dataset):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         act = torch.tensor(act, dtype=self.act_type)
         if self.n_obs > 1: # for multimodal observations
-            obs = [np.load(self._data_dir + '/' + str(index+1) + "/obs%d.npy" % i) for i in range(self.n_obs)]
+            obs = [np.load(self._data_dir + '/' + str(index+1) + "/obs%d.npy" % i)[:,:self.seq_length+1] for i in range(self.n_obs)]
             obs = [torch.tensor(obs[i], dtype=torch.float32) for i in range(self.n_obs)]
             return *obs, act
         else:
@@ -43,7 +43,7 @@ class TrajRawDataset(TrajDataset):
     def __getitem__(self, index):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         act = torch.tensor(act, dtype=self.act_type)
-        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:,:self.seq_length+1]
+        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:self.seq_length+1]
         raw = torch.tensor(raw, dtype=torch.float32)
         return raw, act
 

@@ -30,10 +30,10 @@ class pRNN(nn.Module):
     inMask:     boolean list, length corresponding to the prediction cycle period. (default: [True])
     outMask, actMask: list, same length as inMask (default: None)
 
-    All inputs should be tensors of shape (N,L,H)
-        N: Batch size
-        L: timesamps
+    Inputs should be tensors of shape (1,L,H) or (1,L,H,N) if batched
+        L: timestamps
         H: input_size
+        N: Batch size
     """
     def __init__(self, obs_size, act_size, hidden_size=500,
                  cell=RNNCell,  dropp=0, bptttrunc=50, k=0, f=0.5,
@@ -66,7 +66,8 @@ class pRNN(nn.Module):
 
         self.W_in = self.rnn.cell.weight_ih
         self.W = self.rnn.cell.weight_hh
-        self.W_out = self.outlayer[0].weight
+        if hasattr(self, 'outlayer'):
+            self.W_out = self.outlayer[0].weight
         self.bias = self.rnn.cell.bias
 
         if hasattr(self.rnn.cell,'weight_is'):
@@ -105,11 +106,15 @@ class pRNN(nn.Module):
         k=0
         if hasattr(self,'k'):
             k= self.k
-        if batched:
+        if batched: # make batch dimension the last
+            if type(obs) == list:
+                obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
+            else:
+                obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
             noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
         else:
             noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)
-            #^^^for backwards compadiblity. change to self.hidden_size later
+            #^^^for backwards compatiblity. change to self.hidden_size later
 
         noise_t = self.generate_noise(noise_params, noise_shape)
 
@@ -126,7 +131,7 @@ class pRNN(nn.Module):
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
                              theta=theta, mask=mask, batched=batched)
             if not fullRNNstate: 
-                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
+                h_t = h_t[...,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
             if batched:
                 h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
                 allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
@@ -154,7 +159,7 @@ class pRNN(nn.Module):
 
         return noise
 
-    def restructure_inputs(self, obs, act, batched=False):
+    def restructure_inputs(self, obs, act, batched=False, target=None):
         """
         Join obs and act into a single input tensor shape (N,L,H)
         N: Batch size
@@ -172,8 +177,11 @@ class pRNN(nn.Module):
         
         if self.actOffset:
                 act = act[:,:-self.actOffset,...]
-
-        obs_target = obs[:,self.predOffset:,:]
+        
+        if target is not None:
+            obs_target = target[:,self.predOffset:,:]
+        else:
+            obs_target = obs[:,self.predOffset:,:]
 
         #Make everything the same size
         minsize = min(obs.size(1),act.size(1),obs_target.size(1))
@@ -274,7 +282,7 @@ class pRNN_th(pRNN):
             obspad = self.batched_obspad
         else:
             act = self.actpad(act)
-            if ~hasattr(self,'obspad'):   #For backwards compadibility - remove later
+            if not hasattr(self,'obspad'):   #For backwards compadibility - remove later
                 self.obspad = (0,0,0,0,0,self.k)
             obspad = self.obspad
         obs_target = obs[:,self.predOffset:,:]
@@ -483,7 +491,230 @@ class pRNN_multimodal(pRNN):
         return x_t, obs_target_out, outmask
         
         
+class pRNN_AE(pRNN):
+    """
+    A predictive RNN with CNN autoencoder for processing image observations.
+    Inherits from pRNN but replaces linear input/output layers with CNN encoder/decoder.
+
+    Inputs should be tensors of shape (L,C,W,H) or (N,L,C,W,H) if batched
+        N: Batch size
+        L: timestamps
+        C: number of channels
+        W: width
+        H: height
+    """
+    def __init__(self, act_size, hidden_size=500,
+                 latent_dim=128,
+                 net_config=None, in_channels=3, cell=RNNCell, dropp=0, 
+                 bptttrunc=50, k=0, f=0.5, predOffset=1, inMask=[True], 
+                 outMask=None, actOffset=0, actMask=None, neuralTimescale=2,
+                 continuousTheta=False, **cell_kwargs):
         
+        # Store AE-specific parameters
+        self.latent_dim = latent_dim
+        self.in_channels = in_channels
+        
+        # Default network configuration if not provided
+        if net_config is None:
+            net_config = (
+                [16, 16, 32, 32],  # n_channels
+                [5, 5, 3, 3],        # kernel_sizes
+                [2, 2, 1, 1],        # strides
+                [2, 2, 1, 1],        # paddings
+                [0, 0, 1, 1]        # output_paddings
+            )
+        
+        n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
+        
+        if self.latent_dim:
+            obs_size = latent_dim
+        else:
+            obs_size = n_channels[-1] * 16 * 16
+        super(pRNN_AE, self).__init__(
+            obs_size=obs_size,
+            act_size=act_size, hidden_size=hidden_size,
+            cell=cell, dropp=dropp, bptttrunc=bptttrunc, k=k, f=f,
+            predOffset=predOffset, inMask=inMask, outMask=outMask,
+            actOffset=actOffset, actMask=actMask, neuralTimescale=neuralTimescale,
+            continuousTheta=continuousTheta, **cell_kwargs
+        )
+        
+        # Build encoder and decoder
+        self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
+        self.build_decoder(n_channels, kernel_sizes, strides,
+                           paddings, output_paddings)
+        
+        # Initialize weights for encoder/decoder
+        self.initialize_ae_weights()
+
+    def build_encoder(self, in_channels, n_channels, kernel_sizes, strides, paddings):
+        modules = []
+
+        # CNN layers
+        for i in range(len(n_channels)):
+            modules.append(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=n_channels[i],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                )
+            )
+            modules.append(nn.ReLU())
+            in_channels = n_channels[i]
+
+        # Flatten and project to latent space
+        modules.append(nn.Flatten())
+        if self.latent_dim:
+            modules.append(nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim))
+        # NOTE: activation?
+        self.encoder = nn.Sequential(*modules)
+
+    def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+        modules = []
+
+        n_channels.reverse()
+        kernel_sizes.reverse()
+        strides.reverse()
+        paddings.reverse()
+        n_channels.append(self.in_channels)
+
+        # Linear layer to map latent space to feature space
+        if self.latent_dim:
+            input_dim = self.latent_dim
+        else:
+            input_dim = self.hidden_size
+        self.decoder_input = nn.Sequential(
+            nn.Linear(
+                      input_dim,
+                      n_channels[0] * 16 * 16),
+            nn.Unflatten(dim=-1, unflattened_size=(n_channels[0], 16, 16)),
+            nn.ReLU(),
+        )
+
+        # Transposed CNN layers
+        for i in range(len(n_channels) - 1):
+            modules.append(
+                nn.ConvTranspose2d(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    output_padding=output_paddings[i],
+                )
+            )
+            if i < len(n_channels) - 2:  # No activation after final layer
+                modules.append(nn.ReLU())
+            else:
+                modules.append(nn.Sigmoid())  # Final activation for image output
+
+        self.decoder = nn.Sequential(*modules)
+
+    def initialize_ae_weights(self):
+        for m in [self.encoder, self.decoder, self.decoder_input]:
+            for layer in m.modules():
+                if isinstance(layer, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+                    nn.init.xavier_normal_(layer.weight) #TODO: test uniform?
+                    if layer.bias is not None:
+                        nn.init.zeros_(layer.bias)
+
+    def create_layers(self, obs_size, act_size, hidden_size,
+                      cell, bptttrunc, continuousTheta,
+                      k, f, **cell_kwargs):
+        # Override parent's create_layers to use latent space size
+        
+        mu = norm.ppf(f)
+        musig = [mu, 1]
+
+        input_size = obs_size + act_size  # obs_size is now latent_dim
+        self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
+                                 defaultTheta=k, continuousTheta=continuousTheta,
+                                 musig=musig, **cell_kwargs)
+        if self.latent_dim:
+            self.outlayer = nn.Sequential(
+                nn.Linear(hidden_size, obs_size, bias=False),
+                nn.ReLU() # NOTE: needed here?
+                )
+
+    def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), 
+                theta=None, single=False, mask=None, batched=False, fullRNNstate=False):
+        #Determine the noise shape
+        k=0
+        if hasattr(self,'k'):
+            k= self.k
+
+        if batched: #NOTE: multimodal observations are not supported here
+            target = obs.clone().permute(*[i for i in range(1,len(obs.size()))],0)[None]
+            shape = obs.shape
+            obs = obs.view(-1, *shape[2:])
+            z = self.encoder(obs)
+            obs = z.view((-1, 1, shape[1], *z.shape[1:]))
+            # make batch dimension the last
+            act = act.permute(*[i for i in range(1,len(act.size()))],0)
+            obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
+            noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
+        else:
+            target = obs.clone()
+            obs = self.encoder(obs.squeeze(0))[None]
+            noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)
+            #^^^for backwards compadiblity. change to self.hidden_size later
+
+        noise_t = self.generate_noise(noise_params, noise_shape)
+
+        if single:
+            x_t = torch.cat((obs,act), 2)
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units
+            y_t = None
+            obs_target = None
+        else:
+            x_t, obs_target, outmask = self.restructure_inputs(obs,act,batched,target)
+            #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
+                             theta=theta, mask=mask, batched=batched)
+            if not fullRNNstate: 
+                h_t = h_t[...,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
+            if batched:
+                h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
+                if self.latent_dim:
+                    allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
+                    allout = self.decoder_input(allout)
+                else:
+                    allout = self.decoder_input(h_t[:,:,:,:self.hidden_size])
+                shape = allout.shape
+                allout = allout.view(-1, *shape[-3:])
+                allout = self.decoder(allout)
+                allout = allout.view((-1, 1, shape[-4], *allout.shape[1:]))
+                allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
+                h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
+            else:
+                if self.latent_dim:
+                    allout = self.outlayer(h_t[:,:,:self.hidden_size])
+                    allout = self.decoder_input(allout)
+                else:
+                    allout = self.decoder_input(h_t[:,:,:self.hidden_size])
+                shape = allout.shape
+                allout = allout.view(-1, *shape[2:])
+                allout = self.decoder(allout)
+                allout = allout.view((1, shape[1], *allout.shape[1:]))
+
+            #Apply the mask to the output
+            y_t = torch.zeros_like(allout)
+            y_t[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+        return y_t, h_t, obs_target
+    
+    def internal(self, noise_t, state=torch.tensor([])):
+        h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)
+        if self.latent_dim:
+            y_t = self.outlayer(h_t)
+            y_t = self.decoder_input(y_t)
+        else:
+            y_t = self.decoder_input(h_t)
+        y_t = self.decoder(y_t.squeeze(0))[None]
+        return y_t, h_t
 
 
 
@@ -1573,3 +1804,25 @@ class multRNN_5win_i0_o1(pRNN_multimodal):
                           actMask=None,
                           inIDs=(0,), outIDs=(1,),
                           )
+
+
+class thRNN_0win_AE(pRNN_AE):
+    def __init__(self, obs_size, act_size, hidden_size=500, latent_dim=128,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, in_channels=3, **cell_kwargs):
+        super(thRNN_0win_AE, self).__init__(act_size, hidden_size=hidden_size, latent_dim=latent_dim,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f, in_channels=in_channels,
+                          predOffset=0, actOffset=0,
+                          inMask=[True], outMask=[True], actMask=None)
+
+class thRNN_5win_AE(pRNN_AE):
+    def __init__(self, obs_size, act_size, hidden_size=500, latent_dim=128,
+                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
+                f=0.5, in_channels=3, **cell_kwargs):
+        super(thRNN_5win_AE, self).__init__(act_size, hidden_size=hidden_size, latent_dim=latent_dim,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f, in_channels=in_channels,
+                          predOffset=0, actOffset=0,
+                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
+                          actMask=None)

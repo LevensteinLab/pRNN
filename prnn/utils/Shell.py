@@ -85,7 +85,8 @@ class Shell:
             obs = [*data[:self.n_obs]]
             if len(obs) == 1:
                 obs = obs[0]
-            if self.dataLoader.dataset.raw:
+            if self.dataLoader.dataset.raw and not self.raw_default:
+                # If the encoder is in the Shell, we need to process raw images
                 obs, act = self.env2pred(obs, act, state=state,
                                          device=device,
                                          compute_loss=compute_loss,
@@ -351,6 +352,11 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class MiniworldShell(Shell):
+    """
+    Shell for Miniworld environments
+    By default, it can be used only with pRNN-autoencoder.
+    Otherwise, child classes need to be used depending on the encoder.
+    """
     def __init__(self, env, act_enc, env_key, HDbins, dx=5/8, **kwargs):
         super().__init__(env, act_enc, env_key)
         self.numHDs = HDbins
@@ -365,9 +371,54 @@ class MiniworldShell(Shell):
 
         self.continuous = True
         self.start_pos = 0
+        self.raw_default = True # by default, the observations are raw images for Miniworld
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
+
+    def env2pred(self, obs, act=None, state=None, hd_from='state',
+                 actoffset=0, device='cpu', **kwargs):    
+        if act is not None:
+            if hd_from=='state':
+                hd = state['agent_dir']
+            elif hd_from=='act':
+                hd = self.act2hd(obs[actoffset], act, actoffset)
+            else:
+                raise KeyError('hd_from should be either "state" or "act"')
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    nbins=self.numHDs)
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)[None]
+        obs = obs.to(device)
+
+        if hd_from=='state':
+            return obs, act
+        else:
+            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
+    
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
+        hd = state['agent_dir']
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             nbins=self.numHDs))
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        obs = np.array(obs)
+        obs_env = obs.copy()
+
+        if save_env:
+            obs = np.array([]) # placeholder, to reduce memory usage
+            return obs, act, obs_env
+        else:
+            return obs, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs[whichPhase].detach().numpy()
+        if timesteps:
+            obs = obs[timesteps,...]
+        
+        obs = np.transpose(obs, (0,2,3,1))
+        return obs
     
     def act2hd(self, obs, act, act_offset=0, **kwargs):
         #TODO: adapt for theta with At-1
@@ -405,6 +456,9 @@ class MiniworldShell(Shell):
     
     def getActType(self):
         return torch.float32
+
+    def getObsSize(self):
+        return None # obs size is determined by
     
     def get_map_bins(self):
         minmax=(0, self.width,

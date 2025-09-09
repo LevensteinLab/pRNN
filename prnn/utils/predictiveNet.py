@@ -138,6 +138,8 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
               'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
+              'thRNN_0win_AE': thRNN_0win_AE,
+              'thRNN_5win_AE': thRNN_5win_AE,
               }
 
 
@@ -158,7 +160,7 @@ class PredictiveNet:
     def __init__(self, env, pRNNtype='AutoencoderPred', hidden_size=500,
                  learningRate=2e-3, bias_lr=0.1, eg_lr=None,
                  weight_decay=3e-3, eg_weight_decay=1e-6, losstype='predMSE', 
-                 trainNoiseMeanStd=(0,0.03),
+                 trainNoiseMeanStd=(0,0.03), ae_lr=1,
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
                  fig_type='png', train_encoder=False, encoder_grad=False,
@@ -184,7 +186,9 @@ class PredictiveNet:
 
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
-        self.pRNN = netOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
+        self.pRNN = netOptions[pRNNtype](obs_size=self.obs_size,
+                                         act_size=self.act_size,
+                                         hidden_size=self.hidden_size,
                                          **architecture_kwargs)
         if identityInit: 
             self.pRNN.W = nn.Parameter(torch.eye(hidden_size))
@@ -192,7 +196,8 @@ class PredictiveNet:
         self.loss_fn  = lossOptions[losstype]()
         self.resetOptimizer(learningRate, weight_decay,
                             trainBias=trainBias, bias_lr=bias_lr,
-                            eg_lr=eg_lr, eg_weight_decay=eg_weight_decay)
+                            eg_lr=eg_lr, eg_weight_decay=eg_weight_decay,
+                            ae_lr=ae_lr)
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
         self.train_encoder = train_encoder
@@ -224,18 +229,16 @@ class PredictiveNet:
         sequence batch. Obs_pred is for the next timestep. 
         Note: state input is used for CANN control in internal functions
         """
-        if batched:
-            if type(obs) == list:
-                obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
-            else:
-                obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
-            act = act.permute(*[i for i in range(1,len(act.size()))],0)
-            shape = (act.size(-1), 1, self.hidden_size)
+        # if batched:
+        #     # make batch dimension the last
+        #     act = act.permute(*[i for i in range(1,len(act.size()))],0)
+        #     shape = (act.size(-1), 1, self.hidden_size)
             
-        else:
-            shape = (1, 1, self.hidden_size)
+        # else:
+        #     shape = (1, 1, self.hidden_size)
             
         if randInit and len(state) == 0:
+            shape = (act.size(0), 1, self.hidden_size)
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
         
@@ -552,7 +555,7 @@ class PredictiveNet:
     
 
     def resetOptimizer(self, learningRate, weight_decay, trainBias=False, bias_lr=1, 
-                       eg_lr=None, eg_weight_decay=1e-6):
+                       eg_lr=None, eg_weight_decay=1e-6, ae_lr=1):
         self.learningRate = learningRate
         self.weight_decay = weight_decay
         rootk_h = np.sqrt(1./self.pRNN.rnn.cell.hidden_size)
@@ -562,9 +565,6 @@ class PredictiveNet:
                         {'params': self.pRNN.W, 'name': 'RecurrentWeights', 
                          'lr': learningRate*rootk_h, 
                          'weight_decay': weight_decay*learningRate*rootk_h},
-                        {'params': self.pRNN.W_out, 'name': 'OutputWeights', 
-                         'lr': learningRate*rootk_h, 
-                         'weight_decay': weight_decay*learningRate*rootk_h},
                         {'params': self.pRNN.W_in, 'name': 'InputWeights', 
                          'lr': learningRate*rootk_i, 
                          'weight_decay': weight_decay*learningRate*rootk_i}
@@ -572,7 +572,39 @@ class PredictiveNet:
                         alpha=0.95, eps=1e-7)
                         #Parms from Recanatesi
                         #lr=1e-4, alpha=0.95, eps=1e-7
-        
+        if hasattr(self.pRNN,'W_out'):
+            outparamgroup = {
+                'params' : self.pRNN.W_out,
+                'name' : 'OutputWeights',
+                'lr' : learningRate*rootk_h,
+                'weight_decay': weight_decay*learningRate*rootk_h
+            }
+            self.optimizer.add_param_group(outparamgroup)
+
+        if hasattr(self.pRNN,'encoder'):
+            self.ae_lr = ae_lr
+            encoderparamgroup = {
+                'params' : self.pRNN.encoder.parameters(),
+                'name' : 'encoder',
+                'lr' : learningRate*ae_lr,
+                'weight_decay': weight_decay*learningRate*ae_lr
+            }
+            decoderparamgroup = {
+                'params' : self.pRNN.decoder.parameters(),
+                'name' : 'decoder',
+                'lr' : learningRate*ae_lr,
+                'weight_decay': weight_decay*learningRate*ae_lr
+            }
+            decoderinputparamgroup = {
+                'params' : self.pRNN.decoder_input.parameters(),
+                'name' : 'decoder_input',
+                'lr' : learningRate*ae_lr,
+                'weight_decay': weight_decay*learningRate*ae_lr
+            }
+            self.optimizer.add_param_group(encoderparamgroup)
+            self.optimizer.add_param_group(decoderparamgroup)
+            self.optimizer.add_param_group(decoderinputparamgroup)
+
         if trainBias:
             self.bias_lr = bias_lr
             biasparmgroup = {
@@ -690,14 +722,13 @@ class PredictiveNet:
             obs_pred, obs_next, h  = self.predict(obs,act,state, fullRNNstate=fullRNNstate)
         else:
             obs_pred, obs_next, h  = self.predict(obs,act, fullRNNstate=fullRNNstate)
-        
         #for now: take only the 0th theta window...
         #Try: mean
         #THETA UPDATE NEEDED
         #h = h[0:1,:,:]
         h = torch.mean(h,dim=0,keepdims=True)
         ##FIX ABOVE HERE FOR k
-
+        
         position = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
                                 d = state['agent_pos'][onsetTransient:-1,:],
                                 columns = ('x','y'), time_units = 's')
@@ -708,7 +739,7 @@ class PredictiveNet:
         width = env.width
         height = env.height
         nb_bins_x, nb_bins_y, minmax = env.get_map_bins()
-
+        
         place_fields,xy = nap.compute_2d_tuning_curves_continuous(rates,position,
                                                                   ep=rates.time_support,
                                                                   nb_bins=(nb_bins_x, nb_bins_y),
@@ -784,9 +815,15 @@ class PredictiveNet:
                 self.addTrainingData('sRSA',sRSA)
                 self.addTrainingData('SWdist',SWdist)
                 self.addTrainingData('EVs',EVs)
+            
+            # WandB log of the Isomap
+            # if self.wandb_log:
+            #     Isomap = RGA.fitIsomap(WAKEactivity, SLEEPactivity,
+            #                            n_neighbors=50)
         
         decoder = None
         if trainDecoder:
+            print('Training Decoder')
             #Consider - this has extra weights for walls...
             decoder = linearDecoder(self.hidden_size,
                                     height*width)
@@ -1098,7 +1135,6 @@ class PredictiveNet:
         start = max(timesteps[-1]-trajectoryWindow,0)
 
         numtimesteps = len(timesteps)
-        
         
         obs = self.env_shell.pred2np(obs, timesteps=timesteps)
         if obs_pred is not None:

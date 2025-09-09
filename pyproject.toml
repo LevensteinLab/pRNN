@@ -1,0 +1,58 @@
+[project]
+name = "prnn"
+version = "0.1.0"
+description = "Python Library for Predictive RNNs Modeling Hippocampal Representation and Replay"
+readme = "README.md"
+requires-python = ">=3.9, <3.10"
+license = "MIT"
+authors = [
+    { name = "Daniel Levenstein", email = "daniel.levenstein@mila.quebec" },
+    { name = "Sabrina Du", email = "sabrina.du@mila.quebec"},
+]
+
+dependencies = [
+    # The custom Minigrid fork, installed from the local submodule
+    "minigrid",
+
+    "gymnasium==0.29.1",
+    "ratinabox==1.7.1",
+    "pynapple==0.6.1",
+
+    "numpy>=1.22.4",
+    "scipy>=1.12.0",
+    "pandas>=1.5.3",
+    "scikit-learn>=1.4.0",
+    "matplotlib>=3.5.3",
+    "ruamel.yaml>=0.18.6",
+
+    "torch>=2.7.1",
+    "torchvision>=0.20.1",
+
+    "gym>=0.26.2",
+    "gym_minigrid==1.2.2",
+
+    # Other metadata/packaging utilities
+    "importlib-metadata>=7.0.1",
+    "pyparsing>=3.1.1",
+    "zipp>=3.17.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["prnn"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv.sources]
+Minigrid = { path = "./Minigrid", editable=true }
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
+[project.urls]
+Homepage = "https://github.com/SabrinaDu7/pRNN.git"

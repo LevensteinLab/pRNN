@@ -19,6 +19,7 @@ from prnn.utils.figures import TrainingFigure
 from prnn.utils.figures import SpontTrajectoryFigure
 from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
+import wandb
 
 #TODO: get rid of these dependencies
 import numpy as np
@@ -161,6 +162,12 @@ figfolder = 'nets/'+args.savefolder+'/trainfigs/'+savename
 analysisfolder = 'nets/'+args.savefolder+'/analysis/'+savename
 
 
+run = wandb.init(
+    # Set the wandb entity where your project will be logged (generally your team name).
+    entity="sabrina-du-mcgill-university",
+    # Set the wandb project where this run will be logged.
+    project="curious-george",
+)
 
 
 #%%

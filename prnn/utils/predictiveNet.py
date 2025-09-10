@@ -161,7 +161,7 @@ class PredictiveNet:
                  trainBias=True, identityInit=False, dataloader=False,
                  fig_type='png', train_encoder=False, encoder_grad=False,
                  enc_loss_weight=1.0, enc_loss_power=1.0,
-                 wandb_log=False, **architecture_kwargs):
+                 wandb_log=True, **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space

@@ -21,6 +21,7 @@ from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
 
 #TODO: get rid of these dependencies
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -208,9 +209,11 @@ else:
     if args.withDataLoader:
         # Separate Data Loader should be created for every environment
         create_dataloader(env, agent, args.dataNtraj, args.seqdur,
-                          args.datadir, args.batchsize, args.numworkers)
+                          args.datadir, generate=True,
+                          tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'),
+                          batch_size=args.batchsize, 
+                          num_workers=args.numworkers)
         predictiveNet.useDataLoader = args.withDataLoader
-
 
 
 #%% Training Epoch
@@ -242,7 +245,7 @@ if predictiveNet.numTrainingTrials == -1:
     predictiveNet.calculateDecodingPerformance(env,agent,decoder,
                                                 savename=savename, savefolder=figfolder,
                                                 saveTrainingData=True)
-    predictiveNet.plotDelayDist(env, agent, decoder)
+    #predictiveNet.plotDelayDist(env, agent, decoder)
 
 #TODO: Put in time counter here and ETA...
 #TODO: take this out later. for backwards compatibility

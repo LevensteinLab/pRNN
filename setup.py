@@ -20,7 +20,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "scipy",
-    "numpy",
+    "numpy<2",
     "scikit-learn",
     "pynapple==0.6.1",
     "zipp",

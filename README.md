@@ -1,5 +1,9 @@
 # Predictive Replay
 
+This project is focused on modelling rat exploratory behavior in the
+Novel Object Recognition (NOR) paradigm, leveraging curiosity as an
+intrinsic reward signal for RL.
+
 ## Project Setup
 
 This project is managed using [`uv`](https://docs.astral.sh/uv/).

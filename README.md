@@ -35,3 +35,19 @@ Default values for the training pipeline can be found in ```trainNet.py```. Here
 ```bash
 uv run trainNet.py --pRNNtype thcycRNN_5win_full --savefolder thcycRNN_5win_full --noDataLoader
 ```
+
+## Setup on Mila's cluster
+
+On the login node:
+
+1. Clone the repo: ```git clone --recurse-submodules -j8 https://github.com/SabrinaDu7/pRNN.git```
+2. Create a virtual environment in your desired directory. (Ex: ```uv venv —python 3.10 ~/venvs/venv-pRNN```)
+3. Activate and sync the venv: ```source ~/venvs/venv-pRNN/bin/activate``` then ```uv sync --active```
+4. Venv is ready to be used on compute nodes. You can deactivate it for now: ```deactivate```
+
+When using ```salloc/srun``` or ```sbatch```, you must activate the venv on the compute node
+and use the option ```--active``` to use the active venv. Example run command:
+
+```bash
+uv run trainNet.py --active --pRNNtype thcycRNN_5win_full --savefolder thcycRNN_5win_full --noDataLoader
+```

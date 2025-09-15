@@ -13,6 +13,7 @@ This project utilizes a custom [Minigrid](https://github.com/SabrinaDu7/minigrid
 
 ```bash
 # Clone the pRNN repo and the Minigrid repo as a submodule
+# Use git@github.com:SabrinaDu7/pRNN.git if SSH enabled.
 git clone --recurse-submodules -j8 https://github.com/SabrinaDu7/pRNN.git
 cd pRNN/
 

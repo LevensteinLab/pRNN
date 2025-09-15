@@ -325,7 +325,7 @@ class GymMinigridShell(Shell):
     def render(self, highlight=True, mode=None):
         return self.env.render(mode=mode, highlight=highlight)
     
-    def reset(self, seed=False):
+    def reset(self, seed=False, **kwargs):
         if seed:
             self.env.seed(seed)
         return self.env.reset()
@@ -334,12 +334,12 @@ class GymMinigridShell(Shell):
 class FaramaMinigridShell(GymMinigridShell):
     def __init__(self, env, act_enc, env_key, **kwargs):
         super().__init__(env, act_enc, env_key)
-        
-    def render(self, highlight=True, mode='human'):
+
+    def render(self, highlight=True, mode: str|None = 'human'):
         # Another option: return self.env.get_wrapper_attr('get_frame')
         return self.env.unwrapped.get_frame()
     
-    def reset(self, seed=False):
+    def reset(self, seed=False, **kwargs):
         if seed:
             return self.env.reset(seed=seed)[0]
         else:

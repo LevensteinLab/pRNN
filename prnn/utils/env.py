@@ -22,9 +22,9 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
         import gym
-        from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
+        from gym_minigrid.wrappers import RGBImgPartialObsWrapper
         if wrap:
-            env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
+            env = RGBImgPartialObsWrapper(gym.make(env_key),tile_size=1)
         else:
             env = gym.make(env_key)
         env.reset()
@@ -61,7 +61,6 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         
     elif package=='miniworld_vae':
         import gymnasium as gym
-        import miniworld
         env = gym.make(
                     env_key,
                     view="agent",

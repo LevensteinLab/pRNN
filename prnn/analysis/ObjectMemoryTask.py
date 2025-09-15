@@ -33,11 +33,6 @@ class ObjectMemoryTask:
         
         self.testTrial = self.getTestTrial(self.pN_post,self.pN,self.env)
         self.objectLearning = self.quantifyObjectLearning(self.testTrial)
-        
-        
-        
-
-    #def lr_panel
     
     
     def makeObjectEnvironment(self):
@@ -183,9 +178,9 @@ class ObjectMemoryTask:
         deltaobs_ctl = objectLearning['controlloc_deltaobs']
         
         plt.boxplot(deltaobs_goal, showfliers=False, positions = [1.8,1,2.2], 
-                    labels = ['R','G','B'])
+                    label = ['R','G','B'])
         plt.boxplot(deltaobs_ctl, showfliers=False, positions = [4.3,3.5,4.7], 
-                    labels = ['R','G','B'])
+                    label = ['R','G','B'])
         plt.plot(plt.xlim(),[0,0],'k--')
         plt.plot([3,3],plt.ylim(),'k:')
         plt.ylabel('Change in Predicted Observation')

@@ -78,7 +78,7 @@ class linearDecoder:
             h_batch, pos_batch = h_batch.to(device), pos_batch.to(device)
             steploss = self.trainstep(h_batch, pos_batch)
             if (100 * step / numBatches) % 10 == 0 or step == numBatches - 1:
-                print(f"loss: {steploss:>f} [{step:>5d}\{numBatches:>5d}]")
+                print(f"loss: {steploss:>f} [{step:>5d}\n{numBatches:>5d}]")
                 
         print("Training Complete. Back to the cpu")
         self.model.to('cpu')

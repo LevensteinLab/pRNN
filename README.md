@@ -8,6 +8,7 @@ intrinsic reward signal for RL.
 
 This project is managed using [`uv`](https://docs.astral.sh/uv/).
 See [workspace documentation](https://docs.astral.sh/uv/concepts/projects/workspaces).
+A `justfile` is defined to automate common tasks like running files with [`just`](https://github.com/casey/just).
 
 This project utilizes a custom [Minigrid](https://github.com/SabrinaDu7/minigrid) package.
 
@@ -34,6 +35,13 @@ Default values for the training pipeline can be found in ```trainNet.py```. Here
 
 ```bash
 uv run trainNet.py --pRNNtype thcycRNN_5win_full --savefolder thcycRNN_5win_full --noDataLoader
+```
+
+Recipes in the `justfile` can also be used to run training scripts. Note that there are recipes that
+are meant to be used on the Mila Cluster as well. For example:
+
+```bash
+just thRNN-mila
 ```
 
 ## Setup on Mila's cluster

@@ -864,11 +864,12 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
-        if self.wandb_log: #TODO: work out the rest of the logging
-            if calculatesRSA:
-                wandb.log({'mean SI': SI['SI'].mean(), 'sRSA': sRSA, 'SWdist': SWdist})
-            else:
-                wandb.log({'mean SI': SI['SI'].mean()})
+
+        # if self.wandb_log: #TODO: work out the rest of the logging
+        #     if calculatesRSA:
+        #         wandb.log({'mean SI': SI['SI'].mean(), 'sRSA': sRSA, 'SWdist': SWdist})
+        #     else:
+        #         wandb.log({'mean SI': SI['SI'].mean()})
         return place_fields, SI, decoder
 
 

@@ -163,7 +163,7 @@ analysisfolder = 'nets/'+args.savefolder+'/analysis/'+savename
 
 
 run = wandb.init(
-    entity="sabrina-du-mcgill-university",
+    entity="sabrina-du-mila-mila",
     project="curious-george",
 )
 

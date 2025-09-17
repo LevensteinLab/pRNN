@@ -1,16 +1,13 @@
 import os
 import torch
-import hydra
 
 import numpy as np
 import lightning.pytorch as pl
 
-from lightning.pytorch import loggers as pl_loggers
-from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision.transforms import ToTensor
 from PIL import Image
@@ -19,8 +16,14 @@ from omegaconf import DictConfig
 
 
 class VAE(nn.Module):
-    def __init__(self, learning_rate: float, net_config: tuple,
-                 in_channels: int, latent_dim: int, kld_weight=0.005):
+    def __init__(
+        self,
+        learning_rate: float,
+        net_config: tuple,
+        in_channels: int,
+        latent_dim: int,
+        kld_weight=0.005,
+    ):
         super().__init__()
         self.learning_rate = learning_rate
         self.activation = nn.ReLU()
@@ -62,7 +65,9 @@ class VAE(nn.Module):
         self.fc_mu = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
         self.fc_log_var = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
 
-    def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+    def build_decoder(
+        self, n_channels, kernel_sizes, strides, paddings, output_paddings
+    ):
         modules = []
 
         n_channels.reverse()
@@ -97,11 +102,15 @@ class VAE(nn.Module):
     def initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                nn.init.xavier_normal_(m.weight)  # Xavier initialization for convolutional layers
+                nn.init.xavier_normal_(
+                    m.weight
+                )  # Xavier initialization for convolutional layers
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)  # Initialize biases to zero
             elif isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)  # Xavier initialization for linear layers
+                nn.init.xavier_normal_(
+                    m.weight
+                )  # Xavier initialization for linear layers
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)  # Initialize biases to zero
 
@@ -128,14 +137,22 @@ class VAE(nn.Module):
 
     def compute_loss(self, x, x_hat, mu, log_var):
         recons_loss = F.mse_loss(x_hat, x)
-        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        kld_loss = (
+            -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        )
         loss = recons_loss + self.kld_weight * kld_loss
         return {"loss": loss, "reconstruction loss": recons_loss, "kld loss": kld_loss}
 
 
-class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
-    def __init__(self, learning_rate: float, net_config: tuple,
-                 in_channels: int, latent_dim: int, kld_weight=0.005):
+class VarAutoEncoder(pl.LightningModule):  # This is for VAE pretraining
+    def __init__(
+        self,
+        learning_rate: float,
+        net_config: tuple,
+        in_channels: int,
+        latent_dim: int,
+        kld_weight=0.005,
+    ):
         super().__init__()
         self._learning_rate = learning_rate
         self.activation = nn.ReLU()
@@ -177,7 +194,9 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         self.fc_mu = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
         self.fc_log_var = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
 
-    def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+    def build_decoder(
+        self, n_channels, kernel_sizes, strides, paddings, output_paddings
+    ):
         modules = []
 
         n_channels.reverse()
@@ -212,11 +231,15 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
     def initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                nn.init.xavier_normal_(m.weight)  # Xavier initialization for convolutional layers
+                nn.init.xavier_normal_(
+                    m.weight
+                )  # Xavier initialization for convolutional layers
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)  # Initialize biases to zero
             elif isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)  # Xavier initialization for linear layers
+                nn.init.xavier_normal_(
+                    m.weight
+                )  # Xavier initialization for linear layers
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)  # Initialize biases to zero
 
@@ -245,8 +268,10 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         x, _ = batch
         x_hat, mu, log_var = self.forward(x)
         recons_loss = F.mse_loss(x_hat, x)
-        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
-        loss = recons_loss + self.kld_weight*kld_loss
+        kld_loss = (
+            -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        )
+        loss = recons_loss + self.kld_weight * kld_loss
         self.log("train_loss", loss)
         self.log("reconstruction_loss", recons_loss)
         self.log("kl_divergence", kld_loss)
@@ -258,7 +283,12 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
 
 class RatDataModule(pl.LightningDataModule):
     def __init__(
-        self, data_dir: str, config: DictConfig, batch_size: int = 50, num_workers: int = 0, img_size: int = 64
+        self,
+        data_dir: str,
+        config: DictConfig,
+        batch_size: int = 50,
+        num_workers: int = 0,
+        img_size: int = 64,
     ):
         super().__init__()
         self._data_dir = data_dir
@@ -282,8 +312,16 @@ class RatDataModule(pl.LightningDataModule):
             persistent_workers=True if self._num_workers > 0 else False,
         )
 
-def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent,
-                    view='ego', save_traj=True):
+
+def run_random_walk(
+    time: int,
+    dataset_folder_path: str,
+    n_traj: int,
+    env,
+    agent,
+    view="ego",
+    save_traj=True,
+):
     for i in range(n_traj):
         env.reset()
         agent.reset()
@@ -295,13 +333,14 @@ def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent
         pos = env.unwrapped.agent.pos
         direction = env.unwrapped.agent.dir
 
-        traj = agent.generateActionSequence(np.array([pos[0] - 0.5, env.size - pos[2] + 0.5]) / 10,
-                                            direction, time)
+        traj = agent.generateActionSequence(
+            np.array([pos[0] - 0.5, env.size - pos[2] + 0.5]) / 10, direction, time
+        )
 
         for t in tqdm(range(traj.shape[1]), desc=f"Render Images for trajectory #{i}"):
-            if view == 'ego':
+            if view == "ego":
                 render = env.render()
-            elif view == 'top':
+            elif view == "top":
                 render = env.render_top_view()
             else:
                 raise ValueError("view must be either 'ego' or 'top'")

@@ -5,6 +5,7 @@ Created on Thu Feb 10 12:33:40 2022
 
 @author: dl2820
 """
+
 import torch
 from torch import nn
 import numpy as np
@@ -13,7 +14,7 @@ import numpy as np
 class linearDecoder:
     def __init__(self, numUnits, numX):
         """
-        
+
         Parameters
         ----------
         numUnits : Number of units
@@ -21,11 +22,12 @@ class linearDecoder:
 
         """
         self.model = linnet(numUnits, numX)
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-3,
-                                           weight_decay=3e-1)
+        self.optimizer = torch.optim.AdamW(
+            self.model.parameters(), lr=1e-3, weight_decay=3e-1
+        )
         self.loss_fn = nn.CrossEntropyLoss()
-        #self.loss_fun = NLLLoss()   #Because softmax is applied in linnet. 
-                                    #If you change this remove log in trainstep
+        # self.loss_fun = NLLLoss()   #Because softmax is applied in linnet.
+        # If you change this remove log in trainstep
 
     def decode(self, h, withSoftmax=True):
         """
@@ -56,7 +58,7 @@ class linearDecoder:
 
         Parameters
         ----------
-        h : [Nt x Nunits] tensor 
+        h : [Nt x Nunits] tensor
         pos : [Nt x numX] tensor
             The (binned/linearized) spatial position at each timestep
         batchSize : optional
@@ -65,41 +67,41 @@ class linearDecoder:
             How many training steps. Default: 10000
 
         """
-        #Consider: while loss doesn't change or is big enough...
+        # Consider: while loss doesn't change or is big enough...
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if forceDevice:
             device = forceDevice
         self.model.to(device)
-        
-        print(f'Training Decoder on {device}...')
-        for step in range(numBatches): 
-            batch = np.random.choice(pos.shape[0], int(batchSize*pos.shape[0]), replace=False)
-            h_batch, pos_batch = h[batch,:], pos[batch]
+
+        print(f"Training Decoder on {device}...")
+        for step in range(numBatches):
+            batch = np.random.choice(
+                pos.shape[0], int(batchSize * pos.shape[0]), replace=False
+            )
+            h_batch, pos_batch = h[batch, :], pos[batch]
             h_batch, pos_batch = h_batch.to(device), pos_batch.to(device)
             steploss = self.trainstep(h_batch, pos_batch)
             if (100 * step / numBatches) % 10 == 0 or step == numBatches - 1:
                 print(f"loss: {steploss:>f} [{step:>5d}\n{numBatches:>5d}]")
-                
+
         print("Training Complete. Back to the cpu")
-        self.model.to('cpu')
+        self.model.to("cpu")
         return
-    
+
     def trainstep(self, h_train, pos_train):
         """
         One training step of the decoder
         """
         decodedX, p_X = self.decode(h_train, withSoftmax=False)
-        
+
         loss = self.loss_fn(p_X, pos_train)
-        
-        self.optimizer.zero_grad()   #Reset the gradients
-        loss.backward()          #Backprop the gradients w.r.t loss
-        self.optimizer.step()        #Update parameters one step
-        
+
+        self.optimizer.zero_grad()  # Reset the gradients
+        loss.backward()  # Backprop the gradients w.r.t loss
+        self.optimizer.step()  # Update parameters one step
+
         steploss = loss.item()
         return steploss
-
-
 
 
 class linnet(nn.Module):
@@ -107,10 +109,8 @@ class linnet(nn.Module):
         super(linnet, self).__init__()
         self.lin = nn.Sequential(
             nn.Linear(numUnits, numX, bias=False),
-            )
-        
-    def forward(self,x):
+        )
+
+    def forward(self, x):
         logits = self.lin(x)
         return logits
-    
-    

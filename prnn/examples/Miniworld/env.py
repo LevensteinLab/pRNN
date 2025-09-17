@@ -1,20 +1,20 @@
 import math
 
-from abc import ABC
-from typing import Optional
 
 import numpy as np
 from gymnasium import spaces
 from miniworld.entity import Agent, MeshEnt, Entity
 from miniworld.miniworld import MiniWorldEnv
-from miniworld.params import DEFAULT_PARAMS
+
 
 class Goal(Entity):
     def __init__(self, radius=1):
         super().__init__()
         self.radius = radius
+
     def render(self):
         pass
+
 
 class Rat(Agent):
     def __init__(self):
@@ -29,53 +29,59 @@ class Rat(Agent):
 
 
 class LRoom(MiniWorldEnv):
-
-    def __init__(self, continuous=True, size=10,
-                 walls=("brick_wall","brick_wall","brick_wall"),
-                 floors=("asphalt","asphalt","asphalt"),
-                 sheep=False, **kwargs):
+    def __init__(
+        self,
+        continuous=True,
+        size=10,
+        walls=("brick_wall", "brick_wall", "brick_wall"),
+        floors=("asphalt", "asphalt", "asphalt"),
+        sheep=False,
+        **kwargs,
+    ):
         self.size = size
         self.padding = 0.5
         self.continuous = continuous
-        self.target=False
+        self.target = False
         self.walls = walls
         self.floors = floors
         self.sheep = sheep
         super().__init__(self, **kwargs)
 
         if continuous:
-            self.action_space = spaces.Box(low=np.array([0, -1]), high=np.array([1, 1]), shape=(2,))
+            self.action_space = spaces.Box(
+                low=np.array([0, -1]), high=np.array([1, 1]), shape=(2,)
+            )
 
         else:
             # Allow only the movement actions
             self.action_space = spaces.Discrete(self.actions.move_forward + 1)
 
     def _gen_world(self):
-        x_crest = self.size*0.625
-        y_crest = self.size*0.5
+        x_crest = self.size * 0.625
+        y_crest = self.size * 0.5
         room1 = self.add_rect_room(
             min_x=0,
-            max_x=x_crest+1,
+            max_x=x_crest + 1,
             min_z=0,
-            max_z=y_crest+1,
+            max_z=y_crest + 1,
             wall_tex=self.walls[0],
             floor_tex=self.floors[0],
             no_ceiling=True,
         )
         room2 = self.add_rect_room(
-            min_x=x_crest+1,
-            max_x=self.size+1,
+            min_x=x_crest + 1,
+            max_x=self.size + 1,
             min_z=0,
-            max_z=y_crest+1,
+            max_z=y_crest + 1,
             wall_tex=self.walls[1],
             floor_tex=self.floors[1],
             no_ceiling=True,
         )
         room3 = self.add_rect_room(
             min_x=0,
-            max_x=x_crest+1,
-            min_z=y_crest+1,
-            max_z=self.size+1,
+            max_x=x_crest + 1,
+            min_z=y_crest + 1,
+            max_z=self.size + 1,
             wall_tex=self.walls[2],
             floor_tex=self.floors[2],
             no_ceiling=True,
@@ -193,7 +199,9 @@ class LRoom(MiniWorldEnv):
         rand = self.np_random if self.domain_rand else None
 
         # Randomize elements of the world (domain randomization)
-        self.params.sample_many(rand, self, ["sky_color", "light_pos", "light_color", "light_ambient"])
+        self.params.sample_many(
+            rand, self, ["sky_color", "light_pos", "light_color", "light_ambient"]
+        )
 
         # Get the max forward step distance
         self.max_forward_step = self.params.get_max("forward_step")
@@ -267,7 +275,6 @@ class LRoom(MiniWorldEnv):
         #     reward = np.exp(-np.linalg.norm(self.goal.pos - self.agent.pos)/10)
         #     termination = False
         #     truncation = False
-
 
         # else:
         #     reward = 0

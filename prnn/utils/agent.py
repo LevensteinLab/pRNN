@@ -43,7 +43,9 @@ class RandomActionAgent:
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
         longer than act
         """
+        print('Getting observations using RandomActionAgent...')
         act = self.generateActionSequence(tsteps)
+        print('Action sequence generated.')
 
         render = False
         # if reset is False:
@@ -145,14 +147,28 @@ class RatInABoxAgent:
         return obs, act, state, render
     
 
-def create_agent(envname, env, agentname):
-    if 'Lava' in envname:
-        action_probability = np.array([0.15,0.15,0.6,0.1])
-    else:
-        action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
-    if agentname == 'RandomActionAgent':
+class RatInABoxAgentUpdate:
+    def __init__(self, name):
+        self.name = name
+
+    def getObservations(self, shell, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False):
+
+        obs, act, state, render = shell.getObservations(tsteps, reset, includeRender,
+                                                        discretize, inv_x, inv_y, update=True)
+
+        return obs, act, state, render
+    
+
+def create_agent(envname, env, agentkey, agentname):
+    if agentkey == 'RandomActionAgent':
+        if 'LRoom' in envname:
+            action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
+        else:
+            action_probability = np.array([0.15,0.15,0.6,0.1])
         agent = RandomActionAgent(env.action_space, action_probability)
-    elif agentname == 'RatInABoxAgent':
+
+    elif agentkey == 'RatInABoxAgent':
         agent = RatInABoxAgent(name=type(env).__name__)
     return agent
 

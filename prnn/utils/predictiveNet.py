@@ -597,7 +597,7 @@ class PredictiveNet:
                     group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder='',cpu=False):
+    def saveNet(self, savename, savefolder='', cpu=False, dil=False):
         if cpu:
             self.pRNN.to('cpu')
             if type(self.trainArgs) == dict:
@@ -617,14 +617,32 @@ class PredictiveNet:
                             eg_weight_decay=eg_weight_decay)
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
+        # Collect everything else that cannot be pickled
+        if hasattr(self.env_shell, 'pre_save'):
+            tmp = self.env_shell.pre_save()
         # Save the net
-        filename = savefolder+'nets/'+savename+'.pkl'
-        Path(filename).parent.mkdir(parents=True, exist_ok=True)
-        with open(filename,'wb') as f:
-            pickle.dump(self, f)
-        # Restore the iterators
+        if dil:
+                import dill
+                filename = savefolder+'nets/'+savename+'.dill'
+                with open(filename,'wb') as f:
+                    dill.dump(self, f)
+        else:
+            try:
+                filename = savefolder+'nets/'+savename+'.pkl'
+                Path(filename).parent.mkdir(parents=True, exist_ok=True)
+                with open(filename,'wb') as f:
+                    pickle.dump(self, f)
+            except AttributeError:
+                Path(filename).unlink()
+                import dill
+                filename = savefolder+'nets/'+savename+'.dill'
+                with open(filename,'wb') as f:
+                    dill.dump(self, f)
+        # Restore the iterators and other non-picklable attributes
         for i,env in enumerate(self.EnvLibrary):
             env.DL_iterator = iterators[i]
+        if hasattr(self.env_shell, 'post_save'):
+            self.env_shell.post_save(tmp)
         print("Net Saved to pathname")
 
     def copy(self):
@@ -639,11 +657,17 @@ class PredictiveNet:
         return clone
 
 
-    def loadNet(savename, savefolder='', suppressText=False):
+    def loadNet(savename, savefolder='', suppressText=False, wandb_log=False, dil=False):
         #TODO Load in init... from filename
-        filename = savefolder+'nets/'+savename+'.pkl'
-        with open(filename,'rb') as f:
-            predAgent = pickle.load(f)
+        if not dil:
+            filename = savefolder+'nets/'+savename+'.pkl'
+            with open(filename,'rb') as f:
+                predAgent = pickle.load(f)
+        else:
+            import dill
+            filename = savefolder+'nets/'+savename+'.dill'
+            with open(filename,'rb') as f:
+                predAgent = dill.load(f)
         # with open(filename, 'rb') as f:
         #     predAgent = torch.load(f, map_location=torch.device('cpu'), weights_only=False)
         if not hasattr(predAgent, "env_shell"): # backward compatibility for the nets trained before Shell update
@@ -657,6 +681,12 @@ class PredictiveNet:
             predAgent.env_shell.repeats = np.array([1])
         if not hasattr(predAgent.pRNN, "hidden_size"):
             predAgent.pRNN.hidden_size = predAgent.hidden_size
+        if hasattr(predAgent.env_shell, 'post_load'):
+            predAgent.env_shell.post_load()
+        if wandb_log: # Turn wandb_logging on only if wandb.init() has been called
+            predAgent.wandb_log = True
+        else:
+            predAgent.wandb_log = False
         if not suppressText:
             print("Net Loaded from pathname")
         return predAgent

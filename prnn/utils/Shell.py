@@ -1377,7 +1377,7 @@ class RiaBColorsRewardShell(RiaBVisionShell2):
         return image_from_plot
 
     def getObsSize(self):
-        obs_size = np.array((self.vision[0].n * 3, self.Reward.n * self.repeats[1])) * self.repeats**(not self.multiply)
+        obs_size = np.array((self.vision[0].n * 3, self.Reward.n)) * self.repeats**(not self.multiply)
         return obs_size
     
     def reset(self, pos=None, vel=[0,0], seed=False, keep_state=False):
@@ -1434,23 +1434,35 @@ class RiaBColorsGridRewardShell(RiaBVisionShell2): #switching to 2 to test dif s
 
         np.random.seed(seed+101)
         reward_hole_indices = np.random.choice(len(coords_type_0), 3, replace=False)
+        distances = np.linalg.norm(coords_type_0[reward_hole_indices] - self.env.home_pos, axis=1)
+        reward_hole_indices = reward_hole_indices[np.argsort(distances)]
+        closest_reward = coords_type_0[reward_hole_indices][0]
+        #second reward is the one closest to the first reward
+        distances = np.linalg.norm(coords_type_0[reward_hole_indices][1:] - closest_reward, axis=1)
+        second_reward_index = np.argsort(distances)[0] + 1 #+1
+        reward_hole_indices = np.concatenate([[reward_hole_indices[0]], [reward_hole_indices[second_reward_index]], reward_hole_indices[2:]], axis=0)
         reward_positions = coords_type_0[reward_hole_indices]
     
         #Create reward neuron (another place cell hidden behind the barrier) 
+        self.create_rewards(reward_positions)
+        
+        self.reset()
+
+    def create_rewards(self, reward_positions):
+        self.reward_positions = reward_positions
+        #Create reward neurons (another place cell hidden behind the barrier) 
         self.Reward = PlaceCells(
         self.ag,
         params={
             "n": 3,
             "place_cell_centres": np.array(reward_positions),
-            #"description": "top_hat", #commenting out to use gaussian instead
-            "widths": 0.025, 
+            # "description": "top_hat",
+            "widths": 0.025,
             "max_fr": 1,
             "color": "C5",
             "wall_geometry": "euclidean",
         },
         )
-        
-        self.reset()
 
     def getObservations(self, tsteps, reset=True, includeRender=False,
                         discretize=False, inv_x=False, inv_y=False):   
@@ -1978,3 +1990,227 @@ def sample_in_circle(center, radius, rng=np.random):
     theta = rng.uniform(0.0, 2*np.pi)       # angle
     r     = radius * np.sqrt(rng.uniform()) # radius with √ trick
     return np.asarray(center) + np.array([r*np.cos(theta), r*np.sin(theta)])
+
+
+class RiaBColorsGridRewardDirectedShell(RiaBColorsRewardDirectedShell,
+                                        RiaBColorsGridRewardShell):
+    def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins, FoV_params,
+                 Grid_params, seed, SigmaD= 0.1, SigmaA = 2,
+                 repeats = np.array([1,1,1,1]), time_at_reward=1, num_place_cells=200,
+                 training_length = 60000, multiply=False):
+        RiaBColorsGridRewardShell.__init__(self, env, act_enc, env_key, speed, thigmotaxis,
+                                           HDbins, FoV_params, Grid_params,
+                                           SigmaD, SigmaA, seed, repeats, multiply)
+
+        self.time_at_reward = time_at_reward
+
+        self.active_reward_idx  = 0
+        self.success_threshold  = 0.9 #switched from 0.7 to experiment  
+
+        self.total_tsteps = 0 
+        self.total_training_length = training_length
+
+        np.random.seed(seed+1000)
+        n_pc = num_place_cells #run from 200 to 1000
+        self.Inputs = PlaceCells(
+            self.ag,
+            params={
+                "n": n_pc,
+                #"widths": np.random.uniform(0.04, 0.4, size=(n_pc)), #large and small widths
+                "widths": np.random.uniform(0.04, 0.3, size=(n_pc)),
+                "color": "C1",
+            },
+        )
+
+        self.ValNeur = ValueNeuron(
+            self.ag, params={
+                        "input_layers": [self.Inputs], 
+                        "tau": 15, #default was 10, this seems to work better
+                        "eta": 0.001,  
+                        "L2": 0.1,  # L2 regularisation
+                        "activation_function": {"activation": "relu"}, #can try with relu, tanh, softmax etc. see ratinabox/utils.py: activate() for list
+                        "color": "C2",
+                        "n": 4}
+        )
+        w = self.ValNeur.inputs["PlaceCells"]["w"]
+
+        w *= 1e-3
+
+
+        # now set up your max_value tracking as before
+        self.ValNeur.max_value = np.full(self.ValNeur.n, 1e-6)
+
+        self.ag.history["active_reward"] = []
+        
+        self.reset()
+
+
+    def getObservations(self, tsteps, reset=True, includeRender=False,
+                        discretize=False, inv_x=False, inv_y=False, new_curriculum=False,
+                        set_explore_ratio = False, explore_ratio = 0.1, update=False):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+        switches = 0
+
+        render = False # Placeholder for compatibility, actual render is in the 'show_state(_traj)' function
+        if reset:
+            self.reset()
+        # else:
+        #     self.reset(keep_state=True)
+
+        t_at_goal = 0
+
+        if(set_explore_ratio):
+            self.ag.exploit_explore_ratio = explore_ratio
+        for k in range(tsteps):
+
+            if(not set_explore_ratio):
+                self.ag.exploit_explore_ratio = 0.1 + (self.total_tsteps / self.total_training_length) * 0.3 #continuous increase of the exploit/explore ratio
+            gradV = self.get_steep_ascent(self.ag.pos)
+            if gradV is not None:
+                drift_vel = 3 * self.ag.speed_mean * gradV
+            else:
+                drift_vel = None
+                # if the gradient is untrusted, go full random
+
+          
+
+            idx = self.active_reward_idx
+            if(idx == 3):
+                center_x, center_y = self.Reward.place_cell_centres[idx]
+                dir_to_reward = self.Reward.place_cell_centres[idx] - self.ag.pos #cheat to sent it to center
+                drift_vel = (
+                    3 * self.ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
+                )
+            else:
+                center_x, center_y = self.Reward.place_cell_centres[idx]
+                radius = 0.1 
+                dx = self.ag.pos[0] - center_x #x-distance from center
+                dy = self.ag.pos[1] - center_y #y-distance from center
+                if (dx*dx + dy*dy) <= radius*radius: #checks if agent is within radius
+                    dir_to_reward = self.Reward.place_cell_centres[idx] - self.ag.pos #cheat to sent it to center
+                    drift_vel = (
+                        3 * self.ag.speed_mean * (dir_to_reward / np.linalg.norm(dir_to_reward))
+                    )
+
+
+
+            self.ag.update(drift_velocity = drift_vel, drift_to_random_strength_ratio = self.ag.exploit_explore_ratio)
+
+            for v in self.vision:
+                v.update()
+            self.grid.update()
+            self.Reward.update()
+            self.Inputs.update()
+            self.ValNeur.update()
+
+            if update:
+                self.ValNeur.update_weights(reward = self.Reward.firingrate)
+
+            self.ValNeur.max_value = np.maximum(self.ValNeur.max_value, self.ValNeur.firingrate)
+            self.ag.history["active_reward"].append(self.active_reward_idx)
+
+
+            # rotate goal if close enough to the active target
+            if not new_curriculum:
+                if (self.Reward.firingrate[self.active_reward_idx] > self.success_threshold):
+                    t_at_goal += 1
+                    if(t_at_goal > self.time_at_reward): # if the agent is at the goal for more than n timesteps, switch to the next reward
+                        self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
+                        print("Reward channel changed to", self.active_reward_idx)
+                        t_at_goal = 0
+                        switches += 1
+            # self.total_tsteps += 1
+            # if(self.total_tsteps % 10000 == 0):
+            #     print("Exploit/Explore ratio: ", self.ag.exploit_explore_ratio)
+            #     self.ValNeur.plot_rate_map()
+            #     if (k > 0):
+            #         fig, ax = plt.subplots(figsize=(10,10))
+            #         self.show_state_traj(self.total_tsteps - 10000, self.total_tsteps - 1, fig, ax)
+
+
+
+        rot_vel = np.array(self.ag.history['rot_vel'][1:])*self.ag.dt/np.pi
+        vel = np.array(self.ag.history['vel'][1:])*self.ag.dt
+        act = np.concatenate((rot_vel[:,None], vel), axis=1)
+        obs_vis = np.concatenate([np.array(self.vision[i].history["firingrate"])[...,None]\
+                              for i in range(len(self.vision))], axis=-1)
+        obs_vis_inside = obs_vis[..., 1]
+
+                              
+        obs_reward = np.array(self.Reward.history["firingrate"])[:,:3]
+        obs_grid = np.array(self.grid.history["firingrate"])
+        obs = (obs_vis_inside, obs_vis, obs_grid, obs_reward)
+
+        pos = np.array(self.ag.history['pos'])
+        if discretize:
+            # Transform the positions from continuous float coordinates to discrete int coordinates
+            dx = self.env.dx
+            coord = self.env.flattened_discrete_coords
+            dist = get_distances_between(np.array(pos), coord)
+            pos = ((coord[dist.argmin(axis=1)]-dx/2)/dx).astype(int)
+        if inv_x:
+            max_x = np.round(pos[:,0].max())
+            pos[:,0] = max_x - pos[:,0]
+        if inv_y:
+            max_y = np.round(pos[:,1].max())
+            pos[:,1] = max_y - pos[:,1]
+
+        state = {'agent_pos': pos, 
+                 'agent_dir': np.array([get_angle(x) for x in self.ag.history['vel']]),
+                 'mean_vel': self.ag.speed_mean,
+                }
+        
+        # self.all_firing_rates = np.array(self.all_firing_rates)
+
+        print("Number of switches:", switches)
+
+        return obs, act, state, render
+
+
+    def env2pred(self, obs, act=None):
+        return RiaBColorsGridRewardShell.env2pred(self, obs, act)
+    
+
+    def env2np(self, obs, act=None):
+        return RiaBColorsGridRewardShell.env2np(self, obs, act)
+    
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        return RiaBColorsGridRewardShell.pred2np(self, obs, whichPhase, timesteps)
+
+
+    def getObsSize(self):
+        obs_size = np.array((self.vision[0].n, self.vision[0].n * 3, self.grid.n, self.Reward.n-1)) * self.repeats**(not self.multiply)
+        return obs_size
+
+
+    # def pre_save(self):
+    #     tmp = self.ValNeur
+    #     self.ValNeur = (self.ValNeur.params, self.ValNeur.inputs)
+    #     return tmp
+    
+
+    # def post_save(self, tmp):
+    #     self.ValNeur = tmp
+
+
+    # def post_load(self):
+    #     params, inputs = self.ValNeur
+    #     self.ValNeur = ValueNeuron(self.ag, params=params)
+    #     self.ValNeur.inputs = inputs
+    #     self.ValNeur.reset()
+
+    
+    def reset(self, pos=None, vel=[0,0], seed=False, keep_state=False):
+        if not hasattr(self, 'ValNeur'):
+            return
+        RiaBColorsGridRewardShell.reset(self, pos=pos, vel=vel,
+                                        seed=seed, keep_state=keep_state)
+
+        self.active_reward_idx = 0
+        self.ValNeur.reset() 
+        self.Inputs.reset_history()

@@ -113,6 +113,17 @@ def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD', riab_cfg=None,
                                             SigmaD=riab_cfg['sigmaD'],
                                             SigmaA=riab_cfg['sigmaA'], seed=seed,
                                             repeats=repeats, multiply=multiply)
+    
+    elif package=='ratinabox_colors_Reward_Grid_Directed':
+        env = make_rat_env(env_key)
+        env = RiaBColorsGridRewardDirectedShell(env, act_enc, env_key, HDbins=HDbins,
+                                            speed=riab_cfg['speed'],
+                                            thigmotaxis=riab_cfg['thigmotaxis'],
+                                            FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
+                                            Grid_params=Grid_params_default,
+                                            SigmaD=riab_cfg['sigmaD'],
+                                            SigmaA=riab_cfg['sigmaA'], seed=seed,
+                                            repeats=repeats, multiply=multiply)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

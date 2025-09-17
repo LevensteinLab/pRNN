@@ -2,7 +2,6 @@
 __pycache__/
 *.pkl
 *.ipynb_checkpoints/
-*.sh
 *.vscode
 
 slurm*

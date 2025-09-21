@@ -976,7 +976,8 @@ class PredictiveNet:
             decoder.train(h_decoder, pos_decoder, batchSize=0.5, numBatches=numBatches)
 
             def unravel_pos(pos):
-                pos = np.vstack(np.unravel_index(pos, (width, height))).T
+                pos = np.unravel_index(pos, (width, height))
+                pos = np.array(pos).T
                 return pos
 
             def unravel_p(p):

@@ -6,7 +6,6 @@ Created on Tue Jun 14 22:07:04 2022
 @author: dl2820
 """
 
-# %%
 from prnn.utils.predictiveNet import PredictiveNet
 from prnn.utils.agent import create_agent
 from prnn.utils.data import create_dataloader
@@ -15,7 +14,6 @@ from prnn.utils.figures import TrainingFigure
 import argparse
 import wandb
 
-# TODO: get rid of these dependencies
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -243,7 +241,6 @@ run = wandb.init(
 )
 
 
-# %%
 torch.manual_seed(args.seed)
 random.seed(args.seed)
 np.random.seed(args.seed)
@@ -290,13 +287,9 @@ else:
         neuralTimescale=args.ntimescale,
         bptttrunc=args.bptttrunc,
     )
-    predictiveNet.seed = args.seed
-    predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(
         env, agent, savename=savename + "exTrajectory_untrained", savefolder=figfolder
     )
-    predictiveNet.savefolder = args.savefolder
-    predictiveNet.savename = savename
 
     if args.withDataLoader:
         # Separate Data Loader should be created for every environment
@@ -312,7 +305,7 @@ else:
         predictiveNet.useDataLoader = args.withDataLoader
 
 
-# %% Training Epoch
+# Training Epoch
 # Consider these as "trainingparameters" class/dictionary
 numepochs = args.numepochs
 sequence_duration = args.seqdur
@@ -322,7 +315,7 @@ if args.withDataLoader:
 else:
     batchsize = 1
 
-predictiveNet.trainingCompleted = False
+# Training not completed
 if predictiveNet.numTrainingTrials == -1:
     # Calculate initial spatial metrics etc
     print("Training Baseline")
@@ -414,7 +407,7 @@ while predictiveNet.numTrainingEpochs < numepochs:
     plt.close("all")
     predictiveNet.saveNet(args.savefolder + savename)
 
-predictiveNet.trainingCompleted = True
+# Training completed
 TrainingFigure(predictiveNet, savename=savename, savefolder=figfolder)
 
 # If the user doesn't want to save all that training data, delete it except the last one

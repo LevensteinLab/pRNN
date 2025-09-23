@@ -19,7 +19,7 @@ git clone --recurse-submodules -j8 https://github.com/SabrinaDu7/pRNN.git
 cd pRNN/
 
 # Create and activate venv
-uv venv —python 3.10
+uv venv --python 3.10
 source .venv/bin/activate
 
 # Download dependencies from pyproject.toml

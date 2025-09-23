@@ -1,0 +1,18 @@
+defaults:
+  - env: minigrid
+  - _self_
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled
+
+exp_name: ${now:%m-%d_%H-%M-%S}_${env.name}
+seed: 42
+
+wandb:
+  project: curious-george
+  entity: sabrina-du-mila-mila
+  group: ${env.name}
+  name: ${exp_name}
+
+hydra:
+  run:
+    dir: hydra-outputs/${now:%m-%d}/${now:%H-%M-%S}

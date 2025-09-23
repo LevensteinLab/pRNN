@@ -1,0 +1,7 @@
+defaults:
+  - _self_
+
+env_name: MiniGrid-LRoom-16x16-v0
+
+shell:
+  agent_input_type: 'pRNN+PO' # ['FO', 'PO', 'PC+PO', 'h', 'h+PO']

@@ -29,7 +29,7 @@ uv sync
 uv run test/test_imports.py
 ```
 
-## Running training
+## Running pRNN training
 
 Default values for the training pipeline can be found in ```trainNet.py```. Here is an example run:
 
@@ -43,6 +43,15 @@ are meant to be used on the Mila Cluster as well. For example:
 ```bash
 just thRNN-mila
 ```
+
+## Running RL training
+
+Possible inputs the agent can receive:
+
+- FO: full observation (often used as a positive control)
+- PO: partial observation (the same type of input as the pRNN)
+- h: the hidden state of the pRNN
+- h+PO: the hidden state of the pRNN and a partial observation
 
 ## Setup on Mila's cluster
 

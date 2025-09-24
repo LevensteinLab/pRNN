@@ -34,6 +34,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "rust-just>=1.42.4",
+    "pytest>=8.4.2",
 ]
 
 [build-system]
@@ -45,6 +46,17 @@ packages = ["prnn"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["prnn", "test"]
+python_files = ["test_*.py", "test.py"]
+python_functions = ["test_*"]
+addopts = "--durations=5 -m 'not slow'"
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::UserWarning:gymnasium.utils.passive_env_checker",
+]
+markers = ["slow: marks tests as slow to run"]
 
 [tool.ruff]
 include = [

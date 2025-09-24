@@ -1,12 +1,14 @@
 import importlib.util
 
 
-def test_import(package_name):
-    try:
-        importlib.util.find_spec(package_name)
-        print(f"Import of {package_name} successful!")
-    except ImportError:
-        print(f"Failed to import {package_name}")
+def test_import():
+    package_names = ["prnn.utils.predictiveNet", "prnn.analysis.trajectoryAnalysis"]
+    for package_name in package_names:
+        try:
+            importlib.util.find_spec(package_name)
+            print(f"Import of {package_name} successful!")
+        except ImportError:
+            print(f"Failed to import {package_name}")
 
 
 if __name__ == "__main__":

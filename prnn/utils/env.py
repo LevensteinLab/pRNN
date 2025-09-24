@@ -22,7 +22,7 @@ from prnn.examples.RatEnvironment import (
 
 def make_env(
     env_key,
-    package="gym-minigrid",
+    package="farama-minigrid",
     act_enc="OneHotHD",
     speed=0.2,
     thigmotaxis=0.2,
@@ -34,18 +34,7 @@ def make_env(
     encoder=None,
 ):
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
-    if package == "gym-minigrid":
-        import gym
-        from gym_minigrid.wrappers import RGBImgPartialObsWrapper
-
-        if wrap:
-            env = RGBImgPartialObsWrapper(gym.make(env_key), tile_size=1)
-        else:
-            env = gym.make(env_key)
-        env.reset()
-        env = shell.GymMinigridShell(env, act_enc, env_key)
-
-    elif package == "farama-minigrid":
+    if package == "farama-minigrid":
         import gymnasium as gym
 
         if wrap:

@@ -201,7 +201,7 @@ class GymMinigridShell(Shell):
         self.width = self.env.unwrapped.grid.width
         self.continuous = False
         self.max_dist = False
-        self.loc_mask = [x == None or x.can_overlap() for x in env.grid.grid]
+        self.loc_mask = [x == None or x.can_overlap() for x in env.unwrapped.grid.grid]
         self.hd_trans = np.array([-1, 1, 0, 0])
         self.start_pos = 1  # the numbering of occupiable locations starts from this
 

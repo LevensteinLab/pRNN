@@ -14,12 +14,17 @@ class ObjectMemoryTask:
         trial_duration=1000,
         lr_trials=2,
         lr_groups=[0, 1, 2],
+        package:str="farama-minigrid",
+        env_object_name:str="MiniGrid-LRoom_Goal-18x18-v0",
     ):
         self.pN = predictiveNet
+        self.package = package
+        self.env_object_name = env_object_name
 
         self.env_object = self.makeObjectEnvironment()
         self.env = self.pN.EnvLibrary[0]
         self.goal_loc = self.env_object.env.env.env.goal_pos
+        
 
         # Train the decoder
         # if decoder is 'train':
@@ -42,8 +47,7 @@ class ObjectMemoryTask:
         self.objectLearning = self.quantifyObjectLearning(self.testTrial)
 
     def makeObjectEnvironment(self):
-        env_object_name = "MiniGrid-LRoom_Goal-18x18-v0"
-        env_object = make_env(env_object_name)
+        env_object = make_env(env_key=self.env_object_name, package=self.package)
         return env_object
 
     def trainDecoder(self):

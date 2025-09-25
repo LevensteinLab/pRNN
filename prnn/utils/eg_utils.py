@@ -9,22 +9,35 @@ from torch import Tensor
 from torch.nn import RNNCellBase
 from torch.optim.optimizer import Optimizer, required
 
+def get_env_var(name: str) -> Optional[str]:
+    """Retrieves a configuration value from an environment variable or a local file."""
 
-def set_seed_all(seed: int):
-    """
-    Sets all random states
-    """
-    random.seed(seed)
+    env_var = os.environ.get(name)
+    if not env_var:
+        try:
+            name = name.lower()
+            with open(os.path.expanduser(f"~/.{name}"), "r") as f:
+                env_var = f.read().strip()
+        except FileNotFoundError:
+            print(f"Warning: No {name} found")
+            return None
+
+    return env_var
+
+def set_seed(seed: int) -> None:
+    """Sets seed for random number generators."""
     np.random.seed(seed)
+    random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    # When using the CuDNN backend, two further options must be set
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class SplitBias(nn.Module):

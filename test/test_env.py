@@ -1,19 +1,19 @@
 import os
 import numpy as np
 
-from minigrid.envs import LEnv_18_goal
+from minigrid.envs import LEnv_18_goal, LEnv_16_goal
 from prnn.utils.env import make_env
 from prnn.utils.predictiveNet import PredictiveNet
 
 ENV_NAME = "MiniGrid-LRoom_Goal-18x18-v0"
+ENV_CLASS = LEnv_18_goal if '18' in ENV_NAME else LEnv_16_goal
 NET_NAME = "thRNN_5winthRNN_5win--s8_old"
 
-def test_import_lenv_18_goal():
-    """Test that LEnv_18_goal can be imported from minigrid.envs."""
-    assert LEnv_18_goal is not None
-    assert hasattr(LEnv_18_goal, '__init__')
+def test_import_lenv_goal():
+    assert ENV_CLASS is not None
+    assert hasattr(ENV_CLASS, '__init__')
 
-def test_create_lroom18x18_goal_env():
+def test_create_lroom_goal_env():
     env = make_env(ENV_NAME)
     
     # Basic checks
@@ -25,7 +25,7 @@ def test_create_lroom18x18_goal_env():
     
     while hasattr(env, 'env'):
         env = env.env
-    assert isinstance(env, LEnv_18_goal)
+    assert isinstance(env, ENV_CLASS)
 
 def test_env_reset():
     """Test that the environment can be reset successfully."""

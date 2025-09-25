@@ -3,28 +3,45 @@ from prnn.utils.agent import RandomActionAgent
 import numpy as np
 import matplotlib.pyplot as plt
 from prnn.utils.general import saveFig
+from prnn.utils.eg_utils import get_device
+
+DEVICE = get_device()
+PACKAGE = "farama-minigrid"
+
+def get_env_name(env):
+    """Helper method to get the actual environment class name through the wrapper hierarchy."""
+    temp_env = env
+    names = []
+    while temp_env is not None:
+        class_name = type(temp_env).__name__
+        names.append(class_name)
+        if hasattr(temp_env, 'env'):
+            temp_env = temp_env.env
+        else:
+            break
+    return " -> ".join(names)
 
 
 class ObjectMemoryTask:
     def __init__(
         self,
         predictiveNet,
+        env_novel_name:str,
         decoder="train",
         num_trials=100,
         trial_duration=1000,
         lr_trials=2,
         lr_groups=[0, 1, 2],
-        package:str="farama-minigrid",
-        env_object_name:str="MiniGrid-LRoom_Goal-18x18-v0",
+        package:str=PACKAGE,
+        device=DEVICE,
     ):
         self.pN = predictiveNet
         self.package = package
-        self.env_object_name = env_object_name
+        self.env_novel_name = env_novel_name
 
-        self.env_object = self.makeObjectEnvironment()
-        self.env = self.pN.EnvLibrary[0]
-        self.goal_loc = self.env_object.env.env.env.goal_pos
-        
+        self.env_novel = make_env(env_key=self.env_novel_name, package=self.package)
+        self.env_orig = self.pN.EnvLibrary[0]
+        self.goal_loc = self.env_novel.env.env.env.goal_pos
 
         # Train the decoder
         # if decoder is 'train':
@@ -34,21 +51,17 @@ class ObjectMemoryTask:
 
         # Train the network in the object room #Note, copy ExperienceReplayAnalysis
         # approach for multiple learning rates (consider rec and FF learning rates)
+
         self.pN_post = self.trainNovelObject(
-            self.pN,
-            self.env_object,
             num_trials=num_trials,
             sequence_duration=trial_duration,
             lr_trials=lr_trials,
             lrgroups=lr_groups,
+            device=DEVICE,
         )
-
-        self.testTrial = self.getTestTrial(self.pN_post, self.pN, self.env)
+        
+        self.testTrial = self.getTestTrial(self.pN_post, self.pN, self.env_orig)
         self.objectLearning = self.quantifyObjectLearning(self.testTrial)
-
-    def makeObjectEnvironment(self):
-        env_object = make_env(env_key=self.env_object_name, package=self.package)
-        return env_object
 
     def trainDecoder(self):
         env = self.pN.EnvLibrary[0]
@@ -61,27 +74,28 @@ class ObjectMemoryTask:
 
     def trainNovelObject(
         self,
-        pN,
-        env_object,
         num_trials=100,
         sequence_duration=1000,
         lr_trials=2,
         lrgroups=[0, 1, 2],
         resetOptimizer=False,
         continueTraining=False,
+        device=DEVICE,
     ):
+        
         if continueTraining:
             print("continuing training")
-            pN_post = pN
+            pN_post = self.pN
         else:
-            pN_post = pN.copy()
+            pN_post = self.pN.copy()
+            print(f"Network copied. Original environments: {[get_env_name(env) for env in self.pN.EnvLibrary]}")
 
         if resetOptimizer:
             print("resetting optimizer")
             pN_post.resetOptimizer(pN_post.trainArgs.lr, pN_post.trainArgs.weight_decay)
 
         action_probability = np.array([0.15, 0.15, 0.6, 0.1, 0, 0, 0])
-        agent = RandomActionAgent(env_object.action_space, action_probability)
+        agent = RandomActionAgent(self.env_novel.action_space, action_probability)
 
         # print(lr_trials)
         # Update the learning rate
@@ -93,12 +107,12 @@ class ObjectMemoryTask:
             pN_post.optimizer.param_groups[lgroup]["lr"] = oldlr[lidx] * lr_trials[lidx]
 
         pN_post.trainingEpoch(
-            env_object,
+            self.env_novel,
             agent,
             num_trials=num_trials,
             sequence_duration=sequence_duration,
             learningRate=None,
-            forceDevice="cpu",
+            forceDevice=DEVICE,
         )
 
         # Return the learning rate
@@ -190,7 +204,6 @@ class ObjectMemoryTask:
         plt.tight_layout()
         if netname is not None:
             saveFig(plt.gcf(), "ObjectLearning_" + netname, savefolder, filetype="png")
-        # plt.show()
 
     def objPixelChangePanel(self, objectLearning):
         deltaobs_goal = objectLearning["objectloc_deltaobs"]

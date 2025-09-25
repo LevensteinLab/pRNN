@@ -792,6 +792,8 @@ class PredictiveNet:
     def loadNet(savename, savefolder="", suppressText=False):
         # TODO Load in init... from filename
         filename = savefolder + "nets/" + savename + ".pkl"
+        predAgent = None
+        
         with open(filename, "rb") as f:
             predAgent = pickle.load(f)
         if not hasattr(

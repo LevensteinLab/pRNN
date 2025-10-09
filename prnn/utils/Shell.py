@@ -53,12 +53,14 @@ class Shell:
         self.DL_iterator = None
         return iterator
 
+
     def collectObservationSequence(self, agent, tsteps, obs_format='pred',
                                    includeRender=False, discretize=False,
                                    inv_x=False, inv_y=False, seed=None,
                                    dataloader=False, reset=True,
                                    save_env=False, device='cpu',
-                                   compute_loss=False):
+                                   compute_loss=False, render_highlight=True):):
+
         """
         Use an agent (action generator) to collect an observation/action sequence
         In tensor format for feeding to the predictive net
@@ -91,6 +93,7 @@ class Shell:
                                          compute_loss=compute_loss,
                                          from_raw=True)
         else:
+
             obs, act, state, render = agent.getObservations(self,tsteps,
                                                     includeRender=includeRender,
                                                     discretize=discretize,
@@ -106,6 +109,7 @@ class Shell:
                 nps = self.env2np(obs, act, state=state,
                                     device=device, save_env=save_env)
                 obs, act = nps[0], nps[1]
+
                 if save_env:
                     obs_env = nps[2]
         if save_env:

@@ -15,10 +15,12 @@ from gymnasium.core import ObservationWrapper
 from prnn.utils.Shell import *
 from prnn.examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
 
-def make_env(env_key, package='gym-minigrid', act_enc='OnehotHD',
+
+def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
              seed=42, FoV_params=FoV_params_default,
              Grid_params=Grid_params_default, encoder=None):
+
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':

@@ -73,7 +73,7 @@ def SpeedHD(act, obs, numSuppObs = 4, numActs = 7):
     return act
 
 def SpeedNextHD(act, obs, numSuppObs = 4, numActs = 7):
-    act = OneHot(act, obs, numActs = numActs)
+    act = OneHot(act, obs, numActs)
     act[:,:,forwardIDX+1:] = 0
     act[:,:,:forwardIDX] = 0
     act = addHD(act, obs, numSuppObs, suppOffset=True)
@@ -122,4 +122,16 @@ def ContSpeedOnehotHD(act, meanspeed, nbins=12):
     HD = torch.clamp(HD, min=0, max=nbins-1)
     HD = nn.functional.one_hot(HD, num_classes=nbins)
     act = torch.cat((act[...,:-1], HD), dim=-1)
+    return act
+
+def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
+    # Assuming mean_speed of RiaB random agent is V=0.2, correct the resulting speed for 10*V=2
+    speed = torch.tensor(act[0], requires_grad=False, dtype=torch.float32) / 2
+
+    HD = torch.tensor(obs[:-1], requires_grad=False, dtype=torch.float32)
+    HD = (HD*nbins).long()
+    HD = torch.clamp(HD, min=0, max=nbins-1)
+    HD = nn.functional.one_hot(HD, num_classes=nbins)
+    act = torch.cat((speed[:,None], HD), dim=-1)
+    act = torch.unsqueeze(act, dim=0)
     return act

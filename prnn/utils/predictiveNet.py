@@ -18,6 +18,10 @@ import json
 import time
 import random
 from pathlib import Path    
+try:
+    import wandb
+except ImportError:
+    print("wandb not installed, will not log to wandb")
 
 
 import pynapple as nap
@@ -114,6 +118,12 @@ netOptions = {'vRNN' : vRNN,
               'thcycRNN_5win_firstc_adapt' : thcycRNN_5win_firstc_adapt,
               'thcycRNN_5win_fullc_adapt' : thcycRNN_5win_fullc_adapt,
               'thcycRNN_5win_holdc_adapt' : thcycRNN_5win_holdc_adapt,
+              'thcycRNN_5win_first_prevAct' : thcycRNN_5win_first_prevAct,
+              'thcycRNN_5win_full_prevAct' : thcycRNN_5win_full_prevAct,
+              'thcycRNN_5win_hold_prevAct' : thcycRNN_5win_hold_prevAct,
+              'thcycRNN_5win_firstc_prevAct' : thcycRNN_5win_firstc_prevAct,
+              'thcycRNN_5win_fullc_prevAct' : thcycRNN_5win_fullc_prevAct,
+              'thcycRNN_5win_holdc_prevAct' : thcycRNN_5win_holdc_prevAct,
               'thRNN_0win_noLN'  :  thRNN_0win_noLN,
               'thRNN_1win_noLN'  :  thRNN_1win_noLN,
               'thRNN_2win_noLN' : thRNN_2win_noLN,
@@ -124,6 +134,10 @@ netOptions = {'vRNN' : vRNN,
               'sgpRNN_5win'     : sgpRNN_5win,
               'lognRNN_rollout' : lognRNN_rollout,
               'lognRNN_mask' : lognRNN_mask,
+              'multRNN_5win_i01_o01': multRNN_5win_i01_o01,
+              'multRNN_5win_i1_o0': multRNN_5win_i1_o0,
+              'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
+              'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
               }
 
 
@@ -147,7 +161,9 @@ class PredictiveNet:
                  trainNoiseMeanStd=(0,0.03),
                  target_rate=None, target_sparsity=None, decorrelate=False,
                  trainBias=True, identityInit=False, dataloader=False,
-                 **architecture_kwargs):
+                 fig_type='png', train_encoder=False, encoder_grad=False,
+                 enc_loss_weight=1.0, enc_loss_power=1.0,
+                 wandb_log=False, **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -179,11 +195,17 @@ class PredictiveNet:
                             eg_lr=eg_lr, eg_weight_decay=eg_weight_decay)
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0,lambda_hebb=0.02)
+        self.train_encoder = train_encoder
+        self.encoder_grad = encoder_grad # wether to pass the pRNN gradients to the encoder
+        self.enc_loss_weight = enc_loss_weight
+        self.enc_loss_power = enc_loss_power
 
         #Set up the training trackers
         self.TrainingSaver = pd.DataFrame()
         self.numTrainingTrials = -1
         self.numTrainingEpochs = -1
+        self.fig_type = fig_type
+        self.wandb_log = wandb_log
 
         #The homeostatic targets
         self.target_rate = target_rate
@@ -203,9 +225,12 @@ class PredictiveNet:
         Note: state input is used for CANN control in internal functions
         """
         if batched:
-            obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
+            if type(obs) == list:
+                obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
+            else:
+                obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
             act = act.permute(*[i for i in range(1,len(act.size()))],0)
-            shape = (obs.size(-1), 1, self.hidden_size)
+            shape = (act.size(-1), 1, self.hidden_size)
             
         else:
             shape = (1, 1, self.hidden_size)
@@ -256,8 +281,17 @@ class PredictiveNet:
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
         """
+        if self.train_encoder:
+            enc_loss = self.env_shell.loss['loss']
+            self.env_shell.encoder.optimizer.zero_grad() 
+            if not self.encoder_grad:
+                obs = obs.detach()
+        else:
+            enc_loss = 0
 
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
         if with_homeostat:
@@ -269,7 +303,7 @@ class PredictiveNet:
 
         homeoloss, sparsity, meanrate = self.homeostaticLoss(h,target_sparsity,target_rate,decor)
 
-        loss = with_homeostat*homeoloss+predloss   
+        loss = with_homeostat*homeoloss + predloss + self.enc_loss_weight*enc_loss**self.enc_loss_power
 
         if learningRate is not None:
             oldlr = self.optimizer.param_groups[0]['lr']
@@ -279,12 +313,17 @@ class PredictiveNet:
         self.optimizer.zero_grad()  #Clear the gradients
         loss.backward()             #Backpropagate w.r.t the loss
         self.optimizer.step()       #Adjust the parameters
+        if self.train_encoder:
+            self.env_shell.encoder.optimizer.step()
         
         if learningRate is not None:
             self.optimizer.param_groups[0]['lr'] = oldlr
 
         steploss = predloss.item()
-        self.recordTrainingTrial(steploss)
+        if self.train_encoder:
+            self.recordTrainingTrial(steploss, enc_loss)
+        else:
+            self.recordTrainingTrial(steploss)
 
         return steploss, sparsity, meanrate
     
@@ -371,19 +410,22 @@ class PredictiveNet:
         return homeoloss, sparsity.mean().item(), meanrate.mean().item()
 
 
-    def collectObservationSequence(self, env, agent, tsteps, batch_size=1,
+    def collectObservationSequence(self, env, agent, tsteps,
                                    obs_format='pred', includeRender=False,
                                    discretize=False, inv_x=False, inv_y=False,
-                                   seed = None, dataloader=False):
+                                   seed = None, dataloader=False, device='cpu',
+                                   compute_loss=False):
         """
         A placeholder for backward compatibility, actual function is moved to Shell
         """
         obs, act, state, render = env.collectObservationSequence(agent, tsteps,
-                                                                batch_size, obs_format,
+                                                                obs_format,
                                                                 includeRender,
                                                                 discretize, inv_x, inv_y,
                                                                 seed,
-                                                                dataloader=dataloader)
+                                                                dataloader=dataloader,
+                                                                device=device,
+                                                                compute_loss=compute_loss)
 
         return obs, act, state, render
 
@@ -392,13 +434,18 @@ class PredictiveNet:
                             sequence_duration=2000, num_trials=100,
                             with_homeostat=False,
                             learningRate=None,
-                            forceDevice=None,
-                            batch_size=1):
+                            forceDevice=None):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if forceDevice is not None:
             device = forceDevice
         self.pRNN.to(device)
+        if hasattr(self.env_shell, 'encoder'):
+            self.env_shell.encoder.to(device)
+            if not self.train_encoder:
+                self.env_shell.encoder.eval()
+            else:
+                self.env_shell.encoder.train()
         print(f'Training pRNN on {device}...')
             
         # c=100
@@ -407,8 +454,13 @@ class PredictiveNet:
             obs,act,_,_ = self.collectObservationSequence(env, 
                                                           agent, 
                                                           sequence_duration,
-                                                          dataloader=self.useDataLoader)
-            obs,act = obs.to(device),act.to(device)
+                                                          dataloader=self.useDataLoader,
+                                                          device=device,
+                                                          compute_loss=self.train_encoder)
+            try:
+                obs,act = obs.to(device),act.to(device)
+            except(AttributeError):
+                obs, act = [o.to(device) for o in obs], act.to(device)
             steploss, sparsity, meanrate = self.trainStep(obs,act, 
                                                           with_homeostat,
                                                           learningRate=learningRate,
@@ -424,6 +476,9 @@ class PredictiveNet:
         
         self.numTrainingEpochs +=1
         self.pRNN.to('cpu')
+        if hasattr(self.env_shell, 'encoder'):
+            self.env_shell.encoder.to('cpu')
+            self.env_shell.encoder.eval()
         print("Epoch Complete. Back to the cpu")
 
 
@@ -452,13 +507,19 @@ class PredictiveNet:
         print("Epoch Complete. Back to the cpu")
 
 
-    def recordTrainingTrial(self,loss):
+    def recordTrainingTrial(self, loss, enc_loss=None):
         self.numTrainingTrials += 1 #Increase the counter
-        newTrial = pd.DataFrame({'loss':loss}, index=[0])#, 'learning_rate':self.learningRate}
+        newTrial = pd.DataFrame({'loss':loss}, index=[0])
         try:
             self.TrainingSaver = pd.concat((self.TrainingSaver,newTrial), ignore_index=True)
         except:
             self.TrainingSaver = pd.concat((self.TrainingSaver.to_frame(),newTrial), ignore_index=True)
+        if self.wandb_log: 
+        # Encoder loss is logged only in W&B
+            if enc_loss is not None:
+                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 'encoder loss':enc_loss})
+            else:
+                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss})
         return
 
     def addTrainingData(self,key,data):
@@ -564,17 +625,29 @@ class PredictiveNet:
                     group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder=''):
+    def saveNet(self,savename,savefolder='',cpu=False):
+        if cpu:
+            self.pRNN.to('cpu')
+            self.resetOptimizer(self.learningRate, self.weight_decay,
+                            trainBias=self.trainArgs.trainBias,
+                            bias_lr=self.trainArgs.bias_lr,
+                            eg_lr=self.trainArgs.eg_lr,
+                            eg_weight_decay=self.trainArgs.eg_weight_decay)
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
+        # Collect everything else that cannot be pickled
+        if hasattr(self.env_shell, 'pre_save'):
+            tmp = self.env_shell.pre_save()
         # Save the net
         filename = savefolder+'nets/'+savename+'.pkl'
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         with open(filename,'wb') as f:
             pickle.dump(self, f)
-        # Restore the iterators
+        # Restore the iterators and other non-picklable attributes
         for i,env in enumerate(self.EnvLibrary):
             env.DL_iterator = iterators[i]
+        if hasattr(self.env_shell, 'post_save'):
+            self.env_shell.post_save(tmp)
         print("Net Saved to pathname")
 
     def copy(self):
@@ -601,6 +674,8 @@ class PredictiveNet:
                                                             predAgent.encodeAction.__name__,
                                                             predAgent.trainArgs.env)
             predAgent.env_shell = predAgent.EnvLibrary[0]
+        if not hasattr(predAgent.pRNN, "hidden_size"):
+            predAgent.pRNN.hidden_size = predAgent.hidden_size
         if not suppressText:
             print("Net Loaded from pathname")
         return predAgent
@@ -615,7 +690,8 @@ class PredictiveNet:
                                        sleepstd = 0.1, onsetTransient=20,
                                        activeTimeThreshold=200,
                                        fullRNNstate=False,
-                                       HDinfo=False):
+                                       HDinfo=False,
+                                       wandb_nameext=''):
         """
         Use an agent to calculate spatial representation of an environment
         """
@@ -661,18 +737,23 @@ class PredictiveNet:
             HD = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
                             d = state['agent_dir'][onsetTransient:-1],
                             columns = ('HD'), time_units = 's')
+            nb_bins, minmax = env.get_HD_bins()
             HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(rates,HD,
                                                                     ep=rates.time_support,
-                                                                    nb_bins=np.max(HD)+1,
-                                                                    minmax=(np.min(HD)-0.5,np.max(HD)+0.5))
+                                                                    nb_bins=nb_bins,
+                                                                    minmax=minmax)
             HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
                                             bitssec=bitsec)
             SI['HDinfo'] = HD_info['SI']
 
 
         if inputControl:
+            if self.env_shell.n_obs == 1:
+                d = obs.squeeze().detach().numpy()[onsetTransient:-1,:]
+            else:
+                d = np.concatenate([o.squeeze().detach().numpy()[onsetTransient:-1,:] for o in obs], axis=-1)
             rates_input = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
-                                 d = obs.squeeze().detach().numpy()[onsetTransient:-1,:], time_units = 's')
+                                 d = d, time_units = 's')
             pf_input,xy = nap.compute_2d_tuning_curves_continuous(rates_input,position,
                                                                   ep=rates.time_support,
                                                                   nb_bins=(nb_bins_x, nb_bins_y),
@@ -705,7 +786,10 @@ class PredictiveNet:
                                                     metric='cosine')
             
             #EV_s
-            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,place_fields)
+            FAKEinputdata = STA.makeFAKEdata(WAKEactivity,
+                                             place_fields,
+                                             n_obs=self.env_shell.n_obs,
+                                             start_pos=self.env_shell.start_pos)
             EVs = FAKEinputdata['TCcorr']
             if saveTrainingData:
                 self.addTrainingData('sRSA',sRSA)
@@ -770,6 +854,14 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
+        if self.wandb_log: #TODO: work out the rest of the logging
+            keys_unmodified = ['mean SI', 'sRSA', 'SWdist']
+            log_keys = [key + wandb_nameext for key in keys_unmodified]
+            if calculatesRSA:
+                wandb.log({log_keys[0]: SI['SI'].mean(), log_keys[1]: sRSA, 
+                           log_keys[2]: SWdist})
+            else:
+                wandb.log({log_keys[0]: SI['SI'].mean()})
         return place_fields, SI, decoder
 
 
@@ -846,6 +938,8 @@ class PredictiveNet:
                                                                         seed=seed
                                                                         )
         obs_pred, obs_next, h  = self.predict(obs,act)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[1]
         
         k=0
         if hasattr(self.pRNN,'k'):
@@ -855,7 +949,10 @@ class PredictiveNet:
             h = h[0:1,:,:]
         elif rolloutdim=='mean':
             h = torch.mean(h,dim=0,keepdims=True)
-        obs_pred = obs_pred[0:1,:,:]
+        if type(obs_pred) == list:  
+            obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+        else:
+            obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
         ##FIX ABOVE HERE FOR K
         
@@ -903,7 +1000,9 @@ class PredictiveNet:
         #Consider - separate file for the more compound plots
         obs,act,state, render  = self.collectObservationSequence(env,agent,timesteps,
                                                            includeRender = True)
-        obs_pred, obs_next ,h = self.predict(obs,act)
+        obs_pred, obs_next, h = self.predict(obs,act)
+        if type(obs_pred) == tuple:
+            obs_pred = obs_pred[1]
 
         decoded = None
         if decoder:
@@ -919,7 +1018,10 @@ class PredictiveNet:
         #h = h[0:1,:,:]
         h = torch.mean(h,dim=0,keepdims=True) #this is what's used to train the decoder...
         if obs_pred is not None:
-            obs_pred = obs_pred[0:1,:,:]
+            if type(obs_pred) == list:  
+                obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+            else:
+                obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
         ##FIX ABOVE HERE FOR K
             
@@ -944,6 +1046,7 @@ class PredictiveNet:
         #Consider - separate file for the more compound plots
         obs_pred,h,noise_t = self.spontaneous(timesteps,noisemag,noisestd)
 
+        decoded = None
         p = None
         if decoder:
             decoded, p = self.decode(h,decoder)
@@ -974,7 +1077,7 @@ class PredictiveNet:
 
             if savename is not None:
                 saveFig(plt.gcf(),savename+'_SpontaneousTrajectory',savefolder,
-                        filetype='png')
+                        filetype=self.fig_type)
             plt.show()
 
         return decoded
@@ -1011,12 +1114,11 @@ class PredictiveNet:
         numtimesteps = len(timesteps)
         
         
-        obs = self.env_shell.pred2np(obs[:,timesteps,...])
+        obs = self.env_shell.pred2np(obs, timesteps=timesteps)
         if obs_pred is not None:
-            obs_pred = self.env_shell.pred2np(obs_pred[:,timesteps,...])
+            obs_pred = self.env_shell.pred2np(obs_pred, timesteps=timesteps)
         if obs_next is not None:
-            obs_next = self.env_shell.pred2np(obs_next[:,timesteps,...])
-        #obs_next = self.pred2np(obs_next[:,timesteps,...])
+            obs_next = self.env_shell.pred2np(obs_next, timesteps=timesteps)
 
         #figure bigger, get rid of axis numbers, add labels
         fig = plt.figure(figsize=(10,10))
@@ -1084,7 +1186,7 @@ class PredictiveNet:
                 plt.subplot(6,numtimesteps,3*numtimesteps+tt+1+2*numtimesteps)
                 plt.imshow(np.log10(p_decode[timesteps[tt],:,:].transpose()),
                            interpolation='nearest',alpha = mask.transpose(),
-                          cmap='bone',vmin=-3.25,vmax=0)
+                           cmap='bone',vmin=-3.25,vmax=0)
                 if state is not None:
                     plt.plot(state['agent_pos'][timesteps[tt],0],
                              state['agent_pos'][timesteps[tt],1],
@@ -1102,14 +1204,15 @@ class PredictiveNet:
             if h is not None:
                 plt.subplot(6,numtimesteps,3*numtimesteps+tt+1+2*numtimesteps)
                 plt.scatter(self.pRNN.locations[0][:,0],
-                         -self.pRNN.locations[0][:,1],s=15,c=h[timesteps[tt],:])
+                            -self.pRNN.locations[0][:,1],s=15,c=h[timesteps[tt],:])
                 plt.xticks([])
                 plt.yticks([])
 
         if savename is not None:
-            #plt.savefig(savename+'_ObservationSequence.png',format='png')
             saveFig(plt.gcf(),savename+'_ObservationSequence',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
+        if self.wandb_log:
+            wandb.log({'Observation Sequence': wandb.Image(plt.gcf())})
         plt.show()
 
         return
@@ -1133,9 +1236,8 @@ class PredictiveNet:
         #plt.xticks([0,self.numTrainingTrials+1])
 
         if savename is not None:
-            #plt.savefig(savename+'_LerningCurve.png',format='png')
             saveFig(fig,savename+'_LearningCurve',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         if axis is None:
             plt.show()
 
@@ -1230,13 +1332,14 @@ class PredictiveNet:
                                 interpolation='nearest',alpha=mask.transpose())
                     ax[x,y].axis('off')
                     if SI is not None:
-                        ax[x,y].text(0, 3, f"{SI[idx][0]:0.1}", fontsize=10,color='r')
-                except:
+                        ax[x,y].text(0, 3, f"{SI[idx]:0.1}", fontsize=10,color='r')
+                except Exception as e:
+                    print('Tuning curve panel is not finished because of: ' + str(e))
                     break
 
         if savename is not None:
             saveFig(fig,savename+'_TuningCurves',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
 
         if nofig:
             plt.show()
@@ -1275,7 +1378,7 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig,savename+'_DelayDist',savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
 
         return dd

@@ -5,11 +5,14 @@
 __pycache__/
 *.pkl
 *.ipynb_checkpoints/
+*.sh
+*.vscode
 
 slurm*
 
 Data/*
 nets/*
+Figures/*
 
-test.ipynb
-train_example_net.sh
+prnn/analysis/TuningCurveAnalysis.py
+trainNet_prnn.py

@@ -38,7 +38,8 @@ class representationalGeometryAnalysis:
                  SIdependence=True, spacemetric = 'euclidean',
                  actRSA = True, obsRSA=True, HDRSA = True, theta = 'expand',
                  agent = False, start_pos = 1, mapcenter = [18,18],
-                 discretize = False, inv_x = False, inv_y = False):
+                 discretize = False, inv_x = False, inv_y = False,
+                 fig_type = 'png'):
         self.pN = predictiveNet
         
         env = predictiveNet.EnvLibrary[0]
@@ -46,6 +47,7 @@ class representationalGeometryAnalysis:
         self.max_dist = env.max_dist
         self.start_pos = start_pos # the numbering of occupiable locations starts from this
         self.mapcenter = mapcenter
+        self.fig_type = fig_type
         
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:
@@ -160,7 +162,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel('position')
 
         saveFig(plt.gcf(),'ActionRSA_'+netname,savefolder,
-                filetype='png')
+                filetype=self.fig_type)
         plt.show()
     
     def getActionIDs(self,keepIDX=None):
@@ -185,7 +187,7 @@ class representationalGeometryAnalysis:
                                                             obs_format=None,
                                                             discretize=discretize,
                                                             inv_x=inv_x, inv_y=inv_y)
-        a['obs'],a['act'] = env.env2pred(a['obs_env'],a['act_env'])
+        a['obs'],a['act'] = env.env2pred(a['obs_env'],a['act_env'],a['state'])
         a['obs_pred'], a['obs_next'], h = self.pN.predict(a['obs'],a['act'])
         
         if theta == 'mean':
@@ -588,7 +590,7 @@ class representationalGeometryAnalysis:
         
         if netname is not None:
             saveFig(plt.gcf(),'SIDependence_'+netname,savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
         
     def isomapPanel3d(self, colorvar='position', rotate=(0,0)):
@@ -701,7 +703,7 @@ class representationalGeometryAnalysis:
             self.isomapPanel()
         if netname is not None:
             saveFig(plt.gcf(),'SpatialRSA_'+netname,savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
         plt.show()
     
     @staticmethod
@@ -782,7 +784,7 @@ class representationalGeometryAnalysis:
         #plt.tight_layout()
         if savefolder is not None:
             saveFig(plt.gcf(), 'WakeSleepDistance_'+netname, savefolder,
-                    filetype='png')
+                    filetype=self.fig_type)
 
         plt.show()
         
@@ -816,7 +818,7 @@ class representationalGeometryAnalysis:
 
         plt.tight_layout()
         saveFig(plt.gcf(),'AllRSA_'+netname,savefolder,
-                filetype='png')
+                filetype=self.fig_type)
         plt.show()
 
     def hillFitPanel(self, hill_fit, color='k', datalabel='Data'):

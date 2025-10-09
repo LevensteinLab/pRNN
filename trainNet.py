@@ -21,6 +21,7 @@ from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
 
 #TODO: get rid of these dependencies
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -208,9 +209,11 @@ else:
     if args.withDataLoader:
         # Separate Data Loader should be created for every environment
         create_dataloader(env, agent, args.dataNtraj, args.seqdur,
-                          args.datadir, args.batchsize, args.numworkers)
+                          args.datadir, generate=True,
+                          tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'),
+                          batch_size=args.batchsize, 
+                          num_workers=args.numworkers)
         predictiveNet.useDataLoader = args.withDataLoader
-
 
 
 #%% Training Epoch
@@ -233,16 +236,16 @@ if predictiveNet.numTrainingTrials == -1:
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
-    # place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
-    #                                               trainDecoder=True,saveTrainingData=True,
-    #                                               bitsec= False,
-    #                                               calculatesRSA = True, sleepstd=0.03)
-    # predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    # print('Calculating Decoding Performance...')
-    # predictiveNet.calculateDecodingPerformance(env,agent,decoder,
-    #                                             savename=savename, savefolder=figfolder,
-    #                                             saveTrainingData=True)
-    # predictiveNet.plotDelayDist(env, agent, decoder)
+    place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
+                                                  trainDecoder=True,saveTrainingData=True,
+                                                  bitsec= False,
+                                                  calculatesRSA = True, sleepstd=0.03)
+    predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
+    print('Calculating Decoding Performance...')
+    predictiveNet.calculateDecodingPerformance(env,agent,decoder,
+                                                savename=savename, savefolder=figfolder,
+                                                saveTrainingData=True)
+    #predictiveNet.plotDelayDist(env, agent, decoder)
 
 #TODO: Put in time counter here and ETA...
 #TODO: take this out later. for backwards compatibility
@@ -269,23 +272,23 @@ while predictiveNet.numTrainingEpochs<numepochs:
     #predictiveNet.plotSampleTrajectory(env,agent,savename=savename,savefolder=figfolder)
     predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
     #SpontTrajectoryFigure(predictiveNet,decoder,noisestd=0.2,noisemag=0,
-    #                      savename=savename, savefolder=figfolder)
-    OTA = OfflineTrajectoryAnalysis(predictiveNet, actionAgent=agent, noisestd=0.03,
-                                    withTransitionMaps=not env.continuous, wakeAgent=agent,
-                                    decoder=decoder, calculateViewSimilarity=True)
-    OTA.SpontTrajectoryFigure(savename+'_query', figfolder)
-    predictiveNet.addTrainingData('replay_alpha', OTA.diffusionFit['alpha'])
-    predictiveNet.addTrainingData('replay_int', OTA.diffusionFit['intercept'])
-    predictiveNet.addTrainingData('replay_view', OTA.ViewSimilarity['meanstd_sleep'][0][0])
+    # #                      savename=savename, savefolder=figfolder)
+    # OTA = OfflineTrajectoryAnalysis(predictiveNet, actionAgent=agent, noisestd=0.03,
+    #                                 withTransitionMaps=not env.continuous, wakeAgent=agent,
+    #                                 decoder=decoder, calculateViewSimilarity=True)
+    # OTA.SpontTrajectoryFigure(savename+'_query', figfolder)
+    # predictiveNet.addTrainingData('replay_alpha', OTA.diffusionFit['alpha'])
+    # predictiveNet.addTrainingData('replay_int', OTA.diffusionFit['intercept'])
+    # predictiveNet.addTrainingData('replay_view', OTA.ViewSimilarity['meanstd_sleep'][0][0])
     
-    OTA = OfflineTrajectoryAnalysis(predictiveNet, noisestd=0.03,
-                               decoder=decoder, calculateViewSimilarity=True,
-                               wakeAgent=agent, withAdapt=True,
-                               b_adapt = 0.3, tau_adapt=8)
-    OTA.SpontTrajectoryFigure(savename+'_adapt',figfolder)
-    predictiveNet.addTrainingData('replay_alpha_adapt',OTA.diffusionFit['alpha'])
-    predictiveNet.addTrainingData('replay_int_adapt',OTA.diffusionFit['intercept'])
-    predictiveNet.addTrainingData('replay_view_adapt',OTA.ViewSimilarity['meanstd_sleep'][0][0])
+    # OTA = OfflineTrajectoryAnalysis(predictiveNet, noisestd=0.03,
+    #                            decoder=decoder, calculateViewSimilarity=True,
+    #                            wakeAgent=agent, withAdapt=True,
+    #                            b_adapt = 0.3, tau_adapt=8)
+    # OTA.SpontTrajectoryFigure(savename+'_adapt',figfolder)
+    # predictiveNet.addTrainingData('replay_alpha_adapt',OTA.diffusionFit['alpha'])
+    # predictiveNet.addTrainingData('replay_int_adapt',OTA.diffusionFit['intercept'])
+    # predictiveNet.addTrainingData('replay_view_adapt',OTA.ViewSimilarity['meanstd_sleep'][0][0])
 
 
     plt.show()

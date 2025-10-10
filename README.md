@@ -4,6 +4,7 @@
 
 Install pRNN package (with torch):
 
+Navigate to the repository folder on your machine. Then,
 ```
 pip install -e . 
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir

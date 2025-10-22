@@ -276,7 +276,8 @@ class PredictiveNet:
                   with_homeostat = False,
                   learningRate=None,
                   mask=None,
-                  batched=False):
+                  batched=False,
+                  log_loss_statistics=False):
         """
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
@@ -293,6 +294,14 @@ class PredictiveNet:
         if type(obs_pred) == tuple:
             obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
+
+        if log_loss_statistics:
+            with torch.no_grad():
+                MSEs = ((obs_pred.squeeze(0) - obs_next.squeeze(0)) ** 2).mean(dim=1)
+                MSEs = MSEs.detach().cpu().numpy()
+                loss_maxminstd = {'pRNN loss max': MSEs.max(), 'pRNN loss min': MSEs.min(),'pRNN loss std': MSEs.std()}
+        else:
+            loss_maxminstd = None
 
         if with_homeostat:
             target_sparsity = self.target_sparsity
@@ -321,9 +330,9 @@ class PredictiveNet:
 
         steploss = predloss.item()
         if self.train_encoder:
-            self.recordTrainingTrial(steploss, enc_loss)
+            self.recordTrainingTrial(steploss, loss_maxminstd, enc_loss)
         else:
-            self.recordTrainingTrial(steploss)
+            self.recordTrainingTrial(steploss, loss_maxminstd)
 
         return steploss, sparsity, meanrate
     
@@ -507,19 +516,36 @@ class PredictiveNet:
         print("Epoch Complete. Back to the cpu")
 
 
-    def recordTrainingTrial(self, loss, enc_loss=None):
+    def recordTrainingTrial(self, loss, loss_maxminstd=None, enc_loss=None):
         self.numTrainingTrials += 1 #Increase the counter
         newTrial = pd.DataFrame({'loss':loss}, index=[0])
         try:
             self.TrainingSaver = pd.concat((self.TrainingSaver,newTrial), ignore_index=True)
         except:
             self.TrainingSaver = pd.concat((self.TrainingSaver.to_frame(),newTrial), ignore_index=True)
+
+        if loss_maxminstd is not None:
+            loss_max = loss_maxminstd['pRNN loss max']
+            loss_min = loss_maxminstd['pRNN loss min']
+            loss_std = loss_maxminstd['pRNN loss std']
+
         if self.wandb_log: 
         # Encoder loss is logged only in W&B
-            if enc_loss is not None:
-                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 'encoder loss':enc_loss})
+            if loss_maxminstd is not None:
+                if enc_loss is not None:
+                    wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 
+                            'pRNN loss max': loss_max, 'pRNN loss min': loss_min,
+                            'pRNN loss std': loss_std, 'encoder loss':enc_loss})
+                else:
+                    wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss,
+                            'pRNN loss max': loss_max, 'pRNN loss min': loss_min,
+                            'pRNN loss std': loss_std})
             else:
-                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss})
+                if enc_loss is not None:
+                    wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss,
+                            'encoder loss':enc_loss})
+                else:
+                    wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss})
         return
 
     def addTrainingData(self,key,data):

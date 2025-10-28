@@ -33,7 +33,7 @@ class thetaRNNLayer(nn.Module):
     forward method inputs:
     input  [1 x sequence x neuron] (optional if internal provided)
     internal [theta x sequence x neuron] (optional if input provided)
-    state [DL fill this in] (optional)
+    state [#TODO: DL fill this in] (optional)
     """
     def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False, **cell_kwargs):
         super(thetaRNNLayer, self).__init__()
@@ -150,7 +150,7 @@ class RNNCell(nn.Module):
     #@jit.script_method
     def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tensor:
         hx = state[0]
-        i_input = torch.mm(input, self.weight_ih.t())
+        i_input = torch.mm(input, self.weight_ih.t()) #TODO: is matrix multiply necessary here, or can we use @
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input
         hy = self.actfun(x + internal + self.bias)
@@ -359,6 +359,9 @@ class SparseGatedRNNCell(nn.Module):
 
 
 #class LayerNorm(jit.ScriptModule):
+
+#TODO musig could probably be separated, not sure why they're together in one tuple
+#TODO add learnable parameters into LayerNorm? right now it's static
 class LayerNorm(nn.Module):
     def __init__(self, normalized_shape, musig):
         super(LayerNorm, self).__init__()

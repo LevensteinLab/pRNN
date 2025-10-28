@@ -175,7 +175,7 @@ class AdaptingRNNCell(nn.Module):
         hidden_size (int): length of hidden state
         musig (Tuple[float, float]): length of state
     Returns:
-        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy, and adaptation, ay
 
     """
     def __init__(self, input_size, hidden_size, musig=None, **kwargs):
@@ -213,6 +213,17 @@ class AdaptingRNNCell(nn.Module):
 
 #class LayerNormRNNCell(jit.ScriptModule):
 class LayerNormRNNCell(nn.Module):
+    """
+    Extends RNNCell to apply LayerNorm before activation function is applied...
+
+     Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy, and adaptation, ay
+
+    """
     def __init__(self, input_size, hidden_size, musig=[0,1], **kwargs):
         super(LayerNormRNNCell, self).__init__()
         self.input_size = input_size
@@ -225,7 +236,7 @@ class LayerNormRNNCell(nn.Module):
         self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
         self.weight_hh = Parameter(torch.rand(hidden_size, hidden_size)*2*rootk_h-rootk_h)
         
-        self.layernorm = LayerNorm(hidden_size,musig)
+        self.layernorm = LayerNorm(hidden_size,musig) # LayerNorm class doesn't include learnable Parameters, but they are defined in this class
         
         self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
         self.bias = self.layernorm.mu
@@ -239,13 +250,23 @@ class LayerNormRNNCell(nn.Module):
         hx = state[0]
         i_input = torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())
-        x = self.layernorm(i_input + h_input)
+        x = self.layernorm(i_input + h_input) # apply normalization before activation function
         hy = self.actfun(x + internal)
         return hy, (hy,)
 
 
 
+#TODO: multiple inheritance from AdaptingRNNCell and LayerNormRNNCell?
 class AdaptingLayerNormRNNCell(nn.Module):
+    """
+    Extends AdaptingRNNCell and LayerNormRNNCell; uses both LayerNorm'd and the adaptation factor when calculating next hidden state, ay
+    Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy, and adaptation, ay 
+    """
     def __init__(self, input_size, hidden_size, musig=[0,1], **kwargs):
         super(AdaptingLayerNormRNNCell, self).__init__()
         self.input_size = input_size
@@ -276,6 +297,7 @@ class AdaptingLayerNormRNNCell(nn.Module):
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input
         x = self.layernorm(i_input + h_input)
+
         # TODO check time indices
         ay = ax * (1-1/self.tau_a) + self.b/self.tau_a *hx
         hy = self.actfun(x + internal - ax)
@@ -283,6 +305,16 @@ class AdaptingLayerNormRNNCell(nn.Module):
 
 
 class LogNRNNCell(nn.Module):
+    """
+    Extends RNNCell and initializes weights with sparse-lognormal scheme.
+
+     Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy, and adaptation, ay
+    """
     def __init__(self, input_size, hidden_size, musig=[0,1], mean_std_ratio=1., sparsity=1.):
         super(LogNRNNCell, self).__init__()
         self.input_size = input_size
@@ -327,6 +359,22 @@ class LogNRNNCell(nn.Module):
 
 #TODO: put musig after sparse size/beta, pass through with args or kwargs
 class SparseGatedRNNCell(nn.Module):
+    """
+    Extends RNNCell. Initializes with Xavier scheme and uses LayerNorm, but uses Sparse gate in hidden state update.
+
+     Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+        sparse_size (int): ???
+        sparse_beta (int): ???
+        lambda_direct (int): ???
+        lambda_context (int): ???
+        lambda_sparse (int): ???
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
+
+    """
     def __init__(self, input_size, hidden_size, 
                  musig=[0,1], sparse_size=1000, sparse_beta=1,
                  lambda_direct=1, lambda_context=1, lambda_sparse=1):

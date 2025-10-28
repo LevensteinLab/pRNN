@@ -120,26 +120,32 @@ class thetaRNNLayer(nn.Module):
         
         state = torch.unsqueeze(state[0],0) #To match RNN builtin
         return torch.stack(outputs,1), state
-        
-        
-        
 
 #class RNNCell(jit.ScriptModule):
 class RNNCell(nn.Module):
+    """
+    Parent class that defines the base recurrent cell in the predictive RNN...
+    This class initializes two weight matrices (one from input --> hidden and one from hidden --> hidden),
+    a bias term, and an activation function of choice.
+
+    Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
+    """
     def __init__(self, input_size, hidden_size, musig=None, **kwargs):
         super(RNNCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        
-        #(kaiming he initialization - blows up :'( )
-        #std_h = np.sqrt(2.0/hidden_size)
-        #std_i = np.sqrt(2.0/input_size)
-        #self.weight_ih = Parameter(torch.randn(hidden_size, input_size)*std_i)
-        #self.weight_hh = Parameter(torch.randn(hidden_size, hidden_size)*std_h)
+       
         #Pytorch Initalization ("goodbug") with input scaling
         rootk_h = np.sqrt(1./hidden_size)
         rootk_i = np.sqrt(1./input_size)
-        self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i)
+
+        # initialize weights with Xavier/Glorot scheme (equiv to the default PyTorch?)
+        self.weight_ih = Parameter(torch.rand(hidden_size, input_size)*2*rootk_i-rootk_i) #scales uniform dist : W ~ U(- sqrt(1/n_size), + sqrt(1/n_size)
         self.weight_hh = Parameter(torch.rand(hidden_size, hidden_size)*2*rootk_h-rootk_h)
         self.bias = Parameter(torch.zeros(self.hidden_size))
         
@@ -149,14 +155,15 @@ class RNNCell(nn.Module):
     # TODO: with and without history (-h) 
     #@jit.script_method
     def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tensor:
+        """ Update of hidden state, h, of the model (hx --> hy, i.e. h_{t-1} --> h_{t})
+        """
         hx = state[0]
         i_input = torch.mm(input, self.weight_ih.t()) #TODO: is matrix multiply necessary here, or can we use @
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input
-        hy = self.actfun(x + internal + self.bias)
+        hy = self.actfun(x + internal + self.bias) # canonical RNN hidden state update (hx --> hy) but with an *internal* term
         return hy, (hy,)
-    
-    
+
 class AdaptingRNNCell(nn.Module):
     def __init__(self, input_size, hidden_size, musig=None, **kwargs):
         super(AdaptingRNNCell, self).__init__()

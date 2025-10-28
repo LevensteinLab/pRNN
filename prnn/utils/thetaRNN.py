@@ -165,6 +165,19 @@ class RNNCell(nn.Module):
         return hy, (hy,)
 
 class AdaptingRNNCell(nn.Module):
+    """
+    Extends RNNCell to maintain an adaptation variable, ax.
+    a_t is dependent on the current hidden state h_t and scaled by factor b/tau_a. 
+    If no contribution from h_t, a_t decays over time-steps.
+
+    Args:
+        input_size (int): length of input vector
+        hidden_size (int): length of hidden state
+        musig (Tuple[float, float]): length of state
+    Returns:
+        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
+
+    """
     def __init__(self, input_size, hidden_size, musig=None, **kwargs):
         super(AdaptingRNNCell, self).__init__()
         self.input_size = input_size
@@ -192,7 +205,7 @@ class AdaptingRNNCell(nn.Module):
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input
         # TODO check time indices
-        ay = ax * (1-1/self.tau_a) + self.b/self.tau_a *hx
+        ay = ax * (1-1/self.tau_a) + (self.b/self.tau_a) *hx #adaptation variable, a_{t} dependent on both h_{t-1} and a_{t-1}
         hy = self.actfun(x + internal + self.bias - ax)
         return hy, (hy,ay)
 

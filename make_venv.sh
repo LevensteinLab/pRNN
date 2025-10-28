@@ -3,6 +3,8 @@
 module --force purge
 module load python/3.9
 
+# Save the current directory (pRNN repository location)
+PRNN_DIR=$(pwd)
 
 VENV_NAME='PredictiveReplay_39'
 VENV_DIR=$HOME'/venvs/'$VENV_NAME
@@ -48,6 +50,10 @@ cd $HOME/minigrid
 # git clone git@github.com:Alxec/minigrid.git
 cd minigrid
 pip3 install -e .
+
+# Return to pRNN repository and install it as a named version
+cd $PRNN_DIR
+pip install -e .
 
 # set up MILA jupyterlab
 echo which ipython

@@ -53,7 +53,7 @@ pip3 install -e .
 
 # Return to pRNN repository and install it as a named version
 cd $PRNN_DIR
-pip install -e .
+pip3 install -e .
 
 # set up MILA jupyterlab
 echo which ipython

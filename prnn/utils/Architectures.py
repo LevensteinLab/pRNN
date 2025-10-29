@@ -481,14 +481,6 @@ class pRNN_multimodal(pRNN):
         #Concatenate the obs/act into a single input
         x_t = torch.cat((obs_out,act_out), 2)
         return x_t, obs_target_out, outmask
-        
-        
-        
-
-
-
-    
-    
 
 class vRNN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,

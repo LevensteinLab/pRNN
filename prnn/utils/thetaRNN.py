@@ -40,7 +40,7 @@ class thetaRNNLayer(nn.Module):
         self.cell = cell(*cell_args,**cell_kwargs)
         self.trunc = trunc
         self.theta = defaultTheta
-        self.continuousTheta = continuousTheta
+        self.continuousTheta = continuousTheta #whether or not to go from last theta = Theta to t+1 time step, v.s. return back to theta = 0 to t+1 
         
 
     #@jit.script_method
@@ -82,7 +82,7 @@ class thetaRNNLayer(nn.Module):
         outputs = []
         
         n = 0
-        for i in range(len(inputs)):
+        for i in range(len(inputs)): # loop over all inputs in the sequence
             if np.mod(n,self.trunc)==0 and n>0:
                 #state = (state[0].detach(),) #Truncated BPTT
                 state = [i.detach() for i in state]
@@ -99,11 +99,11 @@ class thetaRNNLayer(nn.Module):
                 
             state_th = state
             out = [out]
-            for th in range(theta): # Theta-cycle inside the sequence (1 timestep)
+            for th in range(theta): # Theta-cycle inside the sequence (1 timestep) #loop over all theta steps within the time step
                 if batched:
                     out_th, state_th = self.cell(inputs[i][th+1,:].permute(1,0),
                                                  internals[i][th+1,:].permute(1,0),
-                                                 state_th)
+                                                 state_th) #get output of cell 
                     out_th = out_th.unsqueeze(1)
                     out_th = out_th.permute(*[i for i in range(1,len(out_th.size()))],0)
                 else:
@@ -113,7 +113,7 @@ class thetaRNNLayer(nn.Module):
             out = torch.cat(out,0)
             
             if hasattr(self,'continuousTheta') and self.continuousTheta:
-                state = state_th # Theta state is inherited at the next timestep
+                state = state_th # Theta state is inherited at the next timestep (t+1)
                 
             outputs += [out]
             n += 1
@@ -535,7 +535,7 @@ def test_script_thrnn_layer(seq_len, input_size, hidden_size, trunc, theta):
     
     #Check the theta prediction matches the rnn output when input is withheld
     assert (out[:,-theta-1,0] - rnn_out[0,-theta-1:,0]).abs().max() < 1e-5
-    
+
     return out,rnn_out,inp,rnn
 
 test_script_thrnn_layer(5, 3, 7, 10, 4)

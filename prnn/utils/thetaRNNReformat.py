@@ -13,7 +13,7 @@ import torch.nn as nn
 from torch.nn import Parameter, ReLU, Sigmoid, Tanh
 from torch import Tensor
 #import torch.jit as jit
-from typing import List, Tuple, String
+from typing import List, Tuple
 from torch import Tensor
 import numbers
 import numpy as np
@@ -104,8 +104,6 @@ class AdaptingRNNCell(RNNCell):
         # initialize class attributes and weights
         super().__init__(input_size, hidden_size, actfun) 
         
-        self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
-
         self.b = b #gain in adapatation
         self.tau_a = tau_a #decay in adaptation
     
@@ -136,8 +134,8 @@ class LayerNormRNNCell(RNNCell):
 class AdaptingLayerNormRNNCell(AdaptingRNNCell, LayerNormRNNCell):
     def __init__(self, input_size, hidden_size, actfun = "relu", b=0.3, tau_a=8, *args, **kwargs):
         #set up both adaptation and layernorm stuff
-        AdaptingRNNCell.__init__(input_size, hidden_size, actfun, b, tau_a, *args, **kwargs)
-        LayerNormRNNCell.__init__(input_size, hidden_size, actfun)
+        AdaptingRNNCell.__init__(self, input_size, hidden_size, actfun, b, tau_a, *args, **kwargs)
+        LayerNormRNNCell.__init__(self, input_size, hidden_size, actfun)
     
     def forward(self, input: Tensor, state:Tensor, internal: Tensor):
         hx, ax = state

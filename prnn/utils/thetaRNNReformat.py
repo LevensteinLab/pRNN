@@ -131,9 +131,20 @@ class LayerNormRNNCell(RNNCell):
         x = self.layernorm(super().update_preactivation(input, hx)) #apply layernorm to output of preactivation
         hy = self.actfun(x + internal)
         return hy, (hy, )
-    
 
-        
+# inherits from both adapting and layernorm
+class AdaptingLayerNormRNNCell(AdaptingRNNCell, LayerNormRNNCell):
+    def __init__(self, input_size, hidden_size, actfun = "relu", b=0.3, tau_a=8, *args, **kwargs):
+        #set up both adaptation and layernorm stuff
+        AdaptingRNNCell.__init__(input_size, hidden_size, actfun, b, tau_a, *args, **kwargs)
+        LayerNormRNNCell.__init__(input_size, hidden_size, actfun)
+    
+    def forward(self, input: Tensor, state:Tensor, internal: Tensor):
+        hx, ax = state
+        x = self.layernorm(super().update_preactivation(input, hx))
+        ay = ax * (1-1/self.tau_a) + self.b/self.tau_a *hx
+        hy = self.actfun(x + internal - ax)
+        return hy, (hy,ay)
 
 
 class LayerNorm(nn.Module):

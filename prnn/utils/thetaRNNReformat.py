@@ -182,6 +182,8 @@ class LayerNorm(nn.Module):
         return (input - mu) / sigma * self.sig + self.mu
     
 
+## CUTTING OUT SPARSE GATED for now... 
+
 #INIT FUNCTIONS
 
 def xavier_init(input_size, hidden_size, W_ih, W_hh, b):
@@ -242,3 +244,36 @@ def sparse_lognormal_(
             tensor.mul_(sparse_mask)
             #tensor = tensor.to_sparse()
 
+
+
+#Unit Tests
+
+import torch.nn.functional as F
+def test_script_thrnn_layer(seq_len, input_size, hidden_size, trunc, theta):
+    inp = torch.randn(1,seq_len,input_size)
+    inp = F.pad(inp,(0,0,0,theta))
+    state = torch.randn(1, 1, hidden_size)
+    internal = torch.zeros(theta+1 ,seq_len+theta, hidden_size)
+    rnn = thetaRNNLayer(RNNCell, trunc, input_size, hidden_size)
+    out, out_state = rnn(inp, internal, state, theta=theta)
+
+    # Control: pytorch native LSTM
+    rnn_ctl = nn.RNN(input_size, hidden_size, 
+                     batch_first=True, bias=False, nonlinearity = 'relu')
+
+    for rnn_param, custom_param in zip(rnn_ctl.all_weights[0], rnn.parameters()):
+        assert rnn_param.shape == custom_param.shape
+        with torch.no_grad():
+            rnn_param.copy_(custom_param)
+    rnn_out, rnn_out_state = rnn_ctl(inp, state)
+
+    #Check the output matches rnn default for theta=0
+    assert (out[0,:,:] - rnn_out).abs().max() < 1e-5
+    assert (out_state - rnn_out_state).abs().max() < 1e-5
+    
+    #Check the theta prediction matches the rnn output when input is withheld
+    assert (out[:,-theta-1,0] - rnn_out[0,-theta-1:,0]).abs().max() < 1e-5
+
+    return out,rnn_out,inp,rnn
+
+test_script_thrnn_layer(5, 3, 7, 10, 4)

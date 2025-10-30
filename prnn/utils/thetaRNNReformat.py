@@ -181,8 +181,114 @@ class LayerNorm(nn.Module):
         mu, sigma = self.compute_layernorm_stats(input)
         return (input - mu) / sigma * self.sig + self.mu
     
+class thetaRNNLayer(nn.Module):    
+    """
+    A wrapper for customized RNN layers... inputs should match torch.nn.RNN
+    conventions for batch_first=True, with theta taking the place of the batch dimension
+    theta x sequence x neuron 
+    #in the future, can make batch x sequence x neuron x theta...
+    
+    forward method inputs:
+    input  [1 x sequence x neuron] (optional if internal provided)
+    internal [theta x sequence x neuron] (optional if input provided)
+    state [#TODO: DL fill this in] (optional)
+    """
+    def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False, **cell_kwargs):
+        super(thetaRNNLayer, self).__init__()
+        self.cell = cell(*cell_args,**cell_kwargs)
+        self.trunc = trunc
+        self.theta = defaultTheta
+        self.continuousTheta = continuousTheta #whether or not to go from last theta = Theta to t+1 time step, v.s. return back to theta = 0 to t+1 
+        
+    def preprocess_inputs(self, input, internal, state, theta, batched):
 
-## CUTTING OUT SPARSE GATED for now... 
+        #ensure that there's at least one: input sequences or noise (internal) driving the network 
+        assert not(input.size(0)==0 and internal.size(0)==0), "RNN should be driven by input and/or noise."
+        
+        #if any vars are missing, init with zeros and correct size
+        if input.size(0)==0:
+            input = torch.zeros(internal.size(0),internal.size(1),self.cell.input_size,
+                                device=self.cell.weight_hh.device)
+        if state.size(0)==0:
+            state = torch.zeros(1,1,self.cell.hidden_size,
+                                device=self.cell.weight_hh.device)
+        if internal.size(0)==0:
+            internal = torch.zeros(theta+1,input.size(1),self.cell.hidden_size,
+                                   device=self.cell.weight_hh.device)
+        
+        #add padding for batches
+        if input.size(0)<theta+1: # For "first-only" action inputs
+            if batched:
+                pad=(0,0,0,0,0,0,0,theta)
+            else:
+                pad=(0,0,0,0,0,theta)
+            input = nn.functional.pad(input=input, pad=pad, 
+                                    mode='constant', value=0)   
+        
+        return input, state, internal
+
+    #@jit.script_method
+    def forward(self, input: Tensor=torch.tensor([]),
+                internal: Tensor=torch.tensor([]),
+                state: Tensor=torch.tensor([]),
+                theta=None,
+                mask=None,
+                batched=False) -> Tuple[Tensor, Tensor]:
+        
+        if theta is None:
+            theta = self.theta
+
+        input, internal, state = self.preprocess_inputs(input, internal, state, theta, batched)
+        
+        #Consider unbind twice, rather than indexing later...
+        inputs = input.unbind(1)
+        internals = internal.unbind(1)
+        state = (torch.squeeze(state,1),0) #To match RNN builtin
+        #outputs = torch.jit.annotate(List[Tensor], [])
+        outputs = []
+        
+        n = 0
+        for i in range(len(inputs)): # loop over all inputs in the sequence
+            if np.mod(n,self.trunc)==0 and n>0:
+                #state = (state[0].detach(),) #Truncated BPTT
+                state = [i.detach() for i in state]
+
+            if batched:
+                out, state = self.cell(inputs[i][0,:].permute(1,0), 
+                                       internals[i][0,:].permute(1,0),
+                                       state)
+                out = out.unsqueeze(1)
+                out = out.permute(*[i for i in range(1,len(out.size()))],0)
+            else:
+                out, state = self.cell(torch.unsqueeze(inputs[i][0,:],0), 
+                                       internals[i][0,:], state)
+                
+            state_th = state #first theta = 0 get state...
+            out = [out]
+            for th in range(theta): # Theta-cycle inside the sequence (1 timestep) #loop over all theta steps within the time step
+                if batched:
+                    out_th, state_th = self.cell(inputs[i][th+1,:].permute(1,0),
+                                                 internals[i][th+1,:].permute(1,0),
+                                                 state_th) #get output of cell 
+                    out_th = out_th.unsqueeze(1)
+                    out_th = out_th.permute(*[i for i in range(1,len(out_th.size()))],0)
+                else:
+                    out_th, state_th = self.cell(torch.unsqueeze(inputs[i][th+1,:],0), 
+                                                 internals[i][th+1,:], state_th)
+                out += [out_th]
+            out = torch.cat(out,0)
+            
+            if hasattr(self,'continuousTheta') and self.continuousTheta:
+                state = state_th # Theta state is inherited at the next timestep (t+1)
+                
+            outputs += [out]
+            n += 1
+        
+        state = torch.unsqueeze(state[0],0) #To match RNN builtin
+        return torch.stack(outputs,1), state
+
+
+## CUTTING OUT SPARSE GATED for now...
 
 #INIT FUNCTIONS
 

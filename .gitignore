@@ -16,3 +16,9 @@ Figures/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+
+# sphinx stuff
+docs/_build/
+docs/_autosummary/
+docs/_apidoc/
+docs/_doctrees/

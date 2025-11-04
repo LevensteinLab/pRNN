@@ -20,6 +20,5 @@ documentation for details.
    installation
    attributions
    package_structure
-   utils/thetaRNN
-   utils/Architectures
-   utils/predictiveNet
+   utils/index
+   tutorials/index

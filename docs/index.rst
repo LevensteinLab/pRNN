@@ -15,6 +15,11 @@ documentation for details.
    :maxdepth: 2
    :caption: Contents:
 
-   test1
-   test2
-
+   quickstart
+   introduction
+   installation
+   attributions
+   package_structure
+   utils/thetaRNN
+   utils/Architectures
+   utils/predictiveNet

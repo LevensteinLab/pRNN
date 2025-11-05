@@ -595,10 +595,6 @@ class vRNN_5win_mask(pRNN):
                           inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
                           actMask=[True,False,False,False,False,False])
 
-
-
-        
-        
 class thRNN_0win_noLN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
                       cell=RNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,

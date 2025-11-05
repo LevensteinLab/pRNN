@@ -80,7 +80,8 @@ def sparse_lognormal_(
         if sparsity < 1:
             sparse_mask = torch.rand_like(tensor) < sparsity  
             tensor.mul_(sparse_mask)
- 
+
+    return tensor
 
 activations = {
     "relu": torch.nn.ReLU(),
@@ -115,7 +116,7 @@ class BaseCell(nn.Module, ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def forward(self, input: Tensor, state: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]: #tuple of hy
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor, *args, **kwargs) -> Tuple[Tensor, Tensor]: #tuple of hy
         "Apply some/all of the following to x: bias, noise, adaptation, activation function"
         raise NotImplementedError
 
@@ -143,7 +144,7 @@ class RNNCell(BaseCell):
         self.weight_hh = Parameter(torch.empty(hidden_size, hidden_size))
         self.bias = Parameter(torch.zeros(hidden_size))
         
-        #initialize IN PLACE
+        #initialize 
         if init == "xavier": 
             self.weight_ih, self.weight_hh, self.bias = xavier_init(input_size, hidden_size, self.weight_ih, self.weight_hh, self.bias)
 
@@ -152,23 +153,17 @@ class RNNCell(BaseCell):
             mean_std_ratio = kwargs["mean_std_ratio"] if "mean_std_ratio" in kwargs else 1.
             sparsity = kwargs["sparsity"] if "sparsity" in kwargs else 1.
 
-            sparse_lognormal_(self.weight_ih, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
-            sparse_lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
+            self.weight_ih = sparse_lognormal_(self.weight_ih, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
+            self.weight_hh = sparse_lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
     
     def update_preactivation(self, input, hx, *args, **kwargs) -> Tensor:
-
-        print("input shape", input.shape)
-        print("hx shape", hx.shape)
-        print("self.weight_ih shape", self.weight_ih.shape)
-        print("self.weight_hh shape", self.weight_hh.shape)
-
 
         i_input = torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())        
         x = i_input + h_input
         return x
         
-    def forward(self, input: Tensor, state: Tensor, internal: Tensor) -> Tuple[Tensor, Tensor]: #tuple of hy
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tuple[Tensor, Tensor]: #tuple of hy
         hx = state[0]
         x = self.update_preactivation(input, hx)
         hy = self.actfun(x + internal + self.bias) # canonical RNN hidden state update (hx --> hy) but with an *internal* term
@@ -183,7 +178,7 @@ class AdaptingRNNCell(RNNCell):
         self.b = b #gain in adapatation
         self.tau_a = tau_a #decay in adaptation
     
-    def forward(self, input: Tensor, state: Tensor, internal: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tuple[Tensor, Tensor]:
         hx, ax = state
         x = super().update_preactivation(input, hx)
 
@@ -200,7 +195,7 @@ class LayerNormRNNCell(RNNCell):
         self.layernorm.mu = Parameter(torch.zeros(self.hidden_size)+self.layernorm.mu)
         self.bias = self.layernorm.mu
     
-    def forward(self, input:Tensor, state:Tensor, internal:Tensor):
+    def forward(self, input:Tensor, internal:Tensor, state:Tensor):
         hx = state[0]
         x = self.layernorm(super().update_preactivation(input, hx)) #apply layernorm to output of preactivation
         hy = self.actfun(x + internal)
@@ -213,7 +208,7 @@ class AdaptingLayerNormRNNCell(AdaptingRNNCell, LayerNormRNNCell):
         AdaptingRNNCell.__init__(self, input_size, hidden_size, actfun, init, b, tau_a, *args, **kwargs)
         LayerNormRNNCell.__init__(self, input_size, hidden_size, actfun, init)
     
-    def forward(self, input: Tensor, state:Tensor, internal: Tensor):
+    def forward(self, input: Tensor, internal:Tensor, state: Tensor):
         hx, ax = state
         x = self.layernorm(super().update_preactivation(input, hx))
         ay = ax * (1-1/self.tau_a) + self.b/self.tau_a *hx
@@ -288,7 +283,7 @@ class thetaRNNLayer(nn.Module):
             input = nn.functional.pad(input=input, pad=pad, 
                                     mode='constant', value=0)   
         
-        return input, state, internal
+        return input, internal, state
 
     #@jit.script_method
     def forward(self, input: Tensor=torch.tensor([]),
@@ -353,7 +348,6 @@ class thetaRNNLayer(nn.Module):
 
 ## CUTTING OUT SPARSE GATED for now...
 
-           #tensor = tensor.to_sparse()
 
 
 
@@ -366,7 +360,8 @@ def test_script_thrnn_layer(seq_len, input_size, hidden_size, trunc, theta):
     state = torch.randn(1, 1, hidden_size)
     internal = torch.zeros(theta+1 ,seq_len+theta, hidden_size)
     rnn = thetaRNNLayer(RNNCell, trunc, input_size, hidden_size)
-    out, out_state = rnn(inp, internal, state, theta=theta)
+    out, out_state = rnn(inp, internal, state, theta=theta) #NEED TO CHANGE FROM (inp, internal, state, theta=theta) to (inp, state, internal, theta=theta)
+    #out, out_state = rnn(inp, state, internal, theta=theta) 
 
     # Control: pytorch native LSTM
     rnn_ctl = nn.RNN(input_size, hidden_size, 

@@ -158,12 +158,6 @@ class RNNCell(nn.Module):
         """ Update of hidden state, h, of the model (hx --> hy, i.e. h_{t-1} --> h_{t})
         """
         hx = state[0]
-
-        print("input shape", input.shape)
-        print("hx shape", hx.shape)
-        print("self.weight_ih shape", self.weight_ih.shape)
-        print("self.weight_hh shape", self.weight_hh.shape)
-
         i_input = torch.mm(input, self.weight_ih.t()) #TODO: is matrix multiply necessary here, or can we use @
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input

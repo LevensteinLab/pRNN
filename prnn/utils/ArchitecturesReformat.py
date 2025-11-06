@@ -115,6 +115,50 @@ class pRNN(nn.Module):
         self.outlayer = nn.Sequential(
             nn.Linear(hidden_size, output_size, bias=False),
             nn.Sigmoid())
+        
+    def restructure_inputs(self, obs_in, obs_target, act, batched=False): #obs --> obs-in, obs_target 
+        """
+        Join obs and act into a single input tensor shape (N,L,H)
+        N: Batch size
+        L: timesamps
+        H: input_size
+        obs should be one timestep longer than act, for the [t+1] observation
+        after the last action
+        """
+
+        #Apply the action and prediction offsets
+        act = self.batched_actpad(act) if batched else self.actpad(act)
+       
+        if self.actOffset: 
+            act = act[:,:-self.actOffset,...]
+
+        if obs_target is None: # if obs_target not already provided (e.g. through multimodal...)
+            obs_target = obs_in[:,self.predOffset:,:] 
+
+        #Make everything the same size
+        minsize = min(obs_in.size(1),act.size(1),obs_target.size(1))
+        obs_in, act = obs_in[:,:minsize,:], act[:,:minsize,:]
+        obs_target = obs_target[:,:minsize,:]
+
+        #Apply the masks (this is ugly.)
+        actmask = np.resize(np.array(self.actMask),minsize)
+        outmask = np.resize(np.array(self.outMask),minsize)
+        obsmask = np.resize(np.array(self.inMask),minsize)
+
+        obs_out = torch.zeros_like(obs_in, requires_grad=False)
+        act_out = torch.zeros_like(act, requires_grad=False)
+        obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
+
+        obs_out[:,obsmask,:] = obs_in[:,obsmask,:]
+        act_out[:,actmask,:] = act[:,actmask,:]
+        obs_target_out[:,outmask,:] = obs_target[:,outmask,:]
+        
+        obs_out = self.droplayer(obs_out) #dropout without action
+        #act_out = self.droplayer_act(act_out) #dropout without action
+
+        #Concatenate the obs/act into a single input
+        x_t = torch.cat((obs_out,act_out), 2)
+        return x_t, obs_target_out, outmask
 
 class pRNN_th(pRNN): 
     def __init__(self, obs_size, act_size, k, hidden_size=500,
@@ -137,6 +181,10 @@ class pRNN_th(pRNN):
         self.actionTheta = actionTheta
         self.obspad=(0,0,0,0,0,k)
         self.batched_obspad=(0,0,0,0,0,0,0,k)
+    
+    def restructure_inputs(self, obs_in, obs_target, act, batched=False):
+        #TODO: Define!!
+        return super().restructure_inputs(obs_in, obs_target, act, batched)
 
 class pRNN_multimodal(pRNN):
 
@@ -174,3 +222,18 @@ class pRNN_multimodal(pRNN):
                                               output_size = self.output_size, #fix in a seconds
                                               **cell_kwargs)
 
+    def restructure_inputs(self, obs, act, batched=False):
+
+        # Specify inputs... 
+        obs_in = []
+        for i in self.inIDs:
+            obs_in.append(obs[i])
+        obs_in = torch.cat(obs_in, 2)
+
+        #... and outputs in the observation
+        obs_target = []
+        for i in self.outIDs:
+            obs_target.append(obs[i][:,self.predOffset:,:])
+        obs_target = torch.cat(obs_target, 2)
+
+        return super().restructure_inputs(obs_in, obs_target, act, batched)

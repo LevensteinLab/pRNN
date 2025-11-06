@@ -35,7 +35,7 @@ class Base_pRNN(nn.Module, ABC):
         raise NotImplementedError
 
 
-class pRNN(nn.Module):
+class pRNN(nn.Module, Base_pRNN):
     """
     A general predictive RNN framework that takes observations and actions, and
     returns predicted observations, as well as the actual observations to train

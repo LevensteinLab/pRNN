@@ -146,14 +146,6 @@ class pRNN(nn.Module):
         y_t = self.outlayer(h_t)
         return y_t, h_t
 
-    def generate_noise(self, noise_params, shape):
-        if noise_params != (0,0):
-            noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
-        else:
-            noise = torch.zeros(shape, device=self.W.device)
-
-        return noise
-
     def restructure_inputs(self, obs, act, batched=False):
         """
         Join obs and act into a single input tensor shape (N,L,H)

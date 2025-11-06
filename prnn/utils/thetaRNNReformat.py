@@ -22,6 +22,8 @@ import math
 
 import torch.nn.utils.prune as prune
 
+from abc import ABC, abstractmethod # abstract-base classes in python
+
 #INIT FUNCTIONS
 
 def xavier_init(input_size, hidden_size, W_ih, W_hh, b):
@@ -88,8 +90,6 @@ activations = {
     "sigmoid": torch.nn.Sigmoid(),
     "tanh": torch.nn.Tanh()
 }
-
-from abc import ABC, abstractmethod # abstract-base classes in python
 
 class BaseCell(nn.Module, ABC):
     """
@@ -347,9 +347,6 @@ class thetaRNNLayer(nn.Module):
 
 
 ## CUTTING OUT SPARSE GATED for now...
-
-
-
 
 #Unit Tests
 

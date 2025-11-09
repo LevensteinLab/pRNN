@@ -290,7 +290,6 @@ class pRNN_th(pRNN):
             obs = nn.functional.pad(input=obs, pad=obspad, 
                                     mode='constant', value=0)
 
-
         elif self.actionTheta is True:
             theta_idx = np.flip(toeplitz(np.arange(self.k+1),
                                          np.arange(act.size(1))),0)
@@ -301,6 +300,8 @@ class pRNN_th(pRNN):
                                     mode='constant', value=0)
             
         
+        #atp, we have padded actions (not offset), offset and paded observations, expanded target observations 
+
         #Make everything the same size
         minsize = min(obs.size(1),act.size(1),obs_target.size(1))
         obs, act = obs[:,:minsize,:], act[:,:minsize,:]

@@ -135,30 +135,55 @@ class pRNN(nn.Module, Base_pRNN):
         if obs_target is None: # if obs_target not already provided (e.g. through multimodal...)
             obs_target = obs_in[:,self.predOffset:,:] 
 
-        #Make everything the same size
+        x_t, obs_target_out, outmask = self.clip_mask(obs_in, act, obs_target)
+        return x_t, obs_target_out, outmask 
+        
+    def clip_mask(self, obs_in, act, obs_target):
+        """ Takes observation tensor, action tensor, and observation targets and clips them.
+        Also applies relevant masks if they exist and no rollout is done.
+        """
+
+        #clip
         minsize = min(obs_in.size(1),act.size(1),obs_target.size(1))
         obs_in, act = obs_in[:,:minsize,:], act[:,:minsize,:]
         obs_target = obs_target[:,:minsize,:]
 
-        #Apply the masks (this is ugly.)
-        actmask = np.resize(np.array(self.actMask),minsize)
-        outmask = np.resize(np.array(self.outMask),minsize)
-        obsmask = np.resize(np.array(self.inMask),minsize)
-
+        #new tensors for return
         obs_out = torch.zeros_like(obs_in, requires_grad=False)
         act_out = torch.zeros_like(act, requires_grad=False)
         obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
 
-        obs_out[:,obsmask,:] = obs_in[:,obsmask,:]
-        act_out[:,actmask,:] = act[:,actmask,:]
-        obs_target_out[:,outmask,:] = obs_target[:,outmask,:]
+
+        if self.actMask is not None and self.outMask is not None and self.inMask is not None:
+            
+            #Apply the masks if exist
+            actmask = np.resize(np.array(self.actMask),minsize)
+            outmask = np.resize(np.array(self.outMask),minsize)
+            obsmask = np.resize(np.array(self.inMask),minsize)
+
+            obs_out[:,obsmask,:] = obs_in[:,obsmask,:]
+            act_out[:,actmask,:] = act[:,actmask,:]
+            obs_target_out[:,outmask,:] = obs_target[:,outmask,:]
+            
+            obs_out = self.droplayer(obs_out)
         
-        obs_out = self.droplayer(obs_out) #dropout without action
-        #act_out = self.droplayer_act(act_out) #dropout without action
+        else: #if no masks, or doing roll out
+            outmask = True
+
+            obs_out[:] = obs_in[:]
+            act_out[:] = act[:]
+            obs_target_out[:] = obs_target[:]
+            
+            obs_in = self.droplayer(obs_in)
 
         #Concatenate the obs/act into a single input
         x_t = torch.cat((obs_out,act_out), 2)
         return x_t, obs_target_out, outmask
+
+    def forward():
+        pass #do on Nov 9th!
+
+
 
 class pRNN_th(pRNN): 
     def __init__(self, obs_size, act_size, k, hidden_size=500,
@@ -182,9 +207,54 @@ class pRNN_th(pRNN):
         self.obspad=(0,0,0,0,0,k)
         self.batched_obspad=(0,0,0,0,0,0,0,k)
     
-    def restructure_inputs(self, obs_in, obs_target, act, batched=False):
-        #TODO: Define!!
-        return super().restructure_inputs(obs_in, obs_target, act, batched)
+    def restructure_inputs(self, obs_in, act, batched=False):
+        """
+        Join obs and act into a single input tensor shape (N,L,H)
+        N: Batch size/Theta Size
+        L: timesamps
+        H: input_size
+        obs should be one timestep longer than act, for the [t+1] observation
+        after the last action
+        """
+        #Apply the action and prediction offsets
+        if batched:
+            act = self.batched_actpad(act)
+            obspad = self.batched_obspad
+        else:
+            act = self.actpad(act)
+            if ~hasattr(self,'obspad'):   #For backwards compadibility - remove later
+                self.obspad = (0,0,0,0,0,self.k)
+            obspad = self.obspad
+
+        obs_target = obs[:,self.predOffset:,:]
+        
+        #Apply the theta prediction for target observation
+        theta_idx = np.flip(toeplitz(np.arange(self.k+1),
+                                     np.arange(obs_target.size(1))),0)
+        theta_idx = theta_idx[:,self.k:,]
+        obs_target = obs_target[:,theta_idx.copy()]
+        obs_target = torch.squeeze(obs_target,0)
+        
+        if self.actionTheta == 'hold':
+            size = [x for x in act.size()] # So it works with batched and non-batched
+            size[0] = self.k+1
+            act = act.expand(*size)
+            obs = nn.functional.pad(input=obs, pad=obspad, 
+                                    mode='constant', value=0)
+
+        elif self.actionTheta is True:
+            theta_idx = np.flip(toeplitz(np.arange(self.k+1),
+                                         np.arange(act.size(1))),0)
+            theta_idx = theta_idx[:,self.k:,]
+            act = act[:,theta_idx.copy()]
+            act = torch.squeeze(act,0)
+            obs = nn.functional.pad(input=obs, pad=obspad, 
+                                    mode='constant', value=0)
+            
+        
+        x_t, obs_target_out, outmask = self.clip_mask(obs_in, act, obs_target)
+        return x_t, obs_target_out, outmask 
+
 
 class pRNN_multimodal(pRNN):
 
@@ -237,3 +307,6 @@ class pRNN_multimodal(pRNN):
         obs_target = torch.cat(obs_target, 2)
 
         return super().restructure_inputs(obs_in, obs_target, act, batched)
+    
+    def forward():
+        pass #do on Nov 9th!

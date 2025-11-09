@@ -113,7 +113,7 @@ class pRNN(nn.Module):
 
         noise_t = self.generate_noise(noise_params, noise_shape)
 
-        if single:
+        if single: #if single = true, we only care about updating the hidden state, don't need the prediction
             x_t = torch.cat((obs,act), 2)
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
             if not fullRNNstate: 
@@ -127,7 +127,7 @@ class pRNN(nn.Module):
                              theta=theta, mask=mask, batched=batched)
             if not fullRNNstate: 
                 h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
-            if batched:
+            if batched:# change shape to include batch first and theta last, if we're doing batching. consider this just a black box for making the shape all proper
                 h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
                 allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
                 allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
@@ -147,6 +147,11 @@ class pRNN(nn.Module):
         return y_t, h_t
 
     def restructure_inputs(self, obs, act, batched=False):
+        #recall, second dimension corresponds to timesteps...
+        #obs are all the true agent observations taken over all timesteps and batches
+        #obs_target are the targets used for comparison to the model output (y_t etc). sometimes these are offset, i.e. predOffset = 1 means next step prediction... (?)
+        #we use actOffset to offset the actions so that the actions from the future don't impact predictions. i.e. actOffset = 1 means we a0 and o1 are used to predict o2
+        #so at the beginning of the action we pad 0s, then remove the same number from the end of the tensor, i.e. (act = act[:, :-self.actOffset, ...])
         """
         Join obs and act into a single input tensor shape (N,L,H)
         N: Batch size
@@ -165,7 +170,7 @@ class pRNN(nn.Module):
         if self.actOffset:
                 act = act[:,:-self.actOffset,...]
 
-        obs_target = obs[:,self.predOffset:,:]
+        obs_target = obs[:,self.predOffset:,:] 
 
         #Make everything the same size
         minsize = min(obs.size(1),act.size(1),obs_target.size(1))

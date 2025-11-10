@@ -372,7 +372,8 @@ class NextStepRNN(pRNN):
     """
     Options:
     - LayerNorm? (T/F)
-    - FeedForward? (T/F)    
+    - FeedForward? (T/F)  
+    - #TODO add adapt?  
     """
     def __init__(self, obs_size, act_size, hidden_size = 500, 
                  bptttrunc = 100, neuralTimescale = 2, 
@@ -419,3 +420,29 @@ class MaskedRNN(pRNN):
                           predOffset=0, actOffset=actOffset,
                           inMask=inMask, outMask=outMask,
                           actMask=actMask)
+        
+class RolloutRNN(pRNN_th):
+    """
+    Options:
+    - AdaptingLayerNorm (T/F): default: F (no adapt, just layernorm)
+    - k (rollout_length) --> default: 5
+    - Rollout Action Scheme (first, hold, full) --> default: "full"
+    - Continue from last Theta? (T/F)
+    - Action OFFSET (int) --> default: 0 
+    """
+    def __init__(self,obs_size, act_size, hidden_size=500,
+                bptttrunc=100, neuralTimescale=2, dropp = 0.15, f=0.5,
+                use_ALN = False, k = 5, rollout_action = "full", continuousTheta = False, actOffset = 0):
+        
+        cell = AdaptingLayerNormRNNCell if use_ALN else LayerNormRNNCell
+
+        actionTheta = True if rollout_action == "full" else \
+                    False if rollout_action == "first" else "hold"
+                    
+        super().__init__(obs_size, act_size,  k=k, 
+                                       hidden_size=hidden_size,
+                                       cell=cell, bptttrunc=bptttrunc, 
+                                       neuralTimescale=neuralTimescale, dropp=dropp,
+                                       f=f,
+                                       predOffset=0, actOffset=actOffset,
+                                       continuousTheta=continuousTheta, actionTheta=actionTheta)

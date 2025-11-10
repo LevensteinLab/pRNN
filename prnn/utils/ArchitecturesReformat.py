@@ -9,6 +9,11 @@ from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, Adapti
 from prnn.utils.pytorchInits import CANN_
 from abc import ABC, abstractmethod
 
+## TODOs 
+# - go over internal and spontaneous with dan, helper or class method?
+# - tests
+# - next_step network, masked network, theta sweep
+
 ## Helper Functions --
 
 
@@ -362,4 +367,4 @@ class pRNN_multimodal(pRNN):
         obs_target = torch.cat(obs_target, 2)
 
         return super().restructure_inputs(obs_in, obs_target, act, batched)
-    
+

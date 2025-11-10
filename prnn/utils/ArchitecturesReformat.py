@@ -371,22 +371,51 @@ class pRNN_multimodal(pRNN):
 class NextStepRNN(pRNN):
     """
     Options:
-    - LayerNorm (T/F)
-    - FF (T/F)    
+    - LayerNorm? (T/F)
+    - FeedForward? (T/F)    
     """
     def __init__(self, obs_size, act_size, hidden_size = 500, 
                  bptttrunc = 100, neuralTimescale = 2, 
-                 dropp = 0.15, f = 0.5, use_LN = True, use_FF = False, **cell_kwargs):
+                 dropp = 0.15, f = 0.5, 
+                 use_LN = True, use_FF = False, **cell_kwargs):
 
         cell = LayerNormRNNCell if use_LN else RNNCell
-        
+
         super().__init__(obs_size, act_size, hidden_size=hidden_size,
                           cell=cell, bptttrunc=bptttrunc, 
                           neuralTimescale=neuralTimescale, 
                           dropp=dropp, f=f, predOffset=1, actOffset=0,
-                          inMask=[True], outMask=[True], actMask=None)
-        
+                          inMask=[True], outMask=[True], actMask=None)        
         if use_FF:
             self.W.requires_grad_(False)
             self.W.zero_()
+
+class MaskedRNN(pRNN):
+    """
+    Options:
+    - LayerNorm? (T/F)
+    - Observation MASK Length (int) --> default: 0
+    - MASK Actions Too? (T/F) [action mask will be the same length as the mask for input observations]
+    - Action OFFSET (int) --> default: 0
+
+    Note that if the action and observation masks are 0, and action offset length is 1, we've defaulted to next step prediction with no masks (?)
+    """
+    def __init__(self, obs_size, act_size, hidden_size=500,
+                bptttrunc=100, neuralTimescale=2, 
+                dropp = 0.15, f=0.5, 
+                use_LN = True, mask_actions = True, actOffset = 0, inMask_length= 0, **cell_kwargs): #new additions
         
+        cell = LayerNormRNNCell if use_LN else RNNCell
+    
+        inMask = np.full(inMask_length + 1, False)
+        inMask[0] = True #timestep t
+
+        actMask = inMask if mask_actions else None #set the action mask to be the same as the input obs mask
+        outMask = np.full(inMask_length + 1, True)
+
+        super().__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
+                          f=f,
+                          predOffset=0, actOffset=actOffset,
+                          inMask=inMask, outMask=outMask,
+                          actMask=actMask)

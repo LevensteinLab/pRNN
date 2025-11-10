@@ -368,3 +368,25 @@ class pRNN_multimodal(pRNN):
 
         return super().restructure_inputs(obs_in, obs_target, act, batched)
 
+class NextStepRNN(pRNN):
+    """
+    Options:
+    - LayerNorm (T/F)
+    - FF (T/F)    
+    """
+    def __init__(self, obs_size, act_size, hidden_size = 500, 
+                 bptttrunc = 100, neuralTimescale = 2, 
+                 dropp = 0.15, f = 0.5, use_LN = True, use_FF = False, **cell_kwargs):
+
+        cell = LayerNormRNNCell if use_LN else RNNCell
+        
+        super().__init__(obs_size, act_size, hidden_size=hidden_size,
+                          cell=cell, bptttrunc=bptttrunc, 
+                          neuralTimescale=neuralTimescale, 
+                          dropp=dropp, f=f, predOffset=1, actOffset=0,
+                          inMask=[True], outMask=[True], actMask=None)
+        
+        if use_FF:
+            self.W.requires_grad_(False)
+            self.W.zero_()
+        

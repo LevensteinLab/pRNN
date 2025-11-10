@@ -180,9 +180,64 @@ class pRNN(nn.Module, Base_pRNN):
         x_t = torch.cat((obs_out,act_out), 2)
         return x_t, obs_target_out, outmask
 
-    def forward():
-        pass #do on Nov 9th!
+    def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
+                single=False, mask=None, batched=False, fullRNNstate=False):
+        #Determine the noise shape
+        k=0
+        if hasattr(self,'k'):
+            k= self.k
+        if batched:
+            noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
+        else:
+            noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)
+            #^^^for backwards compadiblity. change to self.hidden_size later
 
+        noise_t = self.generate_noise(noise_params, noise_shape)
+
+        if single: #if single = true, we only care about updating the hidden state, don't need the prediction
+            if hasattr(self, "inIDs"): #if multimodal pRNN...
+                for i in self.inIDs:
+                    x_t.append(obs[i])
+            else:
+                x_t = torch.cat((obs,act), 2) 
+
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units
+            y_t = None
+            obs_target = None
+        else:
+            x_t, obs_target, outmask = self.restructure_inputs(obs,act,batched)
+            #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
+            h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
+                             theta=theta, mask=mask, batched=batched)
+            if not fullRNNstate: 
+                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
+            if batched:# change shape to include batch first and theta last, if we're doing batching. consider this just a black box for making the shape all proper
+                h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
+                allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
+                allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
+                h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
+            else:
+                allout = self.outlayer(h_t[:,:,:self.hidden_size])
+
+            if hasattr(self, "inIDs") and hasattr(self, "outIDs"): #multimodal model --> may want to change this, not good convention...
+                    #Apply the mask to the output
+                pred = torch.zeros_like(allout)
+                pred[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+                y_t = [] # Outputs disentangled
+                for i in set((*self.inIDs, *self.outIDs)):
+                    if i in set(self.inIDs)-set(self.outIDs):
+                        y_t.append(torch.zeros_like(obs[i]))
+                    else:
+                        y_t.append(pred[...,self.obs_out_slices[self.outIDs.index(i)]])
+                y_t = (pred, y_t)
+            else:
+                #Apply the mask to the output
+                y_t = torch.zeros_like(allout)
+                y_t[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+        
+        return y_t, h_t, obs_target
 
 
 class pRNN_th(pRNN): 
@@ -308,5 +363,3 @@ class pRNN_multimodal(pRNN):
 
         return super().restructure_inputs(obs_in, obs_target, act, batched)
     
-    def forward():
-        pass #do on Nov 9th!

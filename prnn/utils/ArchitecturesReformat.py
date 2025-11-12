@@ -18,6 +18,16 @@ from abc import ABC, abstractmethod
 
 
 def generate_noise(noise_params, shape, w_device):
+    """Used to generate noise for the internal vector.
+
+    Args:
+        noise_params (Tuple[int, int]): Tuple of noise parameters. #TODO confirm with Dan what this is
+        shape (int): Length of vector?
+        w_device (???): PyTorch device
+
+    Returns:
+        list[int]: noise per term???
+    """
     if noise_params != (0,0):
         noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=w_device)
     else:
@@ -39,9 +49,7 @@ class Base_pRNN(nn.Module, ABC):
     def forward(*args, **kwargs):
         raise NotImplementedError
 
-
-class pRNN(nn.Module, Base_pRNN):
-    """
+"""
     A general predictive RNN framework that takes observations and actions, and
     returns predicted observations, as well as the actual observations to train
     Observations are inputs that are predicted. Actions are inputs that are
@@ -57,12 +65,51 @@ class pRNN(nn.Module, Base_pRNN):
         L: timesamps
         H: input_size
     """
+class pRNN(nn.Module, Base_pRNN):
+    """
+    A general predictive RNN framework that takes observations and actions, and
+    returns predicted observations, as well as the actual observations to train
+    Observations are inputs that are predicted. Actions are inputs that are
+    relevant to prediction but not predicted. 
+
+    predOffset: the output at time t s matched to obs t+predOffset (defulat: 1)
+    actOffset:  the action input at time t is the action took at t-actOffset (default:0)
+    inMask:     boolean list, length corresponding to the prediction cycle period. (default: [True])
+    outMask, actMask: list, same length as inMask (default: None)
+
+    All inputs should be tensors of shape (N,L,H)
+        N: Batch size
+        L: timesamps
+        H: input_size
+    Args:
+        nn (class): PyTorch nn module
+        Base_pRNN (class): Abstract pRNN class
+    """
     def __init__(self, obs_size, act_size, hidden_size=500,
                  cell=RNNCell,  dropp=0, bptttrunc=50, k=0, f=0.5,
                  predOffset=1, inMask=[True], outMask=None, 
                  actOffset=0, actMask=None, neuralTimescale=2,
                  continuousTheta=False,
                  **cell_kwargs):
+        """_summary_
+
+        Args:
+            obs_size (int): Size of each agent observation. Flattened? #TODO confirm with dan
+            act_size (int): Size of action vector.
+            hidden_size (int, optional): Number of recurrent neurons. Defaults to 500.
+            cell (RNNCell, optional): Specified RNNCell type for layers. Defaults to RNNCell.
+            dropp (int, optional): Dropout probability. Defaults to 0.
+            bptttrunc (int, optional): Backpropagation Through Time, Truncated. Defaults to 50.
+            k (int, optional): Number of predictions in rollout.. Defaults to 0.
+            f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
+            predOffset (int, optional): At timestep t, how many steps forward do we predict?. Defaults to 1.
+            inMask (list, optional): Mask to cover FUTURE timesteps. Defaults to [True].
+            outMask (_type_, optional): Mask to cover FUTURE predictions. Defaults to None.
+            actOffset (int, optional): Number by which actions should be shifted backward before incorporation into hidden state. Defaults to 0.
+            actMask (_type_, optional):  Mask to cover FUTURE actions.. Defaults to None.
+            neuralTimescale (int, optional): Decay for timescale. Defaults to 2.
+            continuousTheta (bool, optional): Carry over hidden state from the kth rollout to the t+1'th timestep. Defaults to False.
+        """
         super(pRNN, self).__init__()
 
         #pRNN architecture parameters
@@ -369,18 +416,31 @@ class pRNN_multimodal(pRNN):
 
         return super().restructure_inputs(obs_in, obs_target, act, batched)
 
+ 
 class NextStepRNN(pRNN):
     """
-    Options:
-    - LayerNorm? (T/F)
-    - FeedForward? (T/F)  
-    - #TODO add adapt?  
+    A predictive RNN that uses an observation and action at timestep t to predict the next observation (at t+1).
+
+    Args:
+        pRNN (class): Extends regular pRNN class.
     """
     def __init__(self, obs_size, act_size, hidden_size = 500, 
                  bptttrunc = 100, neuralTimescale = 2, 
                  dropp = 0.15, f = 0.5, 
                  use_LN = True, use_FF = False, **cell_kwargs):
+        """Initialize NextStepRNN.
 
+        Args:
+            obs_size (int): Size of each agent observation. Flattened? #TODO confirm with dan
+            act_size (int): Size of action vector.
+            hidden_size (int, optional): Number of recurrent neurons. Defaults to 500. Defaults to 500.
+            bptttrunc (int, optional): Backpropagation Through Time, Truncated.. Defaults to 100.
+            neuralTimescale (int, optional): Decay for timescale.. Defaults to 2.
+            dropp (float, optional): Dropout probability. Defaults to 0.15.
+            f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
+            use_LN (bool, optional): Use LayerNorm? Defaults to True.
+            use_FF (bool, optional): Use Feed Forward network? Defaults to False. If True, we get rid of recurrence by zeroing out the hidden-to-hidden weight matrix.
+        """
         cell = LayerNormRNNCell if use_LN else RNNCell
 
         super().__init__(obs_size, act_size, hidden_size=hidden_size,
@@ -415,7 +475,7 @@ class MaskedRNN(pRNN):
             neuralTimescale (int, optional): Decay for timescale. Defaults to 2.
             dropp (float, optional): Dropout probability. Defaults to 0.15.
             f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
-            use_LN (bool, optional): Use Layer Norm? Defaults to True.
+            use_LN (bool, optional): Use Layer Norm? Defaults to True (no LayerNorm).
             mask_actions (bool, optional): Mask Actions as well? Note that the action mask will the same as the input observation mask. Defaults to False.
             actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
             inMask_length (int, optional): Number of FUTURE timesteps to mask. Model will continue output predictions. Defaults to 0.
@@ -434,20 +494,34 @@ class MaskedRNN(pRNN):
                           predOffset=0, actOffset=actOffset,
                           inMask=inMask, outMask=outMask,
                           actMask=actMask)
-        
+
 class RolloutRNN(pRNN_th):
     """
-    Options:
-    - AdaptingLayerNorm (T/F): default: F (no adapt, just layernorm)
-    - k (rollout_length) --> default: 5
-    - Rollout Action Scheme (first, hold, full) --> default: "full"
-    - Continue from last Theta? (T/F)
-    - Action OFFSET (int) --> default: 0 
+    A predictive RNN that does a rollout of k predictions at each timestep.
+    Options to offset actions, use the same future actions for the k rollouts, use the same action, or no actions.
+
+    Args:
+        pRNN_th (class): extends pRNN class with "theta" rollouts.
     """
     def __init__(self,obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, dropp = 0.15, f=0.5,
                 use_ALN = False, k = 5, rollout_action = "full", continuousTheta = False, actOffset = 0):
-        
+        """Initialize RolloutRNN.
+
+        Args:
+            obs_size (int): Size of each agent observation. Flattened? #TODO confirm with dan
+            act_size (int): Size of action vector.
+            hidden_size (int, optional): Number of recurrent neurons. Defaults to 500.
+            bptttrunc (int, optional): Backpropagation Through Time, Truncated. Defaults to 100.
+            neuralTimescale (int, optional): Decay for timescale. Defaults to 2.
+            dropp (float, optional): Dropout probability. Defaults to 0.15.
+            f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
+            use_ALN (bool, optional): Use Adaptive Layer Norm?. Defaults to False (plain LayerNorm)
+            k (int, optional): Number of predictions in rollout. Defaults to 5.
+            rollout_action (str, optional): Action structure. Defaults to "full" (use real future actions). Other options; "first" (use only the one action), "hold" (use same action for k steps?)
+            continuousTheta (bool, optional): Carry over hidden state from the kth rollout to the t+1'th timestep. Defaults to False (carry hidden state from t to t+1).
+            actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
+        """
         cell = AdaptingLayerNormRNNCell if use_ALN else LayerNormRNNCell
 
         actionTheta = True if rollout_action == "full" else \

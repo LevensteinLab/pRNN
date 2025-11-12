@@ -258,6 +258,8 @@ class thetaRNNLayer(nn.Module):
         self.theta = defaultTheta
         self.continuousTheta = continuousTheta #whether or not to go from last theta = Theta to t+1 time step, v.s. return back to theta = 0 to t+1 
         
+        #self.trunc = cell_kwargs["bptttrunc"] if "bptttrunc" in cell_kwargs else 50
+
     def preprocess_inputs(self, input, internal, state, theta, batched):
 
         #ensure that there's at least one: input sequences or noise (internal) driving the network 

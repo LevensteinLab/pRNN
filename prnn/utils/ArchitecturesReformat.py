@@ -191,6 +191,7 @@ class pRNN(nn.Module, Base_pRNN):
         k=0
         if hasattr(self,'k'):
             k= self.k
+        
         if batched:
             noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
         else:
@@ -392,20 +393,33 @@ class NextStepRNN(pRNN):
             self.W.zero_()
 
 class MaskedRNN(pRNN):
-    """
-    Options:
-    - LayerNorm? (T/F)
-    - Observation MASK Length (int) --> default: 0
-    - MASK Actions Too? (T/F) [action mask will be the same length as the mask for input observations]
-    - Action OFFSET (int) --> default: 0
+    """ 
+    A predictive RNN with some combination of masked input observations, actions, or predictions.
+    Also accepts an offset for actions.
 
-    Note that if the action and observation masks are 0, and action offset length is 1, we've defaulted to next step prediction with no masks (?)
+    Args:
+        pRNN (class): extends base pRNN class
     """
+ 
     def __init__(self, obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, 
                 dropp = 0.15, f=0.5, 
-                use_LN = True, mask_actions = True, actOffset = 0, inMask_length= 0, **cell_kwargs): #new additions
-        
+                use_LN = True, mask_actions = False, actOffset = 0, inMask_length= 0, **cell_kwargs): #new additions
+        """Initialize MaskedRNN.
+
+        Args:
+            obs_size (int): Size of each agent observation. Flattened? #TODO confirm with dan
+            act_size (int): Size of action vector.
+            hidden_size (int, optional): Number of recurrent neurons. Defaults to 500.
+            bptttrunc (int, optional): Backpropagation Through Time, Truncated. Defaults to 100.
+            neuralTimescale (int, optional): Decay for timescale. Defaults to 2.
+            dropp (float, optional): Dropout probability. Defaults to 0.15.
+            f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
+            use_LN (bool, optional): Use Layer Norm? Defaults to True.
+            mask_actions (bool, optional): Mask Actions as well? Note that the action mask will the same as the input observation mask. Defaults to False.
+            actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
+            inMask_length (int, optional): Number of FUTURE timesteps to mask. Model will continue output predictions. Defaults to 0.
+        """
         cell = LayerNormRNNCell if use_LN else RNNCell
     
         inMask = np.full(inMask_length + 1, False)

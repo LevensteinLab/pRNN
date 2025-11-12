@@ -4,7 +4,7 @@ import torch
 
 
 class decodeAnalysis:
-    def __init__(self, predictiveNet, decoder='train', timesteps=2000, agent=None):
+    def __init__(self, predictiveNet, decoder='train', timesteps=2000, agent=None, render=False):
         
         self.pN = predictiveNet
         self.decoder = decoder
@@ -15,7 +15,7 @@ class decodeAnalysis:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
             agent = RandomActionAgent(env.action_space, action_probability)
         
-        self.WAKEactivity = self.runWAKE(env, agent, timesteps)
+        self.WAKEactivity = self.runWAKE(env, agent, timesteps, render=render)
         
         self.decoded, self.p = self.pN.decode(self.WAKEactivity['h'],self.decoder)
         #derror, dshuffle = self.pN.decode_error(decoded, state)
@@ -23,12 +23,13 @@ class decodeAnalysis:
         
         
         
-    def runWAKE(self, env, agent, timesteps_wake, theta='expand'):
+    def runWAKE(self, env, agent, timesteps_wake, theta='expand', render=False):
         print('Running WAKE')
         a = {}
-        a['obs'],a['act'],a['state'],_ = self.pN.collectObservationSequence(env,
+        a['obs'],a['act'],a['state'],a['render'] = self.pN.collectObservationSequence(env,
                                                              agent,
-                                                             timesteps_wake)
+                                                             timesteps_wake, includeRender=render,
+                                                             render_highlight=False)
         a['obs_pred'], a['obs_next'], h = self.pN.predict(a['obs'],a['act'])
         
         if theta == 'mean':
@@ -47,6 +48,7 @@ class decodeAnalysis:
             a['state']['agent_pos'] = a['state']['agent_pos'][:h.size(dim=1)+1,:]
             a['state']['agent_dir'] = np.repeat( a['state']['agent_dir'], k, axis=0)
             a['state']['agent_dir'] = a['state']['agent_dir'][:h.size(dim=1)+1]
+            a['render'] = [item for item in a['render'][:nt] for _ in range(k)]
             
             
         #a['h'] = np.squeeze(h.detach().numpy())

@@ -43,7 +43,7 @@ class TrajRawDataset(TrajDataset):
     def __getitem__(self, index):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         act = torch.tensor(act, dtype=self.act_type)
-        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:self.seq_length+1]
+        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:,:self.seq_length+1]
         raw = torch.tensor(raw, dtype=torch.float32)
         return raw, act
 

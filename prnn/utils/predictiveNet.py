@@ -519,7 +519,10 @@ class PredictiveNet:
             self.TrainingSaver = pd.concat((self.TrainingSaver.to_frame(),newTrial), ignore_index=True)
         if self.wandb_log: 
         # Encoder loss is logged only in W&B
-            wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 'encoder loss':enc_loss})
+            if enc_loss is not None:
+                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss, 'encoder loss':enc_loss})
+            else:
+                wandb.log({'trial':self.numTrainingTrials, 'pRNN loss':loss})
         return
 
     def addTrainingData(self,key,data):
@@ -654,7 +657,14 @@ class PredictiveNet:
                     group['weight_decay'] = eg_weight_decay
 
     #TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
-    def saveNet(self,savename,savefolder=''):
+    def saveNet(self,savename,savefolder='',cpu=False):
+        if cpu:
+            self.pRNN.to('cpu')
+            self.resetOptimizer(self.learningRate, self.weight_decay,
+                            trainBias=self.trainArgs.trainBias,
+                            bias_lr=self.trainArgs.bias_lr,
+                            eg_lr=self.trainArgs.eg_lr,
+                            eg_weight_decay=self.trainArgs.eg_weight_decay)
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Collect everything else that cannot be pickled
@@ -712,7 +722,8 @@ class PredictiveNet:
                                        sleepstd = 0.1, onsetTransient=20,
                                        activeTimeThreshold=200,
                                        fullRNNstate=False,
-                                       HDinfo=False):
+                                       HDinfo=False,
+                                       wandb_nameext=''):
         """
         Use an agent to calculate spatial representation of an environment
         """
@@ -881,10 +892,13 @@ class PredictiveNet:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
         if self.wandb_log: #TODO: work out the rest of the logging
+            keys_unmodified = ['mean SI', 'sRSA', 'SWdist']
+            log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
-                wandb.log({'mean SI': SI['SI'].mean(), 'sRSA': sRSA, 'SWdist': SWdist})
+                wandb.log({log_keys[0]: SI['SI'].mean(), log_keys[1]: sRSA, 
+                           log_keys[2]: SWdist})
             else:
-                wandb.log({'mean SI': SI['SI'].mean()})
+                wandb.log({log_keys[0]: SI['SI'].mean()})
         return place_fields, SI, decoder
 
 

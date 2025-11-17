@@ -145,7 +145,15 @@ class pRNN(nn.Module):
         h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)
         y_t = self.outlayer(h_t)
         return y_t, h_t
+    
+    def generate_noise(self, noise_params, shape):
+        if noise_params != (0,0):
+            noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
+        else:
+            noise = torch.zeros(shape, device=self.W.device)
 
+        return noise
+    
     def restructure_inputs(self, obs, act, batched=False):
         #recall, second dimension corresponds to timesteps...
         #obs are all the true agent observations taken over all timesteps and batches

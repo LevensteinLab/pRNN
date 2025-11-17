@@ -46,6 +46,8 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 
 
 from prnn.utils.Architectures import *
+#named with a "n" prefix so old architectures aren't overwritten in the import
+from prnn.utils.ArchitecturesReformat import nAutoencoderFF, nAutoencoderRec, nAutoencoderPred, nAutoencoderFFPred, nAutoencoderFF_LN, nAutoencoderRec_LN, nAutoencoderPred_LN, nAutoencoderFFPred_LN
 
 netOptions = {'vRNN' : vRNN,
               'vRNN_LayerNorm' : vRNN_LayerNorm,
@@ -139,6 +141,15 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i01_o0': multRNN_5win_i01_o0,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
               }
+
+newNetOptions = {"AutoencoderFF": nAutoencoderFF,
+                "AutoencoderRec": nAutoencoderRec,
+                "AutoencoderPred": nAutoencoderPred,
+                "AutoencoderFFPred": nAutoencoderFFPred,
+                "AutoencoderFF_LN": nAutoencoderFF_LN,
+                "AutoencoderRec_LN": nAutoencoderRec_LN,
+                "AutoencoderPred_LN": nAutoencoderPred_LN,
+                "AutoencoderFFPred_LN": nAutoencoderFFPred_LN}
 
 lossOptions = {'predMSE'    :   predMSE,
                'predRMSE'   :   predRMSE,

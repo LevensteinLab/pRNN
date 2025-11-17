@@ -19,25 +19,9 @@ from functools import partial
 ## Helper Functions --
 
 
-def generate_noise(noise_params, shape, w_device):
-    """Used to generate noise for the internal vector.
-
-    Args:
-        noise_params (Tuple[int, int]): Tuple of noise parameters. #TODO confirm with Dan what this is
-        shape (int): Length of vector?
-        w_device (???): PyTorch device
-
-    Returns:
-        list[int]: noise per term???
-    """
-    if noise_params != (0,0):
-        noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=w_device)
-    else:
-        noise = torch.zeros(shape, device=w_device)
-
-    return noise
 
 
+"""
 #base class for future architectures unlike pRNN
 class Base_pRNN(nn.Module, ABC):
     def __init__(*args, **kwargs):
@@ -50,6 +34,7 @@ class Base_pRNN(nn.Module, ABC):
     @abstractmethod
     def forward(*args, **kwargs):
         raise NotImplementedError
+"""
 
 """
     A general predictive RNN framework that takes observations and actions, and
@@ -67,7 +52,7 @@ class Base_pRNN(nn.Module, ABC):
         L: timesamps
         H: input_size
     """
-class pRNN(nn.Module, Base_pRNN):
+class pRNN(nn.Module):
     """
     A general predictive RNN framework that takes observations and actions, and
     returns predicted observations, as well as the actual observations to train
@@ -294,6 +279,13 @@ class pRNN(nn.Module, Base_pRNN):
         
         return y_t, h_t, obs_target
 
+    def generate_noise(self, noise_params, shape):
+        if noise_params != (0,0):
+            noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
+        else:
+            noise = torch.zeros(shape, device=self.W.device)
+
+        return noise
 
 class pRNN_th(pRNN): 
     def __init__(self, obs_size, act_size, k, hidden_size=500,
@@ -541,11 +533,11 @@ class RolloutRNN(pRNN_th):
 
 """ Next-step Prediction Networks"""
 
-AutoencoderFF = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 0)
-AutoencoderRec = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 0)
-AutoencoderPred = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 1)
-AutoencoderFFPred = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 1)
-AutoencoderFF_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 0)
-AutoencoderRec_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 0)
-AutoencoderPred_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 1)
-AutoencoderFFPred_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 1)
+nAutoencoderFF = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 0)
+nAutoencoderRec = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 0)
+nAutoencoderPred = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 1)
+nAutoencoderFFPred = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 1)
+nAutoencoderFF_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 0)
+nAutoencoderRec_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 0)
+nAutoencoderPred_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 1)
+nAutoencoderFFPred_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 1)

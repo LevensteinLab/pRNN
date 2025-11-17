@@ -8,6 +8,8 @@ from prnn.utils.thetaRNN import thetaRNNLayer, RNNCell, LayerNormRNNCell, Adapti
 
 from prnn.utils.pytorchInits import CANN_
 from abc import ABC, abstractmethod
+from functools import partial
+
 
 ## TODOs 
 # - go over internal and spontaneous with dan, helper or class method?
@@ -442,11 +444,12 @@ class NextStepRNN(pRNN):
             use_FF (bool, optional): Use Feed Forward network? Defaults to False. If True, we get rid of recurrence by zeroing out the hidden-to-hidden weight matrix.
         """
         cell = LayerNormRNNCell if use_LN else RNNCell
+        predOffset = cell_kwargs["predOffset"] if "predOffset" in cell_kwargs else 1
 
         super().__init__(obs_size, act_size, hidden_size=hidden_size,
                           cell=cell, bptttrunc=bptttrunc, 
                           neuralTimescale=neuralTimescale, 
-                          dropp=dropp, f=f, predOffset=1, actOffset=0,
+                          dropp=dropp, f=f, predOffset=predOffset, actOffset=0,
                           inMask=[True], outMask=[True], actMask=None)        
         if use_FF:
             self.W.requires_grad_(False)
@@ -534,3 +537,15 @@ class RolloutRNN(pRNN_th):
                                        f=f,
                                        predOffset=0, actOffset=actOffset,
                                        continuousTheta=continuousTheta, actionTheta=actionTheta)
+
+
+""" Next-step Prediction Networks"""
+
+AutoencoderFF = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 0)
+AutoencoderRec = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 0)
+AutoencoderPred = partial(NextStepRNN, use_LN = False, use_FF = False, predOffset = 1)
+AutoencoderFFPred = partial(NextStepRNN, use_LN = False, use_FF = True, predOffset = 1)
+AutoencoderFF_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 0)
+AutoencoderRec_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 0)
+AutoencoderPred_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 1)
+AutoencoderFFPred_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 1)

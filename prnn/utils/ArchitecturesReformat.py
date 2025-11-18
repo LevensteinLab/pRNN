@@ -155,7 +155,7 @@ class pRNN(nn.Module):
             nn.Linear(hidden_size, output_size, bias=False),
             nn.Sigmoid())
         
-    def restructure_inputs(self, obs_in, obs_target, act, batched=False): #obs --> obs-in, obs_target 
+    def restructure_inputs(self, obs_in, act, obs_target=None, batched=False): #obs --> obs-in, obs_target 
         """
         Join obs and act into a single input tensor shape (N,L,H)
         N: Batch size
@@ -163,6 +163,8 @@ class pRNN(nn.Module):
         H: input_size
         obs should be one timestep longer than act, for the [t+1] observation
         after the last action
+
+        OBS TARGET SHOULD BE PASSED
         """
 
         #Apply the action and prediction offsets
@@ -191,7 +193,6 @@ class pRNN(nn.Module):
         obs_out = torch.zeros_like(obs_in, requires_grad=False)
         act_out = torch.zeros_like(act, requires_grad=False)
         obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
-
 
         if self.actMask is not None and self.outMask is not None and self.inMask is not None:
             
@@ -247,7 +248,7 @@ class pRNN(nn.Module):
             y_t = None
             obs_target = None
         else:
-            x_t, obs_target, outmask = self.restructure_inputs(obs,act,batched)
+            x_t, obs_target, outmask = self.restructure_inputs(obs_in=obs, act=act, obs_target = None, batched = batched) #passed as None now, will get filled in restructure_inputs
             #x_t = self.droplayer(x_t) # (should it count action???) dropout with action
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
                              theta=theta, mask=mask, batched=batched)
@@ -408,7 +409,7 @@ class pRNN_multimodal(pRNN):
             obs_target.append(obs[i][:,self.predOffset:,:])
         obs_target = torch.cat(obs_target, 2)
 
-        return super().restructure_inputs(obs_in, obs_target, act, batched)
+        return super().restructure_inputs(obs_in=obs_in, act=act, obs_target=obs_target, batched = batched)
 
  
 class NextStepRNN(pRNN):
@@ -437,7 +438,8 @@ class NextStepRNN(pRNN):
         """
         cell = LayerNormRNNCell if use_LN else RNNCell
         predOffset = cell_kwargs["predOffset"] if "predOffset" in cell_kwargs else 1
-
+        print("inside the init function of NextStepRNN...")
+        
         super().__init__(obs_size, act_size, hidden_size=hidden_size,
                           cell=cell, bptttrunc=bptttrunc, 
                           neuralTimescale=neuralTimescale, 

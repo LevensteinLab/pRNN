@@ -543,3 +543,46 @@ nAutoencoderFF_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffse
 nAutoencoderRec_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 0)
 nAutoencoderPred_LN = partial(NextStepRNN, use_LN = True, use_FF = False, predOffset = 1)
 nAutoencoderFFPred_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOffset = 1)
+
+""" Masked Prediction Networks """
+
+nthRNN = partial(MaskedRNN, use_LN = False, inMask_length = 1) #has no extra stuff like neuralTimescale, bptttrunc...etc
+
+nthRNN_0win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 0)
+nthRNN_1win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 1)
+nthRNN_2win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 2)
+nthRNN_3win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 3)
+nthRNN_4win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 4)
+nthRNN_5win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 5)
+nthRNN_6win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 6)
+
+nthRNN_0win = partial(MaskedRNN, use_LN = True, inMask_length = 0)
+nthRNN_1win = partial(MaskedRNN, use_LN = True, inMask_length = 1)
+nthRNN_2win = partial(MaskedRNN, use_LN = True, inMask_length = 2)
+nthRNN_3win = partial(MaskedRNN, use_LN = True, inMask_length = 3)
+nthRNN_4win = partial(MaskedRNN, use_LN = True, inMask_length = 4)
+nthRNN_5win = partial(MaskedRNN, use_LN = True, inMask_length = 5)
+nthRNN_6win = partial(MaskedRNN, use_LN = True, inMask_length = 6)
+nthRNN_7win = partial(MaskedRNN, use_LN = True, inMask_length = 7)
+nthRNN_8win = partial(MaskedRNN, use_LN = True, inMask_length = 8)
+nthRNN_9win = partial(MaskedRNN, use_LN = True, inMask_length = 9)
+nthRNN_10win = partial(MaskedRNN, use_LN = True, inMask_length = 10)
+
+nthRNN_0win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 0, mask_actions = True)
+nthRNN_1win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 1, mask_actions = True)
+nthRNN_2win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 2, mask_actions = True)
+nthRNN_3win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 3, mask_actions = True)
+nthRNN_4win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 4, mask_actions = True)
+nthRNN_5win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 5, mask_actions = True)
+
+nthRNN_0win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 0, actOffset=1)
+nthRNN_1win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 1, actOffset=1)
+nthRNN_2win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 2, actOffset=1)
+nthRNN_3win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 3, actOffset=1)
+nthRNN_4win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 4, actOffset=1)
+nthRNN_5win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 5, actOffset=1)
+nthRNN_6win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 6, actOffset=1)
+nthRNN_7win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 7, actOffset=1)
+nthRNN_8win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 8, actOffset=1)
+nthRNN_9win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 9, actOffset=1)
+nthRNN_10win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 10, actOffset=1)

@@ -194,8 +194,12 @@ class PredictiveNet:
 
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
-        self.pRNN = netOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
+        #self.pRNN = netOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
+        #                                 **architecture_kwargs)
+
+        self.pRNN = newNetOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
                                          **architecture_kwargs)
+
         if identityInit: 
             self.pRNN.W = nn.Parameter(torch.eye(hidden_size))
 
@@ -248,7 +252,9 @@ class PredictiveNet:
         if randInit and len(state) == 0:
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
-        
+
+        print(type(obs), type(act), type(state), type(mask), type(batched), type(fullRNNstate))
+
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
                                           state=state, mask=mask, batched=batched, 
                                           fullRNNstate=fullRNNstate)

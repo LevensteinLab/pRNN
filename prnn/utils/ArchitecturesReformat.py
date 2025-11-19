@@ -502,7 +502,7 @@ class RolloutRNN(pRNN_th):
     """
     def __init__(self,obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, dropp = 0.15, f=0.5,
-                use_ALN = False, k = 5, rollout_action = "full", continuousTheta = False, actOffset = 0):
+                use_ALN = False, k = 5, rollout_action = "first", continuousTheta = False, actOffset = 0):
         """Initialize RolloutRNN.
 
         Args:
@@ -515,14 +515,15 @@ class RolloutRNN(pRNN_th):
             f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
             use_ALN (bool, optional): Use Adaptive Layer Norm?. Defaults to False (plain LayerNorm)
             k (int, optional): Number of predictions in rollout. Defaults to 5.
-            rollout_action (str, optional): Action structure. Defaults to "full" (use real future actions). Other options; "first" (use only the one action), "hold" (use same action for k steps?)
+            rollout_action (str, optional): Action structure. Defaults to "first" (use only the one action). Other options: "full" (use real future actions);  "hold" (use same action for k steps?)
             continuousTheta (bool, optional): Carry over hidden state from the kth rollout to the t+1'th timestep. Defaults to False (carry hidden state from t to t+1).
             actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
         """
         cell = AdaptingLayerNormRNNCell if use_ALN else LayerNormRNNCell
 
         actionTheta = True if rollout_action == "full" else \
-                    False if rollout_action == "first" else "hold"
+                    False if rollout_action == "first" else \
+                    "hold"
                     
         super().__init__(obs_size, act_size,  k=k, 
                                        hidden_size=hidden_size,
@@ -586,3 +587,33 @@ nthRNN_7win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 7, actOf
 nthRNN_8win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 8, actOffset=1)
 nthRNN_9win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 9, actOffset=1)
 nthRNN_10win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 10, actOffset=1)
+
+""" Rollout Prediction Networks """
+
+nthcycRNN_3win = partial(RolloutRNN, use_ALN = False, k = 3)
+nthcycRNN_4win = partial(RolloutRNN, use_ALN = False, k = 4)
+nthcycRNN_5win = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = True) #TODO check with dan whether its supposed to be continueous theta
+
+nthcycRNN_5win_holdc = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "hold")
+nthcycRNN_5win_fullc = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "full")
+nthcycRNN_5win_firstc = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "first")
+
+nthcycRNN_5win_hold = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "hold")
+nthcycRNN_5win_full = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "full")
+nthcycRNN_5win_first = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "first")
+
+nthcycRNN_5win_holdc_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = True, rollout_action = "hold")
+nthcycRNN_5win_fullc_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = True, rollout_action = "full")
+nthcycRNN_5win_firstc_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = True, rollout_action = "first")
+
+nthcycRNN_5win_hold_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = False, rollout_action = "hold")
+nthcycRNN_5win_full_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = False, rollout_action = "full")
+nthcycRNN_5win_first_adapt = partial(RolloutRNN, use_ALN = True, k = 5, continousTheta = False, rollout_action = "first")
+
+nthcycRNN_5win_holdc_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "hold", actOffset = 1)
+nthcycRNN_5win_fullc_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "full", actOffset = 1)
+nthcycRNN_5win_firstc_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = True, rollout_action = "first", actOffset = 1)
+
+nthcycRNN_5win_hold_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "hold", actOffset = 1)
+nthcycRNN_5win_full_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "full", actOffset = 1)
+nthcycRNN_5win_first_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, continousTheta = False, rollout_action = "first", actOffset = 1)

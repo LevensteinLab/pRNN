@@ -22,7 +22,7 @@ env.reset()
 
 #Make a pRNN
 num_neurons = 500
-pRNNtype = 'AutoencoderPred_LN' #This will train a 5-step masked pRNN. 
+pRNNtype = 'thRNN_5win' #This will train a 5-step masked pRNN. 
                         #For a rollout network use 'thcycRNN_5win_full'
 
 predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype)

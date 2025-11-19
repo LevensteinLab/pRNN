@@ -47,7 +47,7 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 
 from prnn.utils.Architectures import *
 #named with a "n" prefix so old architectures aren't overwritten in the import
-from prnn.utils.ArchitecturesReformat import nAutoencoderFF, nAutoencoderRec, nAutoencoderPred, nAutoencoderFFPred, nAutoencoderFF_LN, nAutoencoderRec_LN, nAutoencoderPred_LN, nAutoencoderFFPred_LN
+from prnn.utils.ArchitecturesReformat import *  
 
 netOptions = {'vRNN' : vRNN,
               'vRNN_LayerNorm' : vRNN_LayerNorm,
@@ -142,14 +142,41 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
               }
 
-newNetOptions = {"AutoencoderFF": nAutoencoderFF,
+newNetOptions = {"AutoencoderFF": nAutoencoderFF, #next step prediction
                 "AutoencoderRec": nAutoencoderRec,
                 "AutoencoderPred": nAutoencoderPred,
                 "AutoencoderFFPred": nAutoencoderFFPred,
                 "AutoencoderFF_LN": nAutoencoderFF_LN,
                 "AutoencoderRec_LN": nAutoencoderRec_LN,
                 "AutoencoderPred_LN": nAutoencoderPred_LN,
-                "AutoencoderFFPred_LN": nAutoencoderFFPred_LN}
+                "AutoencoderFFPred_LN": nAutoencoderFFPred_LN,
+                'thRNN_0win'  :  nthRNN_0win, #masked networks
+                'thRNN_1win'  :  nthRNN_1win,
+                'thRNN_2win' : nthRNN_2win,
+                'thRNN_3win' : nthRNN_3win,
+                'thRNN_4win' : nthRNN_4win,
+                'thRNN_5win' : nthRNN_5win,
+                'thRNN_6win' : nthRNN_6win,
+                'thRNN_7win' : nthRNN_7win,
+                'thRNN_8win' : nthRNN_8win,
+                'thRNN_9win' : nthRNN_9win,
+                'thRNN_10win' : nthRNN_10win,
+                'thRNN_0win_prevAct' : nthRNN_0win_prevAct,
+                'thRNN_1win_prevAct' : nthRNN_1win_prevAct,
+                'thRNN_2win_prevAct' : nthRNN_2win_prevAct,
+                'thRNN_3win_prevAct' : nthRNN_3win_prevAct,
+                'thRNN_4win_prevAct' : nthRNN_4win_prevAct,
+                'thRNN_5win_prevAct' : nthRNN_5win_prevAct,
+                'thRNN_6win_prevAct' : nthRNN_6win_prevAct,
+                'thRNN_7win_prevAct' : nthRNN_7win_prevAct,
+                'thRNN_8win_prevAct' : nthRNN_8win_prevAct,
+                'thRNN_9win_prevAct' : nthRNN_9win_prevAct,
+                'thRNN_10win_prevAct' : nthRNN_10win_prevAct,
+                'thRNN_1win_mask'  :  nthRNN_1win_mask,
+                'thRNN_2win_mask'  :  nthRNN_2win_mask,
+                'thRNN_3win_mask'  :  nthRNN_3win_mask,
+                'thRNN_4win_mask'  :  nthRNN_4win_mask,
+                'thRNN_5win_mask'  :  nthRNN_5win_mask}
 
 lossOptions = {'predMSE'    :   predMSE,
                'predRMSE'   :   predRMSE,
@@ -252,8 +279,6 @@ class PredictiveNet:
         if randInit and len(state) == 0:
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
-
-        print(type(obs), type(act), type(state), type(mask), type(batched), type(fullRNNstate))
 
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
                                           state=state, mask=mask, batched=batched, 

@@ -1229,7 +1229,7 @@ class thcycRNN_5win(pRNN_th):
                                        cell=cell, bptttrunc=bptttrunc, 
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        predOffset=0, actOffset=0,
-                                       continuousTheta=True)
+                                       continuousTheta=True) ## <-- should this be toggled true?
         
         
         

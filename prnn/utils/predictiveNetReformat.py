@@ -142,7 +142,7 @@ netOptions = {'vRNN' : vRNN,
               'multRNN_5win_i0_o1': multRNN_5win_i0_o1,
               }
 
-newNetOptions = {"AutoencoderFF": nAutoencoderFF, #next step prediction
+newNetOptions = {"AutoencoderFF": nAutoencoderFF, #NEXT STEP PREDICTION NETWORKS
                 "AutoencoderRec": nAutoencoderRec,
                 "AutoencoderPred": nAutoencoderPred,
                 "AutoencoderFFPred": nAutoencoderFFPred,
@@ -150,7 +150,7 @@ newNetOptions = {"AutoencoderFF": nAutoencoderFF, #next step prediction
                 "AutoencoderRec_LN": nAutoencoderRec_LN,
                 "AutoencoderPred_LN": nAutoencoderPred_LN,
                 "AutoencoderFFPred_LN": nAutoencoderFFPred_LN,
-                'thRNN_0win'  :  nthRNN_0win, #masked networks
+                'thRNN_0win'  :  nthRNN_0win, #MASKED NETWORKS
                 'thRNN_1win'  :  nthRNN_1win,
                 'thRNN_2win' : nthRNN_2win,
                 'thRNN_3win' : nthRNN_3win,
@@ -176,7 +176,27 @@ newNetOptions = {"AutoencoderFF": nAutoencoderFF, #next step prediction
                 'thRNN_2win_mask'  :  nthRNN_2win_mask,
                 'thRNN_3win_mask'  :  nthRNN_3win_mask,
                 'thRNN_4win_mask'  :  nthRNN_4win_mask,
-                'thRNN_5win_mask'  :  nthRNN_5win_mask}
+                'thRNN_5win_mask'  :  nthRNN_5win_mask,
+                'thcycRNN_3win' :  nthcycRNN_3win, #ROLLOUT NETWORKS
+                'thcycRNN_5win' :  nthcycRNN_5win,
+                'thcycRNN_5win_first' : nthcycRNN_5win_first,
+                'thcycRNN_5win_full' : nthcycRNN_5win_full,
+                'thcycRNN_5win_hold' : nthcycRNN_5win_hold,
+                'thcycRNN_5win_firstc' : nthcycRNN_5win_firstc,
+                'thcycRNN_5win_fullc' : nthcycRNN_5win_fullc,
+                'thcycRNN_5win_holdc' : nthcycRNN_5win_holdc,
+                'thcycRNN_5win_first_adapt' : nthcycRNN_5win_first_adapt,
+                'thcycRNN_5win_full_adapt' : nthcycRNN_5win_full_adapt,
+                'thcycRNN_5win_hold_adapt' : nthcycRNN_5win_hold_adapt,
+                'thcycRNN_5win_firstc_adapt' : nthcycRNN_5win_firstc_adapt,
+                'thcycRNN_5win_fullc_adapt' : nthcycRNN_5win_fullc_adapt,
+                'thcycRNN_5win_holdc_adapt' : nthcycRNN_5win_holdc_adapt,
+                'thcycRNN_5win_first_prevAct' : nthcycRNN_5win_first_prevAct,
+                'thcycRNN_5win_full_prevAct' : nthcycRNN_5win_full_prevAct,
+                'thcycRNN_5win_hold_prevAct' : nthcycRNN_5win_hold_prevAct,
+                'thcycRNN_5win_firstc_prevAct' : nthcycRNN_5win_firstc_prevAct,
+                'thcycRNN_5win_fullc_prevAct' : nthcycRNN_5win_fullc_prevAct,
+                'thcycRNN_5win_holdc_prevAct' : nthcycRNN_5win_holdc_prevAct}
 
 lossOptions = {'predMSE'    :   predMSE,
                'predRMSE'   :   predRMSE,

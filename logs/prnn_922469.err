@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "/gpfs/radev/project/levenstein/vv266/pRNN/tutorial.py", line 38, in <module>
+    plt.savefig(f"plots/{ARCHITECTURE_NAME}_naive.png")
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/pyplot.py", line 977, in savefig
+    res = fig.savefig(*args, **kwargs)
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/figure.py", line 3058, in savefig
+    self.canvas.print_figure(fname, **kwargs)
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/backend_bases.py", line 2319, in print_figure
+    result = print_method(
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/backend_bases.py", line 1648, in wrapper
+    return func(*args, **kwargs)
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/_api/deprecation.py", line 415, in wrapper
+    return func(*inner_args, **inner_kwargs)
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/backends/backend_agg.py", line 541, in print_png
+    mpl.image.imsave(
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/matplotlib/image.py", line 1675, in imsave
+    image.save(fname, **pil_kwargs)
+  File "/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/PIL/Image.py", line 2583, in save
+    fp = builtins.open(filename, "w+b")
+FileNotFoundError: [Errno 2] No such file or directory: 'plots/thcycRNN_5win_full_naive.png'

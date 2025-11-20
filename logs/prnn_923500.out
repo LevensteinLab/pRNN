@@ -1,0 +1,27 @@
+wandb not installed, will not log to wandb
+Training pRNN on cpu...
+loss: 0.023, sparsity: 4.3, meanrate: 0.39 [    0\   50]
+loss: 0.02, sparsity: 4.4, meanrate: 0.39 [    5\   50]
+loss: 0.017, sparsity: 4.4, meanrate: 0.4 [   10\   50]
+loss: 0.019, sparsity: 4.5, meanrate: 0.41 [   15\   50]
+loss: 0.017, sparsity: 4.6, meanrate: 0.4 [   20\   50]
+loss: 0.017, sparsity: 4.6, meanrate: 0.4 [   25\   50]
+loss: 0.016, sparsity: 4.5, meanrate: 0.41 [   30\   50]
+loss: 0.018, sparsity: 4.6, meanrate: 0.41 [   35\   50]
+loss: 0.017, sparsity: 4.6, meanrate: 0.41 [   40\   50]
+loss: 0.016, sparsity: 4.5, meanrate: 0.41 [   45\   50]
+loss: 0.016, sparsity: 4.7, meanrate: 0.41 [   49\   50]
+Epoch Complete. Back to the cpu
+Training Decoder on cpu...
+loss: 5.858675 [    0\ 5000]
+loss: 4.420363 [  500\ 5000]
+loss: 4.044645 [ 1000\ 5000]
+loss: 3.842660 [ 1500\ 5000]
+loss: 3.669079 [ 2000\ 5000]
+loss: 3.531511 [ 2500\ 5000]
+loss: 3.452063 [ 3000\ 5000]
+loss: 3.383118 [ 3500\ 5000]
+loss: 3.322758 [ 4000\ 5000]
+loss: 3.285000 [ 4500\ 5000]
+loss: 3.243310 [ 4999\ 5000]
+Training Complete. Back to the cpu

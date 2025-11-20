@@ -136,6 +136,8 @@ class RNNCell(BaseCell):
     def __init__(self, input_size: int, hidden_size: int, actfun: str = "relu", init: str = "xavier", *args, **kwargs):
         super().__init__(input_size, hidden_size, actfun)
 
+        init = kwargs["init"] if "init" in kwargs else init
+
         self.initialize_weights(input_size = input_size, hidden_size = hidden_size, init = init, **kwargs)
 
     def initialize_weights(self, input_size: int, hidden_size: int, init: str, **kwargs):
@@ -251,7 +253,7 @@ class thetaRNNLayer(nn.Module):
     internal [theta x sequence x neuron] (optional if input provided)
     state [#TODO: DL fill this in] (optional)
     """
-    def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False, **cell_kwargs):
+    def __init__(self, cell, trunc, *cell_args, defaultTheta=0, continuousTheta=False, **cell_kwargs): #the init scheme (xavier vs lognormal) will get propagated through here
         super(thetaRNNLayer, self).__init__()
         self.cell = cell(*cell_args,**cell_kwargs)
         self.trunc = trunc

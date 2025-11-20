@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/gpfs/radev/project/levenstein/vv266/pRNN/tutorial.py", line 30, in <module>
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype)
+  File "/gpfs/radev/project/levenstein/vv266/pRNN/prnn/utils/predictiveNetReformat.py", line 247, in __init__
+    self.pRNN = newNetOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
+TypeError: __init__() got an unexpected keyword argument 'continousTheta'

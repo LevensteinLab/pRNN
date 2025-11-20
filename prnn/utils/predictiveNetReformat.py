@@ -46,7 +46,11 @@ from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 
 
 from prnn.utils.Architectures import *
-#named with a "n" prefix so old architectures aren't overwritten in the import
+
+#named with a prefix so old architectures aren't overwritten in the import
+#n --> "new"; architecture defined as "partials" with reformat classes (NextStepRNN, MaskedRNN, RolloutRNN)
+#o --> "old"; archiectures defined as classes, but using the reformatted base classes (pRNN, pRNN_th). testing back compatibility
+
 from prnn.utils.ArchitecturesReformat import *  
 
 netOptions = {'vRNN' : vRNN,
@@ -196,7 +200,16 @@ newNetOptions = {"AutoencoderFF": nAutoencoderFF, #NEXT STEP PREDICTION NETWORKS
                 'thcycRNN_5win_hold_prevAct' : nthcycRNN_5win_hold_prevAct,
                 'thcycRNN_5win_firstc_prevAct' : nthcycRNN_5win_firstc_prevAct,
                 'thcycRNN_5win_fullc_prevAct' : nthcycRNN_5win_fullc_prevAct,
-                'thcycRNN_5win_holdc_prevAct' : nthcycRNN_5win_holdc_prevAct}
+                'thcycRNN_5win_holdc_prevAct' : nthcycRNN_5win_holdc_prevAct,
+                'lognRNN_rollout': nlognRNN_rollout, #LOG NORMAL INIT
+                'lognRNN_mask': nlognRNN_rollout,
+                'multRNN_5win_i01_o01': nmultRNN_5win_i01_o01, 
+                'multRNN_5win_i1_o0' : nmultRNN_5win_i1_o0, 
+                'multRNN_5win_i01_o0' : nmultRNN_5win_i01_o0, 
+                'multRNN_5win_i0_o1' : nmultRNN_5win_i0_o1,
+                'oAutoencoderPred_LN': oAutoencoderPred_LN, #OLD CLASS DEFS
+                'othRNN_5win': othRNN_5win,
+                'othcycRNN_5win_full': othcycRNN_5win_full}
 
 lossOptions = {'predMSE'    :   predMSE,
                'predRMSE'   :   predRMSE,

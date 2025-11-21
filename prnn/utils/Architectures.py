@@ -568,7 +568,7 @@ class pRNN_AE(pRNN):
         modules.append(nn.Flatten())
         if self.latent_dim:
             modules.append(nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim))
-        # NOTE: activation?
+            modules.append(nn.ReLU()) # NOTE: experiments ran before 18.11.25 did not have this activation
         self.encoder = nn.Sequential(*modules)
 
     def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):

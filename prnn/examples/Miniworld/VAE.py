@@ -20,13 +20,15 @@ from omegaconf import DictConfig
 
 class VAE(nn.Module):
     def __init__(self, learning_rate: float, net_config: tuple,
-                 in_channels: int, latent_dim: int, kld_weight=0.005):
+                 in_channels: int, latent_dim: int, kld_weight=0.005,
+                 weight_decay=1e-5):
         super().__init__()
         self.learning_rate = learning_rate
         self.activation = nn.ReLU()
         self.in_channels = in_channels
         self.latent_dim = latent_dim
         self.kld_weight = kld_weight
+        self.encoder_decay = weight_decay
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
@@ -36,7 +38,17 @@ class VAE(nn.Module):
 
         self.initialize_weights()
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        # apply weight decay only to encoder parameters (include fc_mu/fc_log_var)
+        encoder_params = list(self.encoder.parameters()) + list(self.fc_mu.parameters()) + list(self.fc_log_var.parameters())
+        encoder_param_ids = {id(p) for p in encoder_params}
+        other_params = [p for p in self.parameters() if id(p) not in encoder_param_ids]
+        self.optimizer = torch.optim.Adam(
+            [
+                {"params": encoder_params, "weight_decay": self.encoder_decay},
+                {"params": other_params, "weight_decay": 0.0},
+            ],
+            lr=self.learning_rate,
+        )
 
     def build_encoder(self, in_channels, n_channels, kernel_sizes, strides, paddings):
         modules = []
@@ -59,7 +71,10 @@ class VAE(nn.Module):
         modules.append(nn.Flatten())
         self.encoder = nn.Sequential(*modules)
 
-        self.fc_mu = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
+        self.fc_mu = nn.Sequential(
+                        nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim),
+                        self.activation # NOTE: experiments ran before 18.11.25 did not have this activation
+                     )
         self.fc_log_var = nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim)
 
     def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
@@ -138,13 +153,15 @@ class VAE(nn.Module):
 
 class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
     def __init__(self, learning_rate: float, net_config: tuple,
-                 in_channels: int, latent_dim: int, kld_weight=0.005):
+                 in_channels: int, latent_dim: int, kld_weight=0.005,
+                 weight_decay=1e-5):
         super().__init__()
         self._learning_rate = learning_rate
         self.activation = nn.ReLU()
         self.in_channels = in_channels
         self.latent_dim = latent_dim
         self.kld_weight = kld_weight
+        self.encoder_decay = weight_decay
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
@@ -256,7 +273,17 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self._learning_rate)
+        # apply weight decay only to encoder parameters (include fc_mu/fc_log_var)
+        encoder_params = list(self.encoder.parameters()) + list(self.fc_mu.parameters()) + list(self.fc_log_var.parameters())
+        encoder_param_ids = {id(p) for p in encoder_params}
+        other_params = [p for p in self.parameters() if id(p) not in encoder_param_ids]
+        return torch.optim.Adam(
+            [
+                {"params": encoder_params, "weight_decay": self.encoder_weight_decay},
+                {"params": other_params, "weight_decay": 0.0},
+            ],
+            lr=self._learning_rate,
+        )
 
 
 class RatDataModule(pl.LightningDataModule):

@@ -352,6 +352,7 @@ class pRNN_multimodal(pRNN):
                  actOffset=0, actMask=None, neuralTimescale=2,
                  continuousTheta=False, inIDs=None, outIDs=None,
                  **cell_kwargs):
+       
         self.obs_size = obs_size
         self.inIDs = inIDs
         self.outIDs = outIDs

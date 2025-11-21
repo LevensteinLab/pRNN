@@ -402,11 +402,11 @@ class pRNN_multimodal(pRNN):
             outMask = np.full(inMask_length + 1, True)
 
 
-        super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size,
-                                              cell,  dropp, bptttrunc, k, f,
-                                              predOffset, inMask= inMask, outMask = outMask, 
-                                              actOffset, actMask, neuralTimescale,
-                                              continuousTheta,  input_size = self.input_size, 
+        super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size=hidden_size,
+                                              cell=cell,  dropp=dropp, bptttrunc=bptttrunc, k=k, f=f,
+                                              predOffset=predOffset, inMask= inMask, outMask = outMask, 
+                                              actOffset=actOffset, actMask=actMask, neuralTimescale=neuralTimescale,
+                                              continuousTheta = continuousTheta,  input_size = self.input_size, 
                                               output_size = self.output_size, #fix in a seconds
                                               **cell_kwargs)
     #override

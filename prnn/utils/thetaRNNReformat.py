@@ -26,7 +26,10 @@ from abc import ABC, abstractmethod # abstract-base classes in python
 
 #INIT FUNCTIONS
 
-def xavier_init(input_size, hidden_size, W_ih, W_hh, b):
+def xavier_init(input_size: int, hidden_size:int, W_ih: Tensor, W_hh: Tensor, b: float):
+    """Function to initialize weights. 
+    Weights are drawn uniformly with bounds proportional to number of inputs/outputs.
+    """
     rootk_h = np.sqrt(1./hidden_size)
     rootk_i = np.sqrt(1./input_size)
 
@@ -37,8 +40,9 @@ def xavier_init(input_size, hidden_size, W_ih, W_hh, b):
 
     return W_ih, W_hh, b
 
-def calc_ln_mu_sigma(mean, var):
-    "Given desired mean and var returns ln mu and sigma"
+def calc_ln_mu_sigma(mean: float, var: float):
+    """Calculates mu and sigma parameters for use by lognormal initialization.
+    """
     mu_ln = math.log(mean ** 2 / math.sqrt(mean ** 2 + var))
     sigma_ln = math.sqrt(math.log(1 + (var / mean ** 2)))
     return mu_ln, sigma_ln
@@ -93,8 +97,9 @@ activations = {
 
 class BaseCell(nn.Module, ABC):
     """
-    Abstract class that defines a generic cell; contains an class initialization, 
-    a weight initialization function, and a forward/state update method.
+    Abstract Base Class (ABC) that defines a generic cell.
+    Contains a constructor, a weight initialization function, and a forward/state update method.
+    Optionally, a function to transform inputs before application of an activation function.
     """    
     def __init__(self, input_size: int, hidden_size: int, actfun: str = "relu", *args, **kwargs) -> None:
         super().__init__()
@@ -122,25 +127,35 @@ class BaseCell(nn.Module, ABC):
 
 class RNNCell(BaseCell):
     """
-    Parent class that defines the base recurrent cell in the predictive RNN...
+    Parent class that defines the base recurrent cell in the predictive RNN
     This class initializes two weight matrices (one from input --> hidden and one from hidden --> hidden),
     a bias term, and an activation function of choice.
-
-    Args:
-        input_size (int): length of input vector
-        hidden_size (int): length of hidden state
-        actfun (str): Choice of activation function. Available: "relu", "sigmoid", "tanh"
-    Returns:
-        Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
     """
     def __init__(self, input_size: int, hidden_size: int, actfun: str = "relu", init: str = "xavier", *args, **kwargs):
+        """
+        Args:
+            input_size (int): length of flattened input vector
+            hidden_size (int): number of hidden units
+            actfun (str, optional): Choice of activation function. Options: "relu", "sigmoid", "tanh". Defaults to "relu".
+            init (str, optional): Initialization scheme. Options: "xavier", "log_normal". Defaults to "xavier".
+        """
         super().__init__(input_size, hidden_size, actfun)
-
         init = kwargs["init"] if "init" in kwargs else init
-
         self.initialize_weights(input_size = input_size, hidden_size = hidden_size, init = init, **kwargs)
 
     def initialize_weights(self, input_size: int, hidden_size: int, init: str, **kwargs):
+        """
+        Initialize weights for input, recurrent, and bias parameters
+
+        Args:
+            input_size (int): Length of flattened input vector
+            hidden_size (int): Number of hidden units.
+            init (str): Initialization scheme. Options: "xavier", "log_normal".
+            **kwargs: Additional params for init
+                For "log_normal":
+                    mean_std_ratio: Controls log-normal mean/std balance. Default 1.
+                    sparsity: Fraction of nonzero connections in initialization. Default 1. 
+        """
         #init weights
         self.weight_ih = Parameter(torch.empty(hidden_size, input_size))
         self.weight_hh = Parameter(torch.empty(hidden_size, hidden_size))
@@ -159,6 +174,9 @@ class RNNCell(BaseCell):
             self.weight_hh = sparse_lognormal_(self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity)
     
     def update_preactivation(self, input, hx, *args, **kwargs) -> Tensor:
+        """
+        Apply weight matricies to input and previous state.
+        """
 
         i_input = torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())        
@@ -166,21 +184,37 @@ class RNNCell(BaseCell):
         return x
         
     def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tuple[Tensor, Tensor]: #tuple of hy
+        """
+        Add bias and apply activation function.
+        """
         hx = state[0]
         x = self.update_preactivation(input, hx)
         hy = self.actfun(x + internal + self.bias) # canonical RNN hidden state update (hx --> hy) but with an *internal* term
         return hy, (hy,)
 
 class AdaptingRNNCell(RNNCell):
+    """
+    RNN Cell that uses an adaptation variable ("ay") dependent on both h_{t-1} and a_{t-1}.
+    Inherits from RNNCell.
+    """
 
     def __init__(self, input_size: int, hidden_size: int, actfun: str = "relu", init = "xavier", b = 0.3, tau_a = 8., *args, **kwargs):
+        """
+        Args:
+            Inherits input_size, hidden_size, actfun, init from RNNCell.
+            b (float, optional): Gain in adaptation. Defaults to 0.3.
+            tau_a (_type_, optional): Decay in adaptation. Defaults to 8..
+        """
         # initialize class attributes and weights
         super().__init__(input_size, hidden_size, actfun, init) 
         
-        self.b = b #gain in adapatation
-        self.tau_a = tau_a #decay in adaptation
+        self.b = b
+        self.tau_a = tau_a
     
     def forward(self, input: Tensor, internal: Tensor, state: Tensor) -> Tuple[Tensor, Tensor]:
+        """
+        Calculate adaptation term, apply bias and adaptation, apply activation function.
+        """
         hx, ax = state
         x = super().update_preactivation(input, hx)
 
@@ -189,7 +223,18 @@ class AdaptingRNNCell(RNNCell):
         return hy, (hy,ay)
 
 class LayerNormRNNCell(RNNCell):
+    """
+    RNN Cell that applies LayerNorm before activation function.
+    Inherits from RNNCell.
+    """
     def __init__(self, input_size: int, hidden_size: int, actfun: str = "relu", init = "xavier", mu = 0, sig = 1, *args, **kwargs):
+        """Constructor.
+
+        Args:
+            Inherits input_size, hidden_size, actfun, init from RNNCell.
+            mu (int, optional): Mean for LayerNorm. Defaults to 0.
+            sig (int, optional): Std dev for LayerNorm. Defaults to 1.
+        """
         super().__init__(input_size, hidden_size, actfun, init)
         
         #set up layernorm
@@ -198,6 +243,9 @@ class LayerNormRNNCell(RNNCell):
         self.bias = self.layernorm.mu
     
     def forward(self, input:Tensor, internal:Tensor, state:Tensor):
+        """
+        Apply LayerNorm before activation function. No adaptation.
+        """
         hx = state[0]
         x = self.layernorm(super().update_preactivation(input, hx)) #apply layernorm to output of preactivation
         hy = self.actfun(x + internal)
@@ -205,6 +253,10 @@ class LayerNormRNNCell(RNNCell):
 
 # inherits from both adapting and layernorm
 class AdaptingLayerNormRNNCell(AdaptingRNNCell, LayerNormRNNCell):
+    """
+    RNN Cell that BOTH applies LayerNorm and adds an adaptation term before activation function.
+    Multiple inheritance from AdaptingRNNCell and LayerNormRNNCell.
+    """
     def __init__(self, input_size, hidden_size, actfun = "relu", init = "xavier", b=0.3, tau_a=8, *args, **kwargs):
         #set up both adaptation and layernorm stuff
         AdaptingRNNCell.__init__(self, input_size, hidden_size, actfun, init, b, tau_a, *args, **kwargs)
@@ -219,7 +271,17 @@ class AdaptingLayerNormRNNCell(AdaptingRNNCell, LayerNormRNNCell):
 
 
 class LayerNorm(nn.Module):
+    """
+    Class for LayerNorm object.
+    """
     def __init__(self, normalized_shape, mu, sig):
+        """Constructor.
+
+        Args:
+            normalized_shape (int): Size of LayerNorm ? #TODO Confirm with Dan
+            mu (float): Mean
+            sig (float): Std.Dev
+        """
         super(LayerNorm, self).__init__()
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -262,8 +324,11 @@ class thetaRNNLayer(nn.Module):
         
         #self.trunc = cell_kwargs["bptttrunc"] if "bptttrunc" in cell_kwargs else 50
 
-    def preprocess_inputs(self, input, internal, state, theta, batched):
-
+    def preprocess_inputs(self, input, internal, state, theta, batched: bool):
+        """
+        Perform input validation, initialize vectors to store input, state, and internal vectors, if not done already.
+        Also add padding for batches.
+        """
         #ensure that there's at least one: input sequences or noise (internal) driving the network 
         assert not(input.size(0)==0 and internal.size(0)==0), "RNN should be driven by input and/or noise."
         
@@ -296,7 +361,21 @@ class thetaRNNLayer(nn.Module):
                 theta=None,
                 mask=None,
                 batched=False) -> Tuple[Tensor, Tensor]:
-        
+        """Defines forward through the RNN Layer.
+        Loops thorugh inputs (regardless of batching), and for each input,
+        Loops through the rollouts. ("theta" here is "k" in Architectures.)
+
+        Args:
+            input (Tensor, optional): Input Tensor. Defaults to torch.tensor([]).
+            internal (Tensor, optional): Noise Tensor/"internal replay(?)". Defaults to torch.tensor([]).
+            state (Tensor, optional): Recurrent units. Defaults to torch.tensor([]).
+            theta (int, optional): Number of rollouts. Defaults to None.
+            mask (list(boolean), optional): Masks to cover input observations. Defaults to None.
+            batched (bool, optional): Inputs batched? Defaults to False.
+
+        Returns:
+            Tuple[Tensor, Tensor]: _description_
+        """
         if theta is None:
             theta = self.theta
 
@@ -356,6 +435,9 @@ class thetaRNNLayer(nn.Module):
 
 import torch.nn.functional as F
 def test_script_thrnn_layer(seq_len, input_size, hidden_size, trunc, theta):
+    """
+    Compares thetaRNNLayer output to PyTorch native LSTM output.
+    """
     inp = torch.randn(1,seq_len,input_size)
     inp = F.pad(inp,(0,0,0,theta))
     state = torch.randn(1, 1, hidden_size)

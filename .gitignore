@@ -22,3 +22,6 @@ docs/_build/
 docs/_autosummary/
 docs/_apidoc/
 docs/_doctrees/
+
+# logging
+logs/

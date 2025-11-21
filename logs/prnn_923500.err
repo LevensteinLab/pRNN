@@ -1,4 +1,0 @@
-/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/pynapple/process/tuning_curves.py:378: RuntimeWarning: invalid value encountered in divide
-  fxfr = fx / fr
-/gpfs/radev/home/vv266/venvs/PredictiveReplay_39/lib/python3.9/site-packages/pynapple/process/tuning_curves.py:389: RuntimeWarning: invalid value encountered in divide
-  SI = SI / fr[:, 0, 0]

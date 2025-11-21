@@ -18,8 +18,6 @@ from functools import partial
 ## Helper Functions --
 
 
-
-
 """
 #base class for future architectures unlike pRNN
 class Base_pRNN(nn.Module, ABC):
@@ -35,22 +33,6 @@ class Base_pRNN(nn.Module, ABC):
         raise NotImplementedError
 """
 
-"""
-    A general predictive RNN framework that takes observations and actions, and
-    returns predicted observations, as well as the actual observations to train
-    Observations are inputs that are predicted. Actions are inputs that are
-    relevant to prediction but not predicted.
-
-    predOffset: the output at time t s matched to obs t+predOffset (defulat: 1)
-    actOffset:  the action input at time t is the action took at t-actOffset (default:0)
-    inMask:     boolean list, length corresponding to the prediction cycle period. (default: [True])
-    outMask, actMask: list, same length as inMask (default: None)
-
-    All inputs should be tensors of shape (N,L,H)
-        N: Batch size
-        L: timesamps
-        H: input_size
-    """
 class pRNN(nn.Module):
     """
     A general predictive RNN framework that takes observations and actions, and
@@ -80,7 +62,7 @@ class pRNN(nn.Module):
         """_summary_
 
         Args:
-            obs_size (int): Size of each agent observation. Flattened? #TODO confirm with dan
+            obs_size (int): Size of each agent observation. Flattened?
             act_size (int): Size of action vector.
             hidden_size (int, optional): Number of recurrent neurons. Defaults to 500.
             cell (RNNCell, optional): Specified RNNCell type for layers. Defaults to RNNCell.
@@ -95,6 +77,11 @@ class pRNN(nn.Module):
             actMask (_type_, optional):  Mask to cover FUTURE actions.. Defaults to None.
             neuralTimescale (int, optional): Decay for timescale. Defaults to 2.
             continuousTheta (bool, optional): Carry over hidden state from the kth rollout to the t+1'th timestep. Defaults to False.
+            
+            ***cell_kwargs: Additional parameters that may need to get passed into thetaRNNReformat
+                init (str): Initialization scheme for chosen RNNCell. Options "xavier" "log_normal".
+                input_size (int): Specially defined input size. Default: obs_size + act_size
+                output_size (int): Specially defined output size. Default: obs_size
         """
         super(pRNN, self).__init__()
 
@@ -141,6 +128,9 @@ class pRNN(nn.Module):
     def create_layers(self, input_size, output_size, hidden_size,
                     cell, bptttrunc, continuousTheta,
                     k, f, **cell_kwargs):
+        """
+        Define thetaRNNLayer and output linear layer.
+        """
         
         #Sparsity via layernorm subtraction
         mu = norm.ppf(f)
@@ -153,19 +143,20 @@ class pRNN(nn.Module):
         self.outlayer = nn.Sequential(
             nn.Linear(hidden_size, output_size, bias=False),
             nn.Sigmoid())
-        
+    
+
     def restructure_inputs(self, obs_in, act, obs_target=None, batched=False): #obs --> obs-in, obs_target 
-        """
-        Join obs and act into a single input tensor shape (N,L,H)
-        N: Batch size
-        L: timesamps
-        H: input_size
-        obs should be one timestep longer than act, for the [t+1] observation
-        after the last action
+        """Take in true observations (obs_in) and actions (act) and perform any offsets, clipping, and masking.
 
-        OBS TARGET SHOULD BE PASSED
-        """
+        Args:
+            obs_in (Tensor): True input observations
+            act (Tensor): Actions over timescale
+            obs_target (_type_, Tensor): Output observations to be predicted. Defaults to None. If None, it will be set as the input obs.
+            batched (bool, optional): Inputs batched? Defaults to False.
 
+        Returns:
+            (x_t, obs_target_out, outmask): x input for input into model, true predictions, and mask for predictions.
+        """
         #Apply the action and prediction offsets
         act = self.batched_actpad(act) if batched else self.actpad(act)
        
@@ -221,6 +212,25 @@ class pRNN(nn.Module):
 
     def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), theta=None,
                 single=False, mask=None, batched=False, fullRNNstate=False):
+        """Forward pass of the pRNN, given observation and action at given timestep.
+        Restructures these inputs, updates hidden state, and produces prediction.
+        Optional masking and batching is available, as well as the option to update hidden state without
+        producing a prediction.
+
+        Args:
+            obs (Tensor): Input observation tensor
+            act (Tensor): Input action tensor
+            noise_params (tuple, optional): Noise parameters for internal noise generation. Defaults to (0,0).
+            state (Tensor, optional): Hidden state. Defaults to torch.tensor([]).
+            theta (, optional): _description_. Defaults to None.
+            single (bool, optional): Skip prediction and just update hidden state? Defaults to False.
+            mask (_type_, optional): _description_. Defaults to None.
+            batched (bool, optional): Inputs batched? Defaults to False.
+            fullRNNstate (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         #Determine the noise shape
         k=0
         if hasattr(self,'k'):
@@ -280,6 +290,15 @@ class pRNN(nn.Module):
         return y_t, h_t, obs_target
 
     def generate_noise(self, noise_params, shape):
+        """Generate noise for internal noise driving
+
+        Args:
+            noise_params (Tuple): _description_
+            shape (int?): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if noise_params != (0,0):
             noise = noise_params[0] + noise_params[1]*torch.randn(shape, device=self.W.device)
         else:
@@ -288,6 +307,10 @@ class pRNN(nn.Module):
         return noise
 
 class pRNN_th(pRNN): 
+    """
+    pRNN with rollout functionality. Restructures inputs to allow this.
+    Extends pRNN
+    """
     def __init__(self, obs_size, act_size, k, hidden_size=500,
                 cell=RNNCell,  dropp=0, bptttrunc=50, f=0.5,
                 predOffset=0, inMask=[True], outMask=None,
@@ -360,6 +383,10 @@ class pRNN_th(pRNN):
 
 
 class pRNN_multimodal(pRNN):
+    """
+    pRNN that allows multimodal inputs. ?
+    Extends pRNN
+    """
 
     def __init__(self, obs_size, act_size, hidden_size=500,
                  cell=LayerNormRNNCell,  dropp=0, bptttrunc=50, k=0, f=0.5,

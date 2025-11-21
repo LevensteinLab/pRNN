@@ -129,7 +129,7 @@ class RNNCell(BaseCell):
     Args:
         input_size (int): length of input vector
         hidden_size (int): length of hidden state
-        musig (Tuple[float, float]): length of state
+        actfun (str): Choice of activation function. Available: "relu", "sigmoid", "tanh"
     Returns:
         Tuple(Tensor, Tuple(Tensor)): updated hidden state, hy
     """

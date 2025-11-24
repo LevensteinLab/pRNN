@@ -688,7 +688,8 @@ class RiaBVisionShell(RatInABoxShell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins,
                  FoV_params={'spatial_resolution': 0.01,
                              'angle_range': [0, 45],
-                             'distance_range': [0.0, 0.33]}
+                             'distance_range': [0.0, 0.33]},
+                             **kwargs
                              ):
         super().__init__(env, act_enc, env_key, speed, thigmotaxis, HDbins)
 

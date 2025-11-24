@@ -628,11 +628,21 @@ class PredictiveNet:
     def saveNet(self,savename,savefolder='',cpu=False):
         if cpu:
             self.pRNN.to('cpu')
+            if type(self.trainArgs) == dict: # if you use Hydra
+                trainBias = self.trainArgs['prnn']['trainBias']
+                bias_lr = self.trainArgs['hparams']['bias_lr']
+                eg_lr = self.trainArgs['hparams']['eg_lr']
+                eg_weight_decay = self.trainArgs['hparams']['eg_weight_decay']
+            else: # if you use parser
+                trainBias=self.trainArgs.trainBias
+                bias_lr=self.trainArgs.bias_lr
+                eg_lr=self.trainArgs.eg_lr
+                eg_weight_decay=self.trainArgs.eg_weight_decay
             self.resetOptimizer(self.learningRate, self.weight_decay,
-                            trainBias=self.trainArgs.trainBias,
-                            bias_lr=self.trainArgs.bias_lr,
-                            eg_lr=self.trainArgs.eg_lr,
-                            eg_weight_decay=self.trainArgs.eg_weight_decay)
+                            trainBias=trainBias,
+                            bias_lr=bias_lr,
+                            eg_lr=eg_lr,
+                            eg_weight_decay=eg_weight_decay)
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Collect everything else that cannot be pickled
@@ -662,7 +672,7 @@ class PredictiveNet:
         return clone
 
 
-    def loadNet(savename, savefolder='', suppressText=False):
+    def loadNet(savename, savefolder='', suppressText=False, wandb_log=False):
         #TODO Load in init... from filename
         filename = savefolder+'nets/'+savename+'.pkl'
         with open(filename,'rb') as f:
@@ -676,6 +686,12 @@ class PredictiveNet:
             predAgent.env_shell = predAgent.EnvLibrary[0]
         if not hasattr(predAgent.pRNN, "hidden_size"):
             predAgent.pRNN.hidden_size = predAgent.hidden_size
+        if hasattr(predAgent.env_shell, 'post_load'):
+            predAgent.env_shell.post_load() # anything that should be done after loading
+        if wandb_log: # Turn wandb_logging on only if wandb.init() has been called
+            predAgent.wandb_log = True
+        else:
+            predAgent.wandb_log = False
         if not suppressText:
             print("Net Loaded from pathname")
         return predAgent
@@ -949,8 +965,11 @@ class PredictiveNet:
             h = h[0:1,:,:]
         elif rolloutdim=='mean':
             h = torch.mean(h,dim=0,keepdims=True)
-        if type(obs_pred) == list:  
-            obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+        if type(obs_pred) == list: 
+            tmp = [None] * self.env_shell.n_obs
+            for i,n in enumerate(self.pRNN.outIDs):
+                tmp[n] = obs_pred[i][0:1,:,:]
+            obs_pred = tmp
         else:
             obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)
@@ -1018,8 +1037,11 @@ class PredictiveNet:
         #h = h[0:1,:,:]
         h = torch.mean(h,dim=0,keepdims=True) #this is what's used to train the decoder...
         if obs_pred is not None:
-            if type(obs_pred) == list:  
-                obs_pred = [obs[0:1,:,:] for obs in obs_pred]
+            if type(obs_pred) == list:
+                tmp = [None] * self.env_shell.n_obs
+                for i,n in enumerate(self.pRNN.outIDs):
+                    tmp[n] = obs_pred[i][0:1,:,:]
+                obs_pred = tmp
             else:
                 obs_pred = obs_pred[0:1,:,:]
         timesteps = timesteps-(k+1)

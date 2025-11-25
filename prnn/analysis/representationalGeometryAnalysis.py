@@ -627,8 +627,10 @@ class representationalGeometryAnalysis:
         ax.set_title(colorvar)
         return
     
-    def isomapPanel(self, colorvar='position', onsetTransient=5):
+    def isomapPanel(self, colorvar='position', onsetTransient=5, use_cells=None):
         X = self.WAKEactivity['h']
+        if use_cells is not None:
+            X = X[:,use_cells]
         if colorvar == 'position':
             state = self.WAKEactivity['state']
             color = np.arctan((state['agent_pos'][:-1,0]-self.mapcenter[0])/
@@ -751,7 +753,8 @@ class representationalGeometryAnalysis:
             clb.ax.set_ylabel('P[neural|space]')
         
     def WakeSleepFigure(self, netname, savefolder=None, 
-                        isomapRotation=(0,0), withKey =True, withSleep=True):
+                        isomapRotation=(0,0), withKey =True, withSleep=True,
+                        use_cells=None):
         
         plt.figure()
         # plt.subplot(3,8,3)
@@ -774,9 +777,9 @@ class representationalGeometryAnalysis:
             #self.isomapPanel3d('position')
             #self.isomapPanel3d('Sleep', rotate=isomapRotation)
             plt.subplot(3,3,1)
-            self.isomapPanel('position')
+            self.isomapPanel('position', use_cells=use_cells)
             if withSleep:
-                self.isomapPanel('Sleep')
+                self.isomapPanel('Sleep', use_cells=use_cells)
             if withKey:
                 plt.subplot(6,6,13)
                 self.keyPanel()

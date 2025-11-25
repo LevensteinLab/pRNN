@@ -13,12 +13,5 @@ documentation for details.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   quickstart
-   introduction
-   installation
-   attributions
-   package_structure
-   utils/index
-   tutorials/index
+   api/modules

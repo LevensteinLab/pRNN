@@ -7,9 +7,9 @@ There are three types of models we focus on here. All are built upon the same cl
 Next-step Prediction
 --------------------
 
-The Next-step prediction class (:class:`prnn.utils.Architectures.NextStepRNN`) is a special child of :class:`prnn.utils.Architectures.pRNN` with no masking actions or observations at future timesteps.
+The Next-step prediction class :class:`prnn.utils.Architectures.NextStepRNN` is a special child of :class:`prnn.utils.Architectures.pRNN` with no masking actions or observations at future timesteps. 
 
-.. automodule:: prnn.utils.Architectures.NextStepRNN
+.. autoclass:: prnn.utils.Architectures.NextStepRNN
     :members:
     :undoc-members:
     :show-inheritance:
@@ -19,9 +19,9 @@ At any given timestep ``t``, the pRNN will use the action and observation to pre
 Masked Prediction
 -----------------
 
-The Masked prediction class (:class:`prnn.utils.Architectures.MaskedRNN`) is another special child of :class:`prnn.utils.Architectures.pRNN` that allows variable mask lengths. 
+The Masked prediction class :class:`prnn.utils.Architectures.MaskedRNN` is another special child of :class:`prnn.utils.Architectures.pRNN` that allows variable mask lengths. 
 
-.. automodule:: prnn.utils.Architectures.MaskedRNN
+.. autoclass:: prnn.utils.Architectures.MaskedRNN
     :members:
     :undoc-members:
     :show-inheritance:
@@ -32,9 +32,9 @@ Masks will hide observations taken at certain timesteps, so the agent must updat
 Rollout-based Prediction
 ------------------------
 
-The Rollout-based prediction class (:class: `prnn.utils.Architectures.RolloutRNN`) is an instantiation of :class:`prnn.utils.Architectures.pRNN_th` that does a ``k`` step "rollout" of predictions at each timestep ``t``. 
+The Rollout-based prediction class :class:`prnn.utils.Architectures.RolloutRNN` is an instantiation of :class:`prnn.utils.Architectures.pRNN_th` that does a ``k`` step "rollout" of predictions at each timestep ``t``. 
 
-.. automodule:: prnn.utils.Architectures.RolloutRNN
+.. autoclass:: prnn.utils.Architectures.RolloutRNN
     :members:
     :undoc-members:
     :show-inheritance:

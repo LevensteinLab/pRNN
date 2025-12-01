@@ -51,7 +51,7 @@ plt.savefig(f"plots/{ARCHITECTURE_NAME}_trained.png")
 
 #Let's take a look at the spatial position decoding and tuning curves 
 place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                                trainDecoder=True, saveTrainingData=True)
+                                                trainDecoder=True, saveTrainingData=True,calculatesRSA = True)
 
 predictiveNet.calculateDecodingPerformance(env,agent,decoder)
 predictiveNet.plotTuningCurvePanel()

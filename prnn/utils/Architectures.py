@@ -283,34 +283,60 @@ class pRNN(nn.Module):
             noise = torch.zeros(shape, device=self.W.device)
 
         return noise
-    
+
     def internal(self, noise_t, state=torch.tensor([])):
+        """
+        Generate a forward pass/update without input observations, just with noise driving the model.
+
+        Args:
+            noise_t (Tensor): Generated noise tensor
+            state (Tensor, optional): Hidden state. Defaults to torch.tensor([]).
+
+        Returns:
+            y_t, h_t: output observation and updated state
+        """
         h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)
         y_t = self.outlayer(h_t)
         return y_t, h_t
 
     def spontaneous(self, timesteps, noisemean, noisestd, wgain=1,
                     agent=None, randInit=True, env=None):
+        """
+        Generate "sponaneous" activity of the network driven by noise and/or noise.
+
+        Args:
+            timesteps (int): Number of timesteps to generate
+            noisemean (float): Mean for noise generation
+            noisestd (float): Standard deviation for noise generation
+            wgain (int, optional): Coefficient to modulate gain of off-diagonal weights. Defaults to 1.
+            agent (Agent, optional): Agent instantiation. Defaults to None.
+            randInit (bool, optional): Randomly initialize state? Defaults to True.
+            env (Shell, optional): Environment. Defaults to None.
+
+        Returns:
+            obs_pred, h_t, noise_t: output observation, updated hidden state, noise tensor
+        """
         device = self.W.device
         #Noise
         noise_params = (noisemean,noisestd)
         #for backwards compadibility. change to self.hidden_size later
         noise_shape = (1,timesteps,self.rnn.cell.hidden_size) 
-        noise_t = self.generate_noise(noise_params, noise_shape)
-        if randInit:
+        noise_t = self.generate_noise(noise_params, noise_shape) #generate noise
+
+        if randInit: #either initialize with random noise or empty
             noise_shape = (1,1,self.rnn.cell.hidden_size)
             state = self.generate_noise(noise_params, noise_shape)
             state = self.rnn.cell.actfun(state)
         else:
             state = torch.tensor([])
                 
-        #Weight Gain
+        #Weight Gain along off-diagonal weights
         with torch.no_grad():
             offdiags = self.W.mul(1-torch.eye(self.rnn.cell.hidden_size))
             self.W.add_(offdiags*(wgain-1))
             
-        #Action
-        if agent is not None:
+        #If agent is provided, zero out observations but keep actions. Drive with noise.
+        if agent is not None: 
             obs,act,_,_ = env.collectObservationSequence(agent, timesteps)
             obs,act = obs.to(device),act.to(device)
             obs = torch.zeros_like(obs)
@@ -320,11 +346,12 @@ class pRNN(nn.Module):
         else:
             obs_pred,h_t = self.internal(noise_t, state=state)
         
+        #remove gain
         with torch.no_grad():
             self.W.subtract_(offdiags*(wgain-1))
             
         return obs_pred,h_t,noise_t
-        
+
 class pRNN_th(pRNN): 
     """
     pRNN with rollout functionality. Restructures inputs to allow this.

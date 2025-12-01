@@ -80,5 +80,13 @@ After the network trains, we can plot another sample trajectory to compare true 
     predictiveNet.calculateDecodingPerformance(env,agent,decoder)
     predictiveNet.plotTuningCurvePanel()
 
-Move on to the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``.
+Move on to the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``. 
+
+Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader.rst>` or ``dataloader_example.ipynb`` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
+
+.. code-block:: python
+    
+    trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=50 --batchsize=16 --pRNNtype='thRNN_5win' --actenc='SpeedHD'
+
+You'll want to modify it or make your own, to fit the needs of your own project.
 

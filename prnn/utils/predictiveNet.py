@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 
 import pandas as pd
 
+from functools import partial
 import pickle
 import json
 import time
@@ -39,15 +40,13 @@ from prnn.utils.eg_utils import RMSpropEG
 
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
-
-
-
-#import timeit
-
-
 from prnn.utils.Architectures import *
 
-netOptions = {"AutoencoderFF": AutoencoderFF, #NEXT STEP PREDICTION NETWORKS
+
+netOptions = {"NextStep": partial(NextStepRNN), #general architectures, all extra args can be passed into predictiveNet
+                "Masked": partial(MaskedRNN),
+                "Rollout": partial(RolloutRNN),
+                "AutoencoderFF": AutoencoderFF, #NEXT STEP PREDICTION NETWORKS
                 "AutoencoderRec": AutoencoderRec,
                 "AutoencoderPred": AutoencoderPred,
                 "AutoencoderFFPred": AutoencoderFFPred,

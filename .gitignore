@@ -23,5 +23,6 @@ docs/_autosummary/
 docs/_apidoc/
 docs/_doctrees/
 
-# logging
+# logging & plotting
 logs/
+plots/

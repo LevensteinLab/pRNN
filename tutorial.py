@@ -1,10 +1,9 @@
 ### This is just a copy of tutorial.ipynb, but in a python file so i can submit it as a job
-ARCHITECTURE_NAME = 'thcycRNN_5win_full' 
+ARCHITECTURE_NAME = 'thRNN_5win' 
 #---
 
 #import the pRNN class
-from prnn.utils.predictiveNetReformat import PredictiveNet
-#from prnn.utils.predictiveNet import PredictiveNet
+from prnn.utils.predictiveNet import PredictiveNet
 
 from prnn.utils.env import make_env
 from prnn.utils.agent import RandomActionAgent
@@ -35,11 +34,11 @@ agent = RandomActionAgent(env.action_space, action_probability)
 
 #run a sample trajectory (note: predictions will be garbage, agent is untrained)
 predictiveNet.plotSampleTrajectory(env,agent)
-plt.savefig(f"plots/o{ARCHITECTURE_NAME}_naive.png")
+plt.savefig(f"plots/{ARCHITECTURE_NAME}_naive.png")
 
 #Run one training epoch of 500 trials, each 500 steps long
-sequence_duration = 500 # (500)
-num_trials = 500 #0 (500)
+sequence_duration = 50 # (500)
+num_trials = 50 #0 (500)
 
 predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,
@@ -47,7 +46,7 @@ predictiveNet.trainingEpoch(env, agent,
                         
 #run a sample trajectory. did the predictions get better?
 predictiveNet.plotSampleTrajectory(env,agent)
-plt.savefig(f"plots/o{ARCHITECTURE_NAME}_trained.png")
+plt.savefig(f"plots/{ARCHITECTURE_NAME}_trained.png")
 
 
 #Let's take a look at the spatial position decoding and tuning curves 
@@ -56,4 +55,4 @@ place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,age
 
 predictiveNet.calculateDecodingPerformance(env,agent,decoder)
 predictiveNet.plotTuningCurvePanel()
-plt.savefig(f"plots/o{ARCHITECTURE_NAME}_tuning_curve.png")
+plt.savefig(f"plots/{ARCHITECTURE_NAME}_tuning_curve.png")

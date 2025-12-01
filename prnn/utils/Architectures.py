@@ -283,7 +283,48 @@ class pRNN(nn.Module):
             noise = torch.zeros(shape, device=self.W.device)
 
         return noise
+    
+    def internal(self, noise_t, state=torch.tensor([])):
+        h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)
+        y_t = self.outlayer(h_t)
+        return y_t, h_t
 
+    def spontaneous(self, timesteps, noisemean, noisestd, wgain=1,
+                    agent=None, randInit=True, env=None):
+        device = self.W.device
+        #Noise
+        noise_params = (noisemean,noisestd)
+        #for backwards compadibility. change to self.hidden_size later
+        noise_shape = (1,timesteps,self.rnn.cell.hidden_size) 
+        noise_t = self.generate_noise(noise_params, noise_shape)
+        if randInit:
+            noise_shape = (1,1,self.rnn.cell.hidden_size)
+            state = self.generate_noise(noise_params, noise_shape)
+            state = self.rnn.cell.actfun(state)
+        else:
+            state = torch.tensor([])
+                
+        #Weight Gain
+        with torch.no_grad():
+            offdiags = self.W.mul(1-torch.eye(self.rnn.cell.hidden_size))
+            self.W.add_(offdiags*(wgain-1))
+            
+        #Action
+        if agent is not None:
+            obs,act,_,_ = env.collectObservationSequence(agent, timesteps)
+            obs,act = obs.to(device),act.to(device)
+            obs = torch.zeros_like(obs)
+            
+            obs_pred, h_t, _ = self.forward(obs, act, noise_t=noise_t, state=state, theta=0)
+            noise_t = (noise_t,act)
+        else:
+            obs_pred,h_t = self.internal(noise_t, state=state)
+        
+        with torch.no_grad():
+            self.W.subtract_(offdiags*(wgain-1))
+            
+        return obs_pred,h_t,noise_t
+        
 class pRNN_th(pRNN): 
     """
     pRNN with rollout functionality. Restructures inputs to allow this.

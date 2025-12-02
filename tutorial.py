@@ -1,5 +1,5 @@
 ### This is just a copy of tutorial.ipynb, but in a python file so i can submit it as a job
-ARCHITECTURE_NAME = 'thRNN_5win' 
+ARCHITECTURE_NAME = 'Masked' 
 #---
 
 #import the pRNN class
@@ -26,7 +26,7 @@ num_neurons = 500
 pRNNtype = ARCHITECTURE_NAME #This will train a 5-step masked pRNN. 
                         #For a rollout network use 'thcycRNN_5win_full'
 
-predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype)
+predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_LN = True, inMask_length = 5)
 
 #specify an action policy (agent)
 action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])

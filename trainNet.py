@@ -19,6 +19,7 @@ from prnn.utils.figures import TrainingFigure
 from prnn.utils.figures import SpontTrajectoryFigure
 from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
+from tqdm import tqdm
 
 #TODO: get rid of these dependencies
 import os
@@ -169,7 +170,7 @@ torch.manual_seed(args.seed)
 random.seed(args.seed)
 np.random.seed(args.seed)
 
-if args.contin:
+if args.contin: #continue previous training, so load net from folder
     predictiveNet = PredictiveNet.loadNet(args.loadfolder+savename)
     if args.env == '':
         env = predictiveNet.loadEnvironment(args.load_env)
@@ -179,7 +180,7 @@ if args.contin:
                        args.thigmotaxis, args.HDbins)
         predictiveNet.addEnvironment(env)
     agent = create_agent(args.env, env, args.agent)
-else:
+else: #create new PredictiveNet and begin training
     env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed,
                    args.thigmotaxis, args.HDbins)
     agent = create_agent(args.env, env, args.agent)
@@ -248,11 +249,12 @@ if predictiveNet.numTrainingTrials == -1:
     #predictiveNet.plotDelayDist(env, agent, decoder)
 
 #TODO: Put in time counter here and ETA...
+#TODO: add tqdm here (viggy nts)
 #TODO: take this out later. for backwards compatibility
 if hasattr(predictiveNet, 'numTrainingEpochs') is False:
     predictiveNet.numTrainingEpochs = int(predictiveNet.numTrainingTrials/num_trials)
     
-while predictiveNet.numTrainingEpochs<numepochs:
+while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
     print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,

@@ -42,6 +42,8 @@ pip3 install gym==0.21.0 --no-binary :all:
 pip install gymnasium==0.29.1
 pip install ratinabox==1.15.2
 
+pip install tqdm
+
 #pip3 install gym-minigrid  #For now, use mine:
 cd $HOME/minigrid
 # git clone git@github.com:dlevenstein/gym-minigrid.git

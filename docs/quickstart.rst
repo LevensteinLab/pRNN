@@ -80,6 +80,17 @@ After the network trains, we can plot another sample trajectory to compare true 
     predictiveNet.calculateDecodingPerformance(env,agent,decoder)
     predictiveNet.plotTuningCurvePanel()
 
+Note that ``calculateSpatialRepresentation`` calls ``collectObservationSequence`` which generates a sequence of agents observations and actions and ``predict`` which does the forward pass (generating an predicted observation and updated hidden state). It's important to understand how the shape of the model's state changes given the type of network used. Running the below will be informative. Here, we collect 10 timesteps of information, then do a forward pass.
+
+.. code-block:: python
+
+    obs, act, state, render = predictiveNet.collectObservationSequence(env,agent,10,discretize=True)
+    obs_pred, obs_next, h  = predictiveNet.predict(obs,act, fullRNNstate=False)
+    print(h.shape)
+
+The shape of the hidden state depends on whether the model batches, and on whether rollouts are performed. For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[B, T, N]`` where ``B`` is the number of batches, ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k, T, N, B]`` where ``k`` is the number of rollout steps.
+
+
 Move on to the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``. 
 
 Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader.rst>` or ``dataloader_example.ipynb`` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 

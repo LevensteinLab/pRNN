@@ -1,4 +1,3 @@
-### This is just a copy of tutorial.ipynb, but in a python file so i can submit it as a job
 ARCHITECTURE_NAME = 'Masked' 
 #---
 
@@ -23,8 +22,7 @@ env.reset()
 
 #Make a pRNN
 num_neurons = 500
-pRNNtype = ARCHITECTURE_NAME #This will train a 5-step masked pRNN. 
-                        #For a rollout network use 'thcycRNN_5win_full'
+pRNNtype = ARCHITECTURE_NAME
 
 predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_LN = True, inMask_length = 5)
 

@@ -35,14 +35,14 @@ We specify the agent parameters:
     action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
     agent = RandomActionAgent(env.action_space, action_probability)
 
-Next, we construct the pRNN model. Note that the ``predictiveNet`` class recieves both the ``env`` variable as well as the type of pRNN we're training. See the "Models" page for an explanation of which models are supported, as well as ``Architectures.py`` for a full list. Generally, we focus on three types: next-step prediction models, masked prediction models, and rollout models. Here, we choose to construct a pRNN with five timestep observations masked.
+Next, we construct the pRNN model. Note that the ``predictiveNet`` class recieves both the ``env`` variable as well as the type of pRNN we're training. See the "Models" page for an explanation of which models are supported, as well as ``Architectures.py`` for a full list. Generally, we focus on three types: next-step prediction models, masked prediction models, and rollout models. Here, we choose to construct a pRNN with five timestep observations masked. If we set ``pRNNtype = "Masked"``, we may also like to provide additional keyword arguments to further specify the model; such as ``inMask_length``, which sets the number of future observations that are masked, and ``useLN`` which determines whether or not to apply LayerNorm.
 
 .. code-block:: python
 
     #Make a pRNN
     num_neurons = 500
-    pRNNtype = 'thRNN_5win' #This will train a 5-step masked pRNN. 
-    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype)
+    pRNNtype = "Masked"
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, inMask_length = 5, useLN = True)
 
 Once the environment, agent, and network have been defined, it's possible to plot a sample trajectory to provide an example of actions and observations. The following lines will plot the agent in the environment, show it's egocentric view, and what it's prediction is for that timestep. Note that the pRNN has not been trained yet, so predictions will be noisy dependent on the initialization scheme. By default, weights are initialzied uniformly according to the Xavier initialization scheme.
 
@@ -91,7 +91,7 @@ Note that ``calculateSpatialRepresentation`` calls ``collectObservationSequence`
 The shape of the hidden state depends on whether the model batches, and on whether rollouts are performed. For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[B, T, N]`` where ``B`` is the number of batches, ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k, T, N, B]`` where ``k`` is the number of rollout steps.
 
 
-Move on to the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``. 
+You can check out the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``, or the :mod:`prnn.utils.Architectures` documentation to learn how to build your own.
 
 Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader.rst>` or ``dataloader_example.ipynb`` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
 

@@ -47,8 +47,8 @@ Recall from :doc:`quickstart <quickstart.rst>` that we define a ``predictiveNet`
 
     #Make a pRNN
     num_neurons = 500
-    pRNNtype = 'thRNN_5win' #This will train a 5-step masked pRNN. 
-    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype)
+    pRNNtype = 'Masked'
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, useLN = True, inMask_length = 5)
 
 Note that the ``pRNNtype`` is one of many predefined architectures (predefined in ``Architectures.py``) or can be one of the three generic types above. You can specify ``pRNNtype = TYPE`` where ``TYPE = {"NextStep", "Masked", "Rollout"}``, then pass in the required keyword arguments to further specify the network. For example:
 
@@ -56,6 +56,6 @@ Note that the ``pRNNtype`` is one of many predefined architectures (predefined i
 
     #Make a pRNN
     num_neurons = 500
-    pRNNtype = 'Rollout' #This will train a 5-step masked pRNN. 
-    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = True, k = 10, continuousTheta = True)
+    pRNNtype = 'Rollout' 
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = False, k = 5, continuousTheta = False)
 

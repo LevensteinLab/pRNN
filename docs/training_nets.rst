@@ -1,7 +1,7 @@
 Training & Loading pRNNs on a Cluster
 =====================================
 
-We have also provided a script that allows you to train a pRNN from the command line, namely ``trainNet.py``. This script accepts all arguments that specify a network itself. It also accepts flags to specify whether you'd like to train a new network or load an existing one, as well as whether or not to use a Dataloader. 
+We have also provided an example script that allows you to train a pRNN from the command line, namely ``trainNet.py``. This script accepts all arguments that specify a network itself. It also accepts flags to specify whether you'd like to train a new network or load an existing one, as well as whether or not to use a Dataloader. You'll want to modify this to fit the specific needs of your project.
 
 Bash scripts may call this training script to automate training of networks on a high performance computing (HPC) cluster. This will be required for larger networks. For example: 
 

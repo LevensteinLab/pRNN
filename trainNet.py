@@ -280,7 +280,7 @@ while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
     plt.close('all')
     predictiveNet.saveNet(args.savefolder+savename)
 
-    pogress.update(1)
+    progress.update(1)
 
 progress.close()
 

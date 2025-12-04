@@ -46,7 +46,7 @@ class pRNN(nn.Module):
             cell (RNNCell, optional): Specified RNNCell type for layers. Defaults to RNNCell.
             dropp (int, optional): Dropout probability. Defaults to 0.
             bptttrunc (int, optional): Backpropagation Through Time, Truncated. Defaults to 50.
-            k (int, optional): Number of predictions in rollout.. Defaults to 0.
+            k (int, optional): Number of predictions in rollout. Defaults to 0.
             f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
             predOffset (int, optional): At timestep t, how many steps forward do we predict?. Defaults to 1.
             inMask (list, optional): Mask to cover FUTURE timesteps. Defaults to [True].
@@ -430,7 +430,7 @@ class pRNN_th(pRNN):
 
 class pRNN_multimodal(pRNN):
     """
-    pRNN that allows multimodal inputs. ?
+    pRNN that allows multimodal inputs.
     Extends pRNN
     """
 
@@ -466,13 +466,13 @@ class pRNN_multimodal(pRNN):
         if "use_LN" in cell_kwargs:
             cell = LayerNormRNNCell if cell_kwargs["use_LN"] else RNNCell
 
-        if "inMask_length" in cell_kwargs: #make the mask boolean arrays
-            inMask_length = cell_kwargs["inMask_length"]
+        if "k" in cell_kwargs: #make the mask boolean arrays
+            k = cell_kwargs["k"]
             
-            inMask = np.full(inMask_length + 1, False)
+            inMask = np.full(k + 1, False)
             inMask[0] = True #timestep t
 
-            outMask = np.full(inMask_length + 1, True)
+            outMask = np.full(k + 1, True)
 
 
         super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size=hidden_size,
@@ -548,7 +548,7 @@ class MaskedRNN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, 
                 dropp = 0.15, f=0.5, 
-                use_LN = True, mask_actions = False, actOffset = 0, inMask_length= 0, **cell_kwargs): #new additions
+                use_LN = True, mask_actions = False, actOffset = 0, k = 0, **cell_kwargs): #new additions
         """Initialize MaskedRNN.
 
         Args:
@@ -562,15 +562,15 @@ class MaskedRNN(pRNN):
             use_LN (bool, optional): Use Layer Norm? Defaults to True (no LayerNorm).
             mask_actions (bool, optional): Mask Actions as well? Note that the action mask will the same as the input observation mask. Defaults to False.
             actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
-            inMask_length (int, optional): Number of FUTURE timesteps to mask. Model will continue output predictions. Defaults to 0.
+            k (int, optional): Number of FUTURE timesteps to mask. Model will continue output predictions. Defaults to 0.
         """
         cell = LayerNormRNNCell if use_LN else RNNCell
     
-        inMask = np.full(inMask_length + 1, False)
+        inMask = np.full(k + 1, False)
         inMask[0] = True #timestep t
 
         actMask = inMask if mask_actions else None #set the action mask to be the same as the input obs mask
-        outMask = np.full(inMask_length + 1, True)
+        outMask = np.full(k + 1, True)
 
         super().__init__(obs_size, act_size, hidden_size=hidden_size,
                           cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
@@ -634,52 +634,52 @@ AutoencoderFFPred_LN = partial(NextStepRNN, use_LN = True, use_FF = True, predOf
 
 """ Masked Prediction Networks """
 
-thRNN = partial(MaskedRNN, use_LN = False, inMask_length = 1) #has no extra stuff like neuralTimescale, bptttrunc...etc
+thRNN = partial(MaskedRNN, use_LN = False, k = 1) #has no extra stuff like neuralTimescale, bptttrunc...etc
 
-thRNN_0win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 0)
-thRNN_1win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 1)
-thRNN_2win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 2)
-thRNN_3win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 3)
-thRNN_4win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 4)
-thRNN_5win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 5)
-thRNN_6win_noLN = partial(MaskedRNN, use_LN = False, inMask_length = 6)
+thRNN_0win_noLN = partial(MaskedRNN, use_LN = False, k = 0)
+thRNN_1win_noLN = partial(MaskedRNN, use_LN = False, k = 1)
+thRNN_2win_noLN = partial(MaskedRNN, use_LN = False, k = 2)
+thRNN_3win_noLN = partial(MaskedRNN, use_LN = False, k = 3)
+thRNN_4win_noLN = partial(MaskedRNN, use_LN = False, k = 4)
+thRNN_5win_noLN = partial(MaskedRNN, use_LN = False, k = 5)
+thRNN_6win_noLN = partial(MaskedRNN, use_LN = False, k = 6)
 
-thRNN_0win = partial(MaskedRNN, use_LN = True, inMask_length = 0)
-thRNN_1win = partial(MaskedRNN, use_LN = True, inMask_length = 1)
-thRNN_2win = partial(MaskedRNN, use_LN = True, inMask_length = 2)
-thRNN_3win = partial(MaskedRNN, use_LN = True, inMask_length = 3)
-thRNN_4win = partial(MaskedRNN, use_LN = True, inMask_length = 4)
-thRNN_5win = partial(MaskedRNN, use_LN = True, inMask_length = 5)
-thRNN_6win = partial(MaskedRNN, use_LN = True, inMask_length = 6)
-thRNN_7win = partial(MaskedRNN, use_LN = True, inMask_length = 7)
-thRNN_8win = partial(MaskedRNN, use_LN = True, inMask_length = 8)
-thRNN_9win = partial(MaskedRNN, use_LN = True, inMask_length = 9)
-thRNN_10win = partial(MaskedRNN, use_LN = True, inMask_length = 10)
+thRNN_0win = partial(MaskedRNN, use_LN = True, k = 0)
+thRNN_1win = partial(MaskedRNN, use_LN = True, k = 1)
+thRNN_2win = partial(MaskedRNN, use_LN = True, k = 2)
+thRNN_3win = partial(MaskedRNN, use_LN = True, k = 3)
+thRNN_4win = partial(MaskedRNN, use_LN = True, k = 4)
+thRNN_5win = partial(MaskedRNN, use_LN = True, k = 5)
+thRNN_6win = partial(MaskedRNN, use_LN = True, k = 6)
+thRNN_7win = partial(MaskedRNN, use_LN = True, k = 7)
+thRNN_8win = partial(MaskedRNN, use_LN = True, k = 8)
+thRNN_9win = partial(MaskedRNN, use_LN = True, k = 9)
+thRNN_10win = partial(MaskedRNN, use_LN = True, k = 10)
 
-thRNN_0win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 0, mask_actions = True)
-thRNN_1win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 1, mask_actions = True)
-thRNN_2win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 2, mask_actions = True)
-thRNN_3win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 3, mask_actions = True)
-thRNN_4win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 4, mask_actions = True)
-thRNN_5win_mask = partial(MaskedRNN, use_LN = True, inMask_length = 5, mask_actions = True)
+thRNN_0win_mask = partial(MaskedRNN, use_LN = True, k = 0, mask_actions = True)
+thRNN_1win_mask = partial(MaskedRNN, use_LN = True, k = 1, mask_actions = True)
+thRNN_2win_mask = partial(MaskedRNN, use_LN = True, k = 2, mask_actions = True)
+thRNN_3win_mask = partial(MaskedRNN, use_LN = True, k = 3, mask_actions = True)
+thRNN_4win_mask = partial(MaskedRNN, use_LN = True, k = 4, mask_actions = True)
+thRNN_5win_mask = partial(MaskedRNN, use_LN = True, k = 5, mask_actions = True)
 
-thRNN_0win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 0, actOffset=1)
-thRNN_1win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 1, actOffset=1)
-thRNN_2win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 2, actOffset=1)
-thRNN_3win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 3, actOffset=1)
-thRNN_4win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 4, actOffset=1)
-thRNN_5win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 5, actOffset=1)
-thRNN_6win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 6, actOffset=1)
-thRNN_7win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 7, actOffset=1)
-thRNN_8win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 8, actOffset=1)
-thRNN_9win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 9, actOffset=1)
-thRNN_10win_prevAct = partial(MaskedRNN, use_LN = True, inMask_length = 10, actOffset=1)
+thRNN_0win_prevAct = partial(MaskedRNN, use_LN = True, k = 0, actOffset=1)
+thRNN_1win_prevAct = partial(MaskedRNN, use_LN = True, k = 1, actOffset=1)
+thRNN_2win_prevAct = partial(MaskedRNN, use_LN = True, k = 2, actOffset=1)
+thRNN_3win_prevAct = partial(MaskedRNN, use_LN = True, k = 3, actOffset=1)
+thRNN_4win_prevAct = partial(MaskedRNN, use_LN = True, k = 4, actOffset=1)
+thRNN_5win_prevAct = partial(MaskedRNN, use_LN = True, k = 5, actOffset=1)
+thRNN_6win_prevAct = partial(MaskedRNN, use_LN = True, k = 6, actOffset=1)
+thRNN_7win_prevAct = partial(MaskedRNN, use_LN = True, k = 7, actOffset=1)
+thRNN_8win_prevAct = partial(MaskedRNN, use_LN = True, k = 8, actOffset=1)
+thRNN_9win_prevAct = partial(MaskedRNN, use_LN = True, k = 9, actOffset=1)
+thRNN_10win_prevAct = partial(MaskedRNN, use_LN = True, k = 10, actOffset=1)
 
 """ Rollout Prediction Networks """
 
 thcycRNN_3win = partial(RolloutRNN, use_ALN = False, k = 3)
 thcycRNN_4win = partial(RolloutRNN, use_ALN = False, k = 4)
-thcycRNN_5win = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = True) #TODO check with dan whether its supposed to be continueous theta
+thcycRNN_5win = partial(RolloutRNN, use_ALN = False, k = 5)
 
 thcycRNN_5win_holdc = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = True, rollout_action = "hold")
 thcycRNN_5win_fullc = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = True, rollout_action = "full")
@@ -709,57 +709,16 @@ thcycRNN_5win_first_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, contin
 
 #use LayerNormCell, no more LogNRNNCell
 lognRNN_rollout = partial(RolloutRNN, k = 5, continuousTheta = False, rollout_action = "full", init = "log_normal")
-lognRNN_mask = partial(MaskedRNN, use_LN = True, inMask_length = 5, init = "log_normal")
+lognRNN_mask = partial(MaskedRNN, use_LN = True, k = 5, init = "log_normal")
 
 """ Multimodal pRNNs """ 
 
 #though this could be made more efficient, i'm keeping the pRNN_multimodal arguments the same for the sake of backwards compatibility
 
-multRNN_5win_i01_o01 = partial(pRNN_multimodal, use_LN = True, inMask_length = 5, predOffset = 0, inIDs=(0,1), outIDs=(0,1))
-multRNN_5win_i1_o0 = partial(pRNN_multimodal, use_LN = True, inMask_length = 5, predOffset = 0, inIDs=(1,), outIDs=(0))
-multRNN_5win_i01_o0 = partial(pRNN_multimodal, use_LN = True, inMask_length = 5, predOffset = 0, inIDs=(0,1), outIDs=(0,))
-multRNN_5win_i0_o1 = partial(pRNN_multimodal, use_LN = True, inMask_length = 5, predOffset = 0, inIDs=(0,), outIDs=(1,))
+multRNN_5win_i01_o01 = partial(pRNN_multimodal, use_LN = True, k = 5, predOffset = 0, inIDs=(0,1), outIDs=(0,1))
+multRNN_5win_i1_o0 = partial(pRNN_multimodal, use_LN = True, k = 5, predOffset = 0, inIDs=(1,), outIDs=(0))
+multRNN_5win_i01_o0 = partial(pRNN_multimodal, use_LN = True, k = 5, predOffset = 0, inIDs=(0,1), outIDs=(0,))
+multRNN_5win_i0_o1 = partial(pRNN_multimodal, use_LN = True, k = 5, predOffset = 0, inIDs=(0,), outIDs=(1,))
 
-
-""" OLD ARCHITECTURES: TESTING CONTRUCTORS FOR BACK COMPATIBILITY """
-
-class oAutoencoderPred_LN(pRNN):
-    """
-    Autoencoder prediction, next step prediction, no obs or action masks, no offset. Yes LayerNorm
-    """
-    def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5, **cell_kwargs):
-        super(oAutoencoderPred_LN, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
-                                                 f=f,
-                          predOffset=1, actOffset=0,
-                          inMask=[True], outMask=[True], actMask=None)
-
-class othRNN_5win(pRNN):
-    def __init__(self, obs_size, act_size, hidden_size=500,
-                      cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5, **cell_kwargs):
-        super(othRNN_5win, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                          cell=cell, bptttrunc=bptttrunc, neuralTimescale=neuralTimescale, dropp=dropp,
-                          f=f,
-                          predOffset=0, actOffset=0,
-                          inMask=[True,False,False,False,False,False], outMask=[True,True,True,True,True,True],
-                          actMask=None)
-        
-class othcycRNN_5win_full(pRNN_th):
-    """
-    Rollout RNN; k = 5 predictions per timestep, use true future actions through rollout, continue to t+1 after kth rollout.
-    """
-    def __init__(self,obs_size, act_size, hidden_size=500,
-                 cell=LayerNormRNNCell, bptttrunc=100, neuralTimescale=2, dropp = 0.15,
-                f=0.5):
-        super(othcycRNN_5win_full, self).__init__(obs_size, act_size,  k=5, 
-                                       hidden_size=hidden_size,
-                                       cell=cell, bptttrunc=bptttrunc, 
-                                       neuralTimescale=neuralTimescale, dropp=dropp,
-                                       f=f,
-                                       predOffset=0, actOffset=0,
-                                       continuousTheta=False, actionTheta=True)
 
 

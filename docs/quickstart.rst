@@ -42,7 +42,7 @@ Next, we construct the pRNN model. Note that the ``predictiveNet`` class recieve
     #Make a pRNN
     num_neurons = 500
     pRNNtype = "Masked"
-    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, inMask_length = 5, useLN = True)
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, inMask_length = 5, use_LN = True)
 
 Once the environment, agent, and network have been defined, it's possible to plot a sample trajectory to provide an example of actions and observations. The following lines will plot the agent in the environment, show it's egocentric view, and what it's prediction is for that timestep. Note that the pRNN has not been trained yet, so predictions will be noisy dependent on the initialization scheme. By default, weights are initialzied uniformly according to the Xavier initialization scheme.
 
@@ -95,9 +95,10 @@ You can check out the :doc:`models <models>` page to learn more about which type
 
 Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader.rst>` or ``dataloader_example.ipynb`` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
 
-.. code-block:: python
+.. code-block:: bash
     
-    trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=50 --batchsize=16 --pRNNtype='thRNN_5win' --actenc='SpeedHD'
+    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=6 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --inMaskLength = 5 --useLN = True
 
 You'll want to modify it or make your own, to fit the needs of your own project.
+
 

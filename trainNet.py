@@ -253,12 +253,11 @@ if predictiveNet.numTrainingTrials == -1:
                                                 saveTrainingData=True)
     #predictiveNet.plotDelayDist(env, agent, decoder)
 
-#TODO: Put in time counter here and ETA...
-#TODO: add tqdm here (viggy nts)
-#TODO: take this out later. for backwards compatibility
 if hasattr(predictiveNet, 'numTrainingEpochs') is False:
     predictiveNet.numTrainingEpochs = int(predictiveNet.numTrainingTrials/num_trials)
-    
+
+progress = tqdm(total=numepochs, desc="Training Epochs") #tdqm status bar
+
 while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
     print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
     predictiveNet.trainingEpoch(env, agent,
@@ -276,31 +275,14 @@ while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
                                                 saveTrainingData=True)
     predictiveNet.plotLearningCurve(savename=savename,savefolder=figfolder,
                                     incDecode=True)
-    #predictiveNet.plotSampleTrajectory(env,agent,savename=savename,savefolder=figfolder)
     predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    #SpontTrajectoryFigure(predictiveNet,decoder,noisestd=0.2,noisemag=0,
-    # #                      savename=savename, savefolder=figfolder)
-    # OTA = OfflineTrajectoryAnalysis(predictiveNet, actionAgent=agent, noisestd=0.03,
-    #                                 withTransitionMaps=not env.continuous, wakeAgent=agent,
-    #                                 decoder=decoder, calculateViewSimilarity=True)
-    # OTA.SpontTrajectoryFigure(savename+'_query', figfolder)
-    # predictiveNet.addTrainingData('replay_alpha', OTA.diffusionFit['alpha'])
-    # predictiveNet.addTrainingData('replay_int', OTA.diffusionFit['intercept'])
-    # predictiveNet.addTrainingData('replay_view', OTA.ViewSimilarity['meanstd_sleep'][0][0])
-    
-    # OTA = OfflineTrajectoryAnalysis(predictiveNet, noisestd=0.03,
-    #                            decoder=decoder, calculateViewSimilarity=True,
-    #                            wakeAgent=agent, withAdapt=True,
-    #                            b_adapt = 0.3, tau_adapt=8)
-    # OTA.SpontTrajectoryFigure(savename+'_adapt',figfolder)
-    # predictiveNet.addTrainingData('replay_alpha_adapt',OTA.diffusionFit['alpha'])
-    # predictiveNet.addTrainingData('replay_int_adapt',OTA.diffusionFit['intercept'])
-    # predictiveNet.addTrainingData('replay_view_adapt',OTA.ViewSimilarity['meanstd_sleep'][0][0])
-
-
     plt.show()
     plt.close('all')
     predictiveNet.saveNet(args.savefolder+savename)
+
+    pogress.update(1)
+
+progress.close()
 
 predictiveNet.trainingCompleted = True
 TrainingFigure(predictiveNet,savename=savename,savefolder=figfolder)

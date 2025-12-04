@@ -1,7 +1,9 @@
 Dataloaders for pRNN Training
 =============================
 
-Here, we will discuss how to use the Dataloader. The environment is passed into the function that creates a DataLoader, and it automatically gets added to the environment. There are options to generate a trajectory (i.e. a sequence of actions & observations), or load from a provided path. Below is an example of this. First we import the tools to create a dataloader. 
+Here, we will discuss how to use the Dataloader. The Dataloader is a tool you can use to load a set of precomputed trajectories (i.e. sequences of observations and actions). This promises to save a significant amount of time because batching can be used at training time, and the agent doesn't need to interact with the environment at every time step. However, if your agent requires online learning and/or has a nonrandom policy, this will not work.
+
+The environment is passed into the function that creates a DataLoader, and it automatically gets added to the environment. There are options to generate a trajectory (i.e. a sequence of actions & observations), or load from a provided path. Below is an example of this. First, we import the tools to create a dataloader. 
 
 .. code-block:: python
 
@@ -13,7 +15,9 @@ Here, we will discuss how to use the Dataloader. The environment is passed into 
     from prnn.utils.agent import RandomActionAgent, RandomHDAgent
     from prnn.utils.predictiveNet import PredictiveNet
 
-We also import ``generate_trajectories`` just to demonstrate how we can make a new dataset. Notably, ``create_dataloader`` will call this automatically. First, we need to instantiate an environment and agent (with corresponding action policy).
+We import ``generate_trajectories``. This will collecting sequences of observations and actions made by the agent traversing the environment. The dataset is stored with the environment object, so it can be conveniently used alongisde it during training. The ``create_dataloader`` function allows us to specify a folder with an existing dataset or generate one from scratch. If a path is specified, it checks the folder for the dataset and whether it has enough trajectories with long enough sequences. If one doesn't exist, it calls ``generate_trajectories`` and saves it. They can be used any time you use the same environment/agent combination, as long as you specify the same data path. 
+
+First, we need to instantiate an environment and agent (with corresponding action policy).
 
 .. code-block:: python
 
@@ -33,13 +37,17 @@ We can generate trajectories, or go straight to creating a dataloader. Ten thous
     # Create the dataloader within the environment
     create_dataloader(env=env, agent=agent, n_trajs=10000, folder='Data', batch_size=1, seq_length=500, num_workers=0) 
 
+Note that trajectories are saved directly to the path provided to the ``folder`` argument. This default saves it to a folder called ``Data`` in the current directory. If you're testing, you'll want to save the data to a location where you can store a lot of large files, such as scratch storage. There are cases where you may want to call ``generate_trajectories`` to precompute the dataset; ``create_dataloader`` should not be run at the same time for the same environment (e.g. across different jobs).
+
 Finally, we create a ``predictiveNet`` and train it.
 
 .. code-block:: python
     
-    predictiveNet = PredictiveNet(env, datal
+    predictiveNet = PredictiveNet(env, dataloader=True)    
     
     # Just to test if everything is working
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=500,
                             num_trials=10)
+
+The dataloader can be toggled on and off in the initialization of ``PredictiveNet`` via the ``dataloader`` argument. Specifying this as true will pull observations and actions from the dataset for each epoch, via each call to ``predictiveNet.collectObservationSequence``.

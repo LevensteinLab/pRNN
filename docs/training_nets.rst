@@ -20,4 +20,4 @@ Bash scripts may call this training script to automate training of networks on a
     source ~/venvs/PredictiveReplay_39/bin/activate
 
     cd project/pRNN
-    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=6 --batchsize=16 --pRNNtype='thRNN_5win' --actenc='SpeedHD'
+    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=6 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --inMaskLength = 5 --useLN = True

@@ -46,8 +46,8 @@ parser.add_argument("--envPackage",
                     # default='ratinabox_remix',
                     help="which package the environment comes from? (Default: gym-minigrid; other options: farama-minigrid, ratinabox, ratinabox_remix)")
 
-parser.add_argument("--pRNNtype", default='thRNN_2win',
-                    help="which pRNN (Default: thRNN_2win)")
+parser.add_argument("--pRNNtype", default='Masked',
+                    help="Which pRNN type?")
 
 parser.add_argument("--savefolder",
                     default='',
@@ -58,10 +58,9 @@ parser.add_argument("--loadfolder", default='',
                     help="Where to load the net? (foldername/)")
 
 parser.add_argument("--numepochs",
-                    default=80,
-                    # default=1,
+                    default=50,
                     type=int,
-                    help="how many training epochs? (Default: 80)")
+                    help="how many training epochs? (Default: 50)")
 
 parser.add_argument("--seqdur", default=500, type=int,
                     help="how long is each behavioral sequence? (Default: 500")
@@ -87,9 +86,6 @@ parser.add_argument("--lr", default=3e-3, type=float,    #former default:2e-4 (n
 parser.add_argument("--weight_decay", default=3e-3, type=float, #former default:6e-7 (not relative)
                     help="Weight Decay? (Relative to learning rate) (Default: 3e-3)")
 
-parser.add_argument("--bptttrunc", default=1e8, type=int,
-                    help="BPTT Truncation window? (Default: 1e8)")
-
 parser.add_argument("--ntimescale", default=2, type=float,
                     help="Neural timescale (Default: 2 timesteps)")
 
@@ -102,24 +98,7 @@ parser.add_argument("--noisemean", default=0, type=float,
 parser.add_argument("--noisestd", default=0.03, type=float,
                     help="Std of internal noise (Default: 0.03)")
 
-parser.add_argument("-f", "--sparsity", default=0.5, type=float,
-                    help="Activation sparsity (via layer norm, irrelevant for non-LN networks) (Default: 0.5)")
-
-parser.add_argument('--trainBias', action='store_true', default=False)
-
-parser.add_argument("--bias_lr", default=1, type=float,    #former default:2e-4 (not relative)
-                     help="Bias Learning Rate? (Relative to learning rate) (Default: 1)")
-
-parser.add_argument('--identityInit', action='store_true', default=False)
-
-parser.add_argument("--agentspeed", default=0.2, type=float,
-                    help="Average speed of the agent in a continuous environment (Default: 0.2)")
-
-parser.add_argument("--thigmotaxis", default=0.2, type=float,
-                    help="Agent bias towards exploring locations near the walls (RiaB) (Default: 0.2)")
-
-parser.add_argument("--HDbins", default=12, type=int,
-                    help="Number of bins for HD signal (RiaB) (Default: 12)")
+parser.add_argument('--trainBias', action='store_true', default=True)
 
 parser.add_argument("--namext", default='',
                     help="Extension to the savename?")
@@ -144,11 +123,40 @@ parser.add_argument("--datadir",
 parser.add_argument("--dataNtraj", default=10240, type=int,
                     help="Number of trajectories in the DataLoader (Default: 10240)")
 
-parser.add_argument("--batchsize", default=1, type=int,
-                    help="Number of trajectories in the DataLoader output batch (Default: 1)")
+parser.add_argument("--batchsize", default=16, type=int,
+                    help="Number of trajectories in the DataLoader output batch (Default: 16)")
 
 parser.add_argument("--numworkers", default=1, type=int,
                     help="Number of dataloader workers (Default: 1)")
+
+# Additional architecture kwargs
+
+parser.add_argument("--useLN", default=True, type =bool, 
+                    help="Use LayerNorm?")
+
+parser.add_argument("--useFF", default=False, type=bool,
+                    help="Make network Feed Forward only?")
+
+parser.add_argument("--maskActions", default=False, type=bool,
+                    help="Mask actions from model input as well?")
+
+parser.add_argument("--actOffset", default=0, type=int,
+                    help="Number of timesteps to offset actions by (backwards)")
+
+parser.add_argument("--inMaskLength", default=0, type=int,
+                    help="Number of future timesteps to mask")
+
+parser.add_argument("--useALN", default=False, type=bool,
+                    help="Use AdaptiveLayerNorm?")
+
+parser.add_argument("--k", default=5, type=int,
+                    help="Number of predictions in rollout")
+
+parser.add_argument("--rolloutAction", default="first", type=str,
+                    help="Action structure")
+
+parser.add_argument("--continuousTheta", default=False, type=bool,
+                    help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
 
 args = parser.parse_args()

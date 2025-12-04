@@ -115,7 +115,7 @@ class pRNN(nn.Module):
         musig = [mu,1]
 
         self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
-                                    defaultTheta=k, continuousTheta=continuousTheta,
+                                    defaultTheta=k, continuousTheta=continuousTheta, #k here refers to number of predictions in rollout (inner loop number)
                                     musig=musig, **cell_kwargs)
         
         self.outlayer = nn.Sequential(
@@ -430,7 +430,7 @@ class pRNN_th(pRNN):
 
 class pRNN_multimodal(pRNN):
     """
-    pRNN that allows multimodal inputs.
+    Masked pRNN that allows multimodal inputs.
     Extends pRNN
     """
 
@@ -476,7 +476,7 @@ class pRNN_multimodal(pRNN):
 
 
         super(pRNN_multimodal, self).__init__(obs_size, act_size, hidden_size=hidden_size,
-                                              cell=cell,  dropp=dropp, bptttrunc=bptttrunc, k=k, f=f,
+                                              cell=cell,  dropp=dropp, bptttrunc=bptttrunc, f=f,
                                               predOffset=predOffset, inMask= inMask, outMask = outMask, 
                                               actOffset=actOffset, actMask=actMask, neuralTimescale=neuralTimescale,
                                               continuousTheta = continuousTheta,  input_size = self.input_size, 
@@ -548,7 +548,7 @@ class MaskedRNN(pRNN):
     def __init__(self, obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, 
                 dropp = 0.15, f=0.5, 
-                use_LN = True, mask_actions = False, actOffset = 0, k = 0, **cell_kwargs): #new additions
+                use_LN = True, mask_actions = False, actOffset = 0, k = 5, **cell_kwargs): #new additions
         """Initialize MaskedRNN.
 
         Args:
@@ -581,7 +581,7 @@ class MaskedRNN(pRNN):
 
 class RolloutRNN(pRNN_th):
     """
-    A predictive RNN that does a rollout of k predictions at each timestep.
+    An unmasked, predictive RNN that does a rollout of k predictions at each timestep.
     Options to offset actions, use the same future actions for the k rollouts, use the same action, or no actions.
 
     Args:

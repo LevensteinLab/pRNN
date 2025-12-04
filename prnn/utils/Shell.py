@@ -1739,7 +1739,6 @@ class RiaBColorsRewardDirectedShell(RiaBColorsRewardShell):
         for i in range(num_sequences):
             self.active_reward_idx = i % 3
             self.getRandomPos()
-            print("Starting sequence", i, "with active reward channel", self.active_reward_idx)
             tsteps = seqlength
             obs, act, state, render = self.getObservations(tsteps, new_curriculum=True)
             self.ValNeur.plot_rate_map()
@@ -2120,7 +2119,6 @@ class RiaBColorsGridRewardDirectedShell(RiaBColorsRewardDirectedShell,
                     t_at_goal += 1
                     if(t_at_goal > self.time_at_reward): # if the agent is at the goal for more than n timesteps, switch to the next reward
                         self.active_reward_idx = (self.active_reward_idx + 1) % self.ValNeur.n
-                        print("Reward channel changed to", self.active_reward_idx)
                         t_at_goal = 0
                         switches += 1
             # self.total_tsteps += 1
@@ -2165,8 +2163,6 @@ class RiaBColorsGridRewardDirectedShell(RiaBColorsRewardDirectedShell,
                 }
         
         # self.all_firing_rates = np.array(self.all_firing_rates)
-
-        print("Number of switches:", switches)
 
         return obs, act, state, render
 

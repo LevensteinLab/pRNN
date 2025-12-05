@@ -3,6 +3,10 @@ Models
 
 There are three types of models we focus on here. All are built upon the same class :class:`prnn.utils.Architectures.pRNN`, which initializes weights, chooses a base :class:`prnn.utils.thetaRNN.RNNCell` type, restructrures inputs, and runs a forward pass to generate predictions. The models below augment this base structure, by altering which agent observations and actions are visible when.
 
+.. figure:: _static/FigureS1.png
+    :alt: Overview of model architectures
+
+    The three types of predictive networks supported by the package.
 
 Next-step Prediction
 --------------------

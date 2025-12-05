@@ -1,4 +1,5 @@
 ARCHITECTURE_NAME = 'Masked' 
+SAVE_FOLDER = "docs/_static"
 #---
 
 #import the pRNN class
@@ -24,15 +25,14 @@ env.reset()
 num_neurons = 500
 pRNNtype = ARCHITECTURE_NAME
 
-predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_LN = True, inMask_length = 5)
+predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, k = 5, use_LN = True)
 
 #specify an action policy (agent)
 action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
 agent = RandomActionAgent(env.action_space, action_probability)
 
 #run a sample trajectory (note: predictions will be garbage, agent is untrained)
-predictiveNet.plotSampleTrajectory(env,agent)
-plt.savefig(f"plots/{ARCHITECTURE_NAME}_naive.png")
+predictiveNet.plotSampleTrajectory(env,agent, savename = f"{ARCHITECTURE_NAME}_pre", savefolder = SAVE_FOLDER)
 
 #Run one training epoch of 500 trials, each 500 steps long
 sequence_duration = 50 # (500)
@@ -43,14 +43,11 @@ predictiveNet.trainingEpoch(env, agent,
                             num_trials=num_trials)
                         
 #run a sample trajectory. did the predictions get better?
-predictiveNet.plotSampleTrajectory(env,agent)
-plt.savefig(f"plots/{ARCHITECTURE_NAME}_trained.png")
-
+predictiveNet.plotSampleTrajectory(env,agent, savename = f"{ARCHITECTURE_NAME}_post", savefolder = SAVE_FOLDER)
 
 #Let's take a look at the spatial position decoding and tuning curves 
 place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                 trainDecoder=True, saveTrainingData=True,calculatesRSA = True)
 
-predictiveNet.calculateDecodingPerformance(env,agent,decoder)
-predictiveNet.plotTuningCurvePanel()
-plt.savefig(f"plots/{ARCHITECTURE_NAME}_tuning_curve.png")
+predictiveNet.calculateDecodingPerformance(env,agent,decoder, savename = f"{ARCHITECTURE_NAME}", savefolder = SAVE_FOLDER)
+predictiveNet.plotTuningCurvePanel(savename = f"{ARCHITECTURE_NAME}", savefolder = SAVE_FOLDER)

@@ -26,3 +26,6 @@ docs/_doctrees/
 # logging & plotting
 logs/
 plots/
+
+#local test scripts
+local/

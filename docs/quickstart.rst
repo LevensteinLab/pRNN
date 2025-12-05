@@ -88,7 +88,11 @@ Note that ``calculateSpatialRepresentation`` calls ``collectObservationSequence`
     obs_pred, obs_next, h  = predictiveNet.predict(obs,act, fullRNNstate=False)
     print(h.shape)
 
-The shape of the hidden state depends on whether the model batches, and on whether rollouts are performed. For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[B, T, N]`` where ``B`` is the number of batches, ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k, T, N, B]`` where ``k`` is the number of rollout steps.
+The shape of the hidden state, ``h``, depends on whether the model batches, and on whether rollouts are performed. For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[B, T, N]`` where ``B`` is the number of batches, ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k, T, N, B]`` where ``k`` is the number of rollout steps. Note that ``state`` is not the same as ``h``. The ``state`` variable is a dictionary that holds a record of the agents positions and head direction over time. The ``render`` either remains set as ``False``, or contains a list of rendered frames for display. This is what ``predictiveNet.plotObservationSequence`` uses to display a sequence of frames.
+
+.. code-block:: python
+
+    predictiveNet.plotObservationSequence(obs, render, obs_pred, state)
 
 
 You can check out the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``, or the :mod:`prnn.utils.Architectures` documentation to learn how to build your own.

@@ -178,13 +178,11 @@ if args.contin: #continue previous training, so load net from folder
         env = predictiveNet.loadEnvironment(args.load_env)
         predictiveNet.addEnvironment(env)
     else:
-        env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed,
-                       args.thigmotaxis, args.HDbins)
+        env = make_env(args.env, args.envPackage, args.actenc)
         predictiveNet.addEnvironment(env)
     agent = create_agent(args.env, env, args.agent)
 else: #create new PredictiveNet and begin training
-    env = make_env(args.env, args.envPackage, args.actenc, args.agentspeed,
-                   args.thigmotaxis, args.HDbins)
+    env = make_env(args.env, args.envPackage, args.actenc)
     agent = create_agent(args.env, env, args.agent)
     predictiveNet = PredictiveNet(env,
                                   hidden_size = args.hiddensize,
@@ -193,7 +191,6 @@ else: #create new PredictiveNet and begin training
                                   weight_decay = args.weight_decay,
                                   trainNoiseMeanStd = (args.noisemean,args.noisestd),
                                   trainBias = args.trainBias,
-                                  bias_lr = args.bias_lr,
                                   dataloader = args.withDataLoader,
                                   dropp = args.dropout,
                                   use_LN = args.use_LN, #passing in the rest of the optional arguments. will get passed through the **

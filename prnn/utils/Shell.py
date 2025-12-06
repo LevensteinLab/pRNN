@@ -593,7 +593,7 @@ class MiniworldVAEShell(MiniworldShell):
                                              nbins=self.numHDs))
 
         obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
-        obs_env = np.array(obs)
+        obs_env = np.array(obs) # raw observations don't need a singleton first dimension
         obs = obs.to(device)
         mu, log_var = self.encoder.encode(obs)
         obs = self.encoder.reparameterize(mu, log_var)

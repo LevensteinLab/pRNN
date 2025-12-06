@@ -71,7 +71,7 @@ parser.add_argument("--numtrials", default=1024, type=int,
 parser.add_argument("--hiddensize", default=500, type=int,
                     help="how many hidden units? (Default: 500")
 
-parser.add_argument("-c", "--contin", action="store_true",
+parser.add_argument("-c", "--contin", default= False, action="store_true",
                     help="Continue previous training?")
 
 parser.add_argument("--load_env", default=-1, type=int,
@@ -131,28 +131,25 @@ parser.add_argument("--numworkers", default=1, type=int,
 
 # Additional architecture kwargs
 
-parser.add_argument("--useLN", default=True, type =bool, 
+parser.add_argument("--use_LN", default=True, type =bool, 
                     help="Use LayerNorm?")
 
-parser.add_argument("--useFF", default=False, type=bool,
+parser.add_argument("--use_FF", default=False, type=bool,
                     help="Make network Feed Forward only?")
 
-parser.add_argument("--maskActions", default=False, type=bool,
+parser.add_argument("--mask_actions", default=False, type=bool,
                     help="Mask actions from model input as well?")
 
 parser.add_argument("--actOffset", default=0, type=int,
                     help="Number of timesteps to offset actions by (backwards)")
 
-parser.add_argument("--inMaskLength", default=0, type=int,
-                    help="Number of future timesteps to mask")
+parser.add_argument("--k", default=0, type=int,
+                    help="Number of predictions; i.e. number of future timesteps to mask or number of rollouts")
 
-parser.add_argument("--useALN", default=False, type=bool,
+parser.add_argument("--use_ALN", default=False, type=bool,
                     help="Use AdaptiveLayerNorm?")
 
-parser.add_argument("--k", default=5, type=int,
-                    help="Number of predictions in rollout")
-
-parser.add_argument("--rolloutAction", default="first", type=str,
+parser.add_argument("--rollout_action", default="first", type=str,
                     help="Action structure")
 
 parser.add_argument("--continuousTheta", default=False, type=bool,
@@ -197,12 +194,17 @@ else: #create new PredictiveNet and begin training
                                   trainNoiseMeanStd = (args.noisemean,args.noisestd),
                                   trainBias = args.trainBias,
                                   bias_lr = args.bias_lr,
-                                  identityInit = args.identityInit,
                                   dataloader = args.withDataLoader,
-                                  f = args.sparsity,
                                   dropp = args.dropout,
-                                  neuralTimescale = args.ntimescale,
-                                  bptttrunc = args.bptttrunc)
+                                  use_LN = args.use_LN, #passing in the rest of the optional arguments. will get passed through the **
+                                  use_FF = args.use_FF,
+                                  mask_actions = args.mask_actions,
+                                  actOffset = args.actOffset,
+                                  k = args.k,
+                                  use_ALN = args.use_ALN,
+                                  rollout_action = args.rollout_action,
+                                  continuousTheta = args.continuousTheta)
+
     predictiveNet.seed = args.seed
     predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(env,agent,

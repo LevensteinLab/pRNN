@@ -1,7 +1,11 @@
 Getting Started
 ===============
 
-This quickstart guide will help you train a pRNN model. We've implemented ``tutorial.ipynb`` in the package repo, so that you may run the preliminary analysis yourself.
+This quickstart guide will help you train a pRNN model. We've implemented ``tutorial.ipynb`` in the package repo, so that you may run the preliminary analysis yourself. When using this package, you'll be primarily working with three objects. 
+
+- An environment object, defined in ``env.py``. Along with the ``Shell`` object, it serves as the interface between external environment packages (e.g. ``gym``, ``minigrid``, ``RatinaBox``) and any models defined by our packages. These objects contain getter/setter methods, along with tools to convert inputs into datatypes suitable for the pRNN.
+- An agent object, defined in ``agent.py``. This defines how actions are taken within the environment and maintains a ``state`` attribute that keepts track of the agent's position and head direction over time.
+- A ``predictiveNet`` object. This is the object that contains the network. This network learns to predict egocentric sensory observations as the agent moves around the environment. As a result, the predictveNet develops a cognitive map of the environment. It contains utilities to manage training steps of the network, such as producing predictions and adjusting weights, as well as plotting functionality.
 
 We'll first import the ``predictiveNet`` class, which contains the machinery to train a ``pRNN`` model. We also import ``make_env`` and ``RandomActionAgent`` from ``utils``. Environments are made to manage different scenarios in which ``pRNNs`` are trained in, varying by world environment package (e.g. gym-minigrid, farama-minigrid, Rat-in-a-Box, miniworld, etc), encoding of actions, and observation type. The ``RandomActionAgent`` will return a sequence of random actions for the egocentric agent to use while navigating the environment specified with ``make_env``. 
 

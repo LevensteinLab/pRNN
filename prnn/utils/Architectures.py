@@ -589,7 +589,7 @@ class RolloutRNN(pRNN_th):
     """
     def __init__(self,obs_size, act_size, hidden_size=500,
                 bptttrunc=100, neuralTimescale=2, dropp = 0.15, f=0.5,
-                use_ALN = False, k = 5, rollout_action = "first", continuousTheta = False, actOffset = 0, **cell_kwargs):
+                use_ALN = False, k = 5, rollout_action = "full", continuousTheta = False, actOffset = 0, **cell_kwargs):
         """Initialize RolloutRNN.
 
         Args:
@@ -602,7 +602,7 @@ class RolloutRNN(pRNN_th):
             f (float, optional): Cumulative probaility, used as an argument into ppf. Defaults to 0.5.
             use_ALN (bool, optional): Use Adaptive Layer Norm?. Defaults to False (plain LayerNorm)
             k (int, optional): Number of predictions in rollout. Defaults to 5.
-            rollout_action (str, optional): Action structure. Defaults to "first" (use only the one action). Other options: "full" (use real future actions);  "hold" (use same action for k steps?)
+            rollout_action (str, optional): Action structure. Defaults to "full" (use real future actions). Other options: "first" (use only the one action);  "hold" (use same action for k steps?)
             continuousTheta (bool, optional): Carry over hidden state from the kth rollout to the t+1'th timestep. Defaults to False (carry hidden state from t to t+1).
             actOffset (int, optional): Number of timesteps to offset actions by (backwards). Defaults to 0.
         """

@@ -149,7 +149,7 @@ parser.add_argument("--k", default=0, type=int,
 parser.add_argument("--use_ALN", default=False, type=bool,
                     help="Use AdaptiveLayerNorm?")
 
-parser.add_argument("--rollout_action", default="first", type=str,
+parser.add_argument("--rollout_action", default="full", type=str,
                     help="Action structure")
 
 parser.add_argument("--continuousTheta", default=False, type=bool,
@@ -261,8 +261,7 @@ while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
     print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
     predictiveNet.trainingEpoch(env, agent,
                             sequence_duration=sequence_duration,
-                            num_trials=num_trials,
-                            batch_size=batchsize)
+                            num_trials=num_trials)
     print('Calculating Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                  trainDecoder=True, trainHDDecoder = True,

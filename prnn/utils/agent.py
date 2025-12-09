@@ -266,7 +266,7 @@ class MiniworldRandomAgent(Agent):
         self.history["angle"] = [get_angle(self.velocity)]
     
 
-def create_agent(envname, env, agentkey, agentname):
+def create_agent(envname, env, agentkey, agentname = ""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])

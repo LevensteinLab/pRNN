@@ -16,3 +16,16 @@ Figures/*
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
+
+# sphinx stuff
+docs/_build/
+docs/_autosummary/
+docs/_apidoc/
+docs/_doctrees/
+
+# logging & plotting
+logs/
+plots/
+
+#local test scripts
+local/

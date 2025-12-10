@@ -111,6 +111,7 @@ class pRNN(nn.Module):
                 obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
             else:
                 obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
+            act = act.permute(*[i for i in range(1,len(act.size()))],0)
             noise_shape = (k+1, obs.size(1), self.hidden_size, obs.size(-1))
         else:
             noise_shape = (k+1, obs.size(1), self.rnn.cell.hidden_size)

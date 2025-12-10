@@ -228,18 +228,7 @@ class PredictiveNet:
         Generate predicted observation sequence from an observation and action
         sequence batch. Obs_pred is for the next timestep. 
         Note: state input is used for CANN control in internal functions
-        """
-        if batched:
-            if type(obs) == list:
-                obs = [o.permute(*[i for i in range(1,len(o.size()))],0) for o in obs]
-            else:
-                obs = obs.permute(*[i for i in range(1,len(obs.size()))],0)
-            act = act.permute(*[i for i in range(1,len(act.size()))],0)
-            shape = (act.size(-1), 1, self.hidden_size)
-            
-        else:
-            shape = (1, 1, self.hidden_size)
-            
+        """            
         if randInit and len(state) == 0:
             shape = (act.size(0), 1, self.hidden_size)
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
@@ -847,9 +836,15 @@ class PredictiveNet:
                 self.addTrainingData('EVs',EVs)
             
             # WandB log of the Isomap
-            # if self.wandb_log:
-            #     Isomap = RGA.fitIsomap(WAKEactivity, SLEEPactivity,
-            #                            n_neighbors=50)
+            if self.wandb_log:
+                RGA.Isomap = RGA.fitIsomap(WAKEactivity, SLEEPactivity,
+                                           n_neighbors=50)
+                RGA.WAKEactivity = WAKEactivity
+                plt.figure(figsize=(4,2))
+                plt.subplot(1,2,1)
+                RGA.isomapPanel('position')
+                plt.subplot(1,2,2)
+                RGA.keyPanel()
         
         decoder = None
         if trainDecoder:
@@ -911,11 +906,11 @@ class PredictiveNet:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
         if self.wandb_log: #TODO: work out the rest of the logging
-            keys_unmodified = ['mean SI', 'sRSA', 'SWdist']
+            keys_unmodified = ['mean SI', 'sRSA', 'SWdist', 'Isomap']
             log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
                 wandb.log({log_keys[0]: SI['SI'].mean(), log_keys[1]: sRSA, 
-                           log_keys[2]: SWdist})
+                           log_keys[2]: SWdist, log_keys[3]: wandb.Image(plt.gcf())})
             else:
                 wandb.log({log_keys[0]: SI['SI'].mean()})
         return place_fields, SI, decoder

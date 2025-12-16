@@ -22,6 +22,7 @@ class SpatialTuningAnalysis:
         
         self.env = predictiveNet.EnvLibrary[0]
         self.start_pos = self.env.start_pos # the numbering of occupiable locations starts from this
+        self.n_obs = self.env.n_obs
 
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:
@@ -56,7 +57,7 @@ class SpatialTuningAnalysis:
             WAKEactivity = self.runWAKE(self.pNControl, self.env, agent, timesteps_wake,
                                         theta=theta)
             FAKEuntraineddata = self.makeFAKEdata(WAKEactivity, self.untrainedFields,
-                                                  start_pos=self.start_pos, n_obs=self.b_obs)
+                                                  start_pos=self.start_pos, n_obs=self.n_obs)
             self.untrainedReliability = FAKEuntraineddata['TCcorr']
         
         #Calculate TC reliability
@@ -69,7 +70,7 @@ class SpatialTuningAnalysis:
         if inputControl:
             print('Calculating EV_s for input control')
             FAKEinputdata = self.makeFAKEdata(self.WAKEactivity, self.inputFields,inputCells=True,
-                                              start_pos=self.start_pos, n_obs=self.b_obs)
+                                              start_pos=self.start_pos, n_obs=self.n_obs)
             self.inputReliability = FAKEinputdata['TCcorr']
         
         #Compare to a Recurrence-ablated control
@@ -106,7 +107,7 @@ class SpatialTuningAnalysis:
         FAKEactivity = {'state':WAKEactivity['state']}
         FAKEactivity = self.makeFAKEdata(WAKEactivity,tuning_curves,
                                          start_pos=self.start_pos,
-                                         n_obs=self.b_obs)
+                                         n_obs=self.n_obs)
         TCreliability = FAKEactivity['TCcorr']
         return FAKEactivity, TCreliability
     

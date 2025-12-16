@@ -59,7 +59,7 @@ class Shell:
                                    inv_x=False, inv_y=False, seed=None,
                                    dataloader=False, reset=True,
                                    save_env=False, device='cpu',
-                                   compute_loss=False, render_highlight=True):):
+                                   compute_loss=False, render_highlight=True):
 
         """
         Use an agent (action generator) to collect an observation/action sequence

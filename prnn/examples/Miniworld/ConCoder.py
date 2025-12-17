@@ -33,6 +33,7 @@ class ConCoder(nn.Module):
         n_targets: int = 32,
         hidden_size: Optional[int] = None,
         encoder_weight_decay: float = 1e-5,
+        temperature: float = 0.07,
         **cell_kwargs,
     ):
         super().__init__()
@@ -44,6 +45,7 @@ class ConCoder(nn.Module):
         self.pred_steps = pred_steps
         self.n_targets = n_targets
         self.encoder_weight_decay = encoder_weight_decay
+        self.temperature = temperature
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
@@ -197,24 +199,24 @@ class ConCoder(nn.Module):
         return preds, targets
 
 
-def contrastive_loss_from_preds(preds: torch.Tensor, targets: torch.Tensor, temperature: float = 0.07) -> torch.Tensor:
-    """Compute a simple contrastive loss: for each predicted vector, the matching target at same (B,t) is positive;
-    all other target vectors are negatives. Uses dot-product similarity and cross-entropy.
+    def contrastive_loss_from_preds(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Compute a simple contrastive loss: for each predicted vector, the matching target at same (B,t) is positive;
+        all other target vectors are negatives. Uses dot-product similarity and cross-entropy.
 
-    preds: (B*N, T, D)
-    targets: (B*N, Z, D)
-    """
-    B, T, D = preds.shape
-    
-    loss = []
-    labels = torch.arange(T, device=preds.device)
-    
-    for b in range(B):
-        # similarity matrix (T, Z)
-        logits = torch.matmul(preds[b], targets[b].T) / temperature
-        loss.append(F.cross_entropy(logits, labels))
-    loss = torch.stack(loss).mean()
-    return loss
+        preds: (B*N, T, D)
+        targets: (B*N, Z, D)
+        """
+        B, T, D = preds.shape
+        
+        loss = []
+        labels = torch.arange(T, device=preds.device)
+        
+        for b in range(B):
+            # similarity matrix (T, Z)
+            logits = torch.matmul(preds[b], targets[b].T) / self.temperature
+            loss.append(F.cross_entropy(logits, labels))
+        loss = torch.stack(loss).mean()
+        return loss
 
 
 class ConCoderLightning(pl.LightningModule):
@@ -267,7 +269,7 @@ class ConCoderLightning(pl.LightningModule):
     def training_step(self, frames):
         # frames: B, S, C, H, W
         preds, targets = self.forward(frames)
-        loss = contrastive_loss_from_preds(preds, targets)
+        loss = self.model.contrastive_loss_from_preds(preds, targets)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 

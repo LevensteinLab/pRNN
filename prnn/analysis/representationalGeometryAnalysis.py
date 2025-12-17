@@ -755,7 +755,7 @@ class representationalGeometryAnalysis:
         
     def WakeSleepFigure(self, netname, savefolder=None, 
                         isomapRotation=(0,0), withKey =True, withSleep=True,
-                        use_cells=None):
+                        use_cells=None, wandb=False):
         
         plt.figure()
         # plt.subplot(3,8,3)
@@ -789,6 +789,10 @@ class representationalGeometryAnalysis:
         if savefolder is not None:
             saveFig(plt.gcf(), 'WakeSleepDistance_'+netname, savefolder,
                     filetype=self.fig_type)
+            
+        if wandb:
+            import wandb
+            wandb.log({"WakeSleepDistanceFigure": wandb.Image(plt.gcf())})
 
         plt.show()
         

@@ -834,17 +834,6 @@ class PredictiveNet:
                 self.addTrainingData('sRSA',sRSA)
                 self.addTrainingData('SWdist',SWdist)
                 self.addTrainingData('EVs',EVs)
-            
-            # WandB log of the Isomap
-            if self.wandb_log:
-                RGA.Isomap = RGA.fitIsomap(WAKEactivity, SLEEPactivity,
-                                           n_neighbors=50)
-                RGA.WAKEactivity = WAKEactivity
-                plt.figure(figsize=(4,2))
-                plt.subplot(1,2,1)
-                RGA.isomapPanel('position')
-                plt.subplot(1,2,2)
-                RGA.keyPanel()
         
         decoder = None
         if trainDecoder:
@@ -906,11 +895,11 @@ class PredictiveNet:
             self.addTrainingData('place_fields',place_fields)
             self.addTrainingData('SI',SI['SI'])
         if self.wandb_log: #TODO: work out the rest of the logging
-            keys_unmodified = ['mean SI', 'sRSA', 'SWdist', 'Isomap']
+            keys_unmodified = ['mean SI', 'sRSA', 'SWdist']
             log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
                 wandb.log({log_keys[0]: SI['SI'].mean(), log_keys[1]: sRSA, 
-                           log_keys[2]: SWdist, log_keys[3]: wandb.Image(plt.gcf())})
+                           log_keys[2]: SWdist})
             else:
                 wandb.log({log_keys[0]: SI['SI'].mean()})
         return place_fields, SI, decoder

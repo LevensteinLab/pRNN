@@ -97,6 +97,23 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         )
         env.reset(seed=seed)
         env = MiniworldShell(env, act_enc, env_key, HDbins)
+        
+    elif package=='miniworld_concoder':
+        import gymnasium as gym
+        import miniworld
+        env = gym.make(
+                    env_key,
+                    view="agent",
+                    render_mode="rgb_array",
+                    obs_width=64,
+                    obs_height=64,
+                    window_width=64,
+                    window_height=64,
+                    max_episode_steps=math.inf,
+        )
+        env.reset(seed=seed)
+        env = MiniworldContrastiveShell(env, act_enc, env_key,
+                                        encoder, HDbins)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

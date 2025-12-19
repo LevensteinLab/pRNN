@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import torch
 import random
 
+from types import SimpleNamespace
 # Parse arguments
 
 parser = argparse.ArgumentParser()
@@ -155,6 +156,15 @@ parser.add_argument("--rollout_action", default="full", type=str,
 parser.add_argument("--continuousTheta", default=False, type=bool,
                     help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
+# additional parser args for trainArgs
+parser.add_argument("--bias_lr", default=1, type=float,    #former default:2e-4 (not relative)
+                     help="Bias Learning Rate? (Relative to learning rate) (Default: 1)")
+
+parser.add_argument("--eg_lr", default=1, type=float,
+                    help="__ Learning Rate")
+
+parser.add_argument("--eg_weight_decay", default=1, type=float,
+                    help="__ weight decay parameter")
 
 args = parser.parse_args()
 
@@ -200,15 +210,16 @@ else: #create new PredictiveNet and begin training
                                   k = args.k,
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
-                                  continuousTheta = args.continuousTheta)
+                                  continuousTheta = args.continuousTheta, 
+                                  trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
-    predictiveNet.seed = args.seed
-    predictiveNet.trainArgs = args
+    #predictiveNet.seed = args.seed
+    #predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(env,agent,
                                        savename=savename+'exTrajectory_untrained',
                                        savefolder=figfolder)
-    predictiveNet.savefolder = args.savefolder
-    predictiveNet.savename = savename
+    #predictiveNet.savefolder = args.savefolder
+    #predictiveNet.savename = savename
 
 
     if args.withDataLoader:

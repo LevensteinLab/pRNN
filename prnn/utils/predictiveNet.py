@@ -18,7 +18,9 @@ import pickle
 import json
 import time
 import random
-from pathlib import Path    
+from pathlib import Path
+from types import SimpleNamespace
+
 try:
     import wandb
 except ImportError:
@@ -130,7 +132,7 @@ class PredictiveNet:
                  trainBias=True, identityInit=False, dataloader=False,
                  fig_type='png', train_encoder=False, encoder_grad=False,
                  enc_loss_weight=1.0, enc_loss_power=1.0,
-                 wandb_log=False, **architecture_kwargs):
+                 wandb_log=False, trainArgs = SimpleNamespace(), **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -183,6 +185,10 @@ class PredictiveNet:
         self.state = torch.tensor([])
         self.phase = 0
         self.phase_k = len(self.pRNN.inMask)
+
+        #Extra training parameters saved in SimpleNamespace
+        #accessible via dot notation
+        self.trainArgs = trainArgs
 
     def predict(self, obs, act, state=torch.tensor([]),
                 mask=None, randInit=True, batched=False, fullRNNstate=False):

@@ -141,6 +141,18 @@ class PredictiveNet:
         not predicted. Added to the action input
         """
 
+        #get all constructor arguments and save them separately in trainArgs for later access...
+        self.trainArgs = trainArgs
+
+        input_args = locals()
+        input_args.pop('self')
+        input_args.pop('trainArgs')
+        input_args.pop("learningRate")
+
+        for k, v in input_args.items():
+            setattr(self.trainArgs, k, v)
+        self.trainArgs.lr = learningRate #handle separately because it's a different name 
+
         self.trainNoiseMeanStd = trainNoiseMeanStd
 
         #Set up the environmental I/O parms
@@ -185,10 +197,6 @@ class PredictiveNet:
         self.state = torch.tensor([])
         self.phase = 0
         self.phase_k = len(self.pRNN.inMask)
-
-        #Extra training parameters saved in SimpleNamespace
-        #accessible via dot notation
-        self.trainArgs = trainArgs
 
     def predict(self, obs, act, state=torch.tensor([]),
                 mask=None, randInit=True, batched=False, fullRNNstate=False):

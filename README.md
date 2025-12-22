@@ -17,3 +17,5 @@ To test if the package installation is successful, run:
 
     python test/test_imports.py
 
+
+You can find a getting started tutorial at docs/quickstart.rst

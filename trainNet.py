@@ -156,16 +156,6 @@ parser.add_argument("--rollout_action", default="full", type=str,
 parser.add_argument("--continuousTheta", default=False, type=bool,
                     help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
-# additional parser args for trainArgs
-parser.add_argument("--bias_lr", default=1, type=float,    #former default:2e-4 (not relative)
-                     help="Bias Learning Rate? (Relative to learning rate) (Default: 1)")
-
-parser.add_argument("--eg_lr", default=1, type=float,
-                    help="__ Learning Rate")
-
-parser.add_argument("--eg_weight_decay", default=1, type=float,
-                    help="__ weight decay parameter")
-
 args = parser.parse_args()
 
 

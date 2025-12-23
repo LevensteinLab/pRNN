@@ -210,7 +210,7 @@ else: #create new PredictiveNet and begin training
                                   k = args.k,
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
-                                  continuousTheta = args.continuousTheta, 
+                                  continuousTheta = args.continuousTheta,
                                   trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
     #predictiveNet.seed = args.seed

@@ -18,7 +18,9 @@ import pickle
 import json
 import time
 import random
-from pathlib import Path    
+from pathlib import Path
+from types import SimpleNamespace
+
 try:
     import wandb
 except ImportError:
@@ -130,7 +132,7 @@ class PredictiveNet:
                  trainBias=True, identityInit=False, dataloader=False,
                  fig_type='png', train_encoder=False, encoder_grad=False,
                  enc_loss_weight=1.0, enc_loss_power=1.0,
-                 wandb_log=False, **architecture_kwargs):
+                 wandb_log=False, trainArgs = SimpleNamespace(), **architecture_kwargs):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
@@ -138,6 +140,18 @@ class PredictiveNet:
         suppObs: any unpredicted observation key from the environment that is input and
         not predicted. Added to the action input
         """
+
+        #get all constructor arguments and save them separately in trainArgs for later access...
+        self.trainArgs = trainArgs
+
+        input_args = locals()
+        input_args.pop('self')
+        input_args.pop('trainArgs')
+        input_args.pop("learningRate")
+
+        for k, v in input_args.items():
+            setattr(self.trainArgs, k, v)
+        self.trainArgs.lr = learningRate #handle separately because it's a different name 
 
         self.trainNoiseMeanStd = trainNoiseMeanStd
 

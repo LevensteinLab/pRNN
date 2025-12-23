@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import torch
 import random
 
+from types import SimpleNamespace
 # Parse arguments
 
 parser = argparse.ArgumentParser()
@@ -155,7 +156,6 @@ parser.add_argument("--rollout_action", default="full", type=str,
 parser.add_argument("--continuousTheta", default=False, type=bool,
                     help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
-
 args = parser.parse_args()
 
 
@@ -200,15 +200,16 @@ else: #create new PredictiveNet and begin training
                                   k = args.k,
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
-                                  continuousTheta = args.continuousTheta)
+                                  continuousTheta = args.continuousTheta,
+                                  trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
-    predictiveNet.seed = args.seed
-    predictiveNet.trainArgs = args
+    #predictiveNet.seed = args.seed
+    #predictiveNet.trainArgs = args
     predictiveNet.plotSampleTrajectory(env,agent,
                                        savename=savename+'exTrajectory_untrained',
                                        savefolder=figfolder)
-    predictiveNet.savefolder = args.savefolder
-    predictiveNet.savename = savename
+    #predictiveNet.savefolder = args.savefolder
+    #predictiveNet.savename = savename
 
 
     if args.withDataLoader:

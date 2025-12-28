@@ -183,7 +183,7 @@ np.random.seed(args.seed)
 
 if args.wandb:
     run = wandb.init(
-    entity="sabrina-du-mila-mila",
+    entity="blake-richards",
     project="curious-george",
 )
 

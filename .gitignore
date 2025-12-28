@@ -26,6 +26,7 @@ docs/_doctrees/
 # logging & plotting
 logs/
 plots/
+wandb/
 
 #local test scripts
 local/

@@ -8,17 +8,23 @@ Created on Tue Jun 14 22:07:04 2022
 
 
 #%%
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 from prnn.utils.predictiveNet import PredictiveNet
 from prnn.utils.agent import create_agent
 from prnn.utils.data import create_dataloader
-from prnn.utils.env import make_env
+from prnn.utils.env import make_env, make_farama_env
 from prnn.utils.figures import TrainingFigure
 from prnn.utils.figures import SpontTrajectoryFigure
+from prnn.utils.ckpts import save_pN, load_pN
 from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 import argparse
 from tqdm import tqdm
+import wandb
 
 #TODO: get rid of these dependencies
+import time
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,7 +39,7 @@ parser = argparse.ArgumentParser()
 ## General parameters
 
 parser.add_argument("--env",
-                    default='MiniGrid-LRoom-18x18-v0',
+                    default='MiniGrid-LRoom-v0',
                     # default='RiaB-LRoom',
                     help="name of the environment to train on (Default: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
 
@@ -43,7 +49,7 @@ parser.add_argument("--agent",
                     help="name of the agent for environment exploration (Default: RandomActionAgent, other option: RatInABoxAgent)")
 
 parser.add_argument("--envPackage",
-                    default='gym-minigrid',
+                    default='farama-minigrid',
                     # default='ratinabox_remix',
                     help="which package the environment comes from? (Default: gym-minigrid; other options: farama-minigrid, ratinabox, ratinabox_remix)")
 
@@ -116,6 +122,9 @@ parser.add_argument('--no-saveTrainData', dest='saveTrainData', action='store_fa
 parser.add_argument('--withDataLoader', action='store_true', default=True)
 parser.add_argument('--noDataLoader', dest='withDataLoader', action='store_false')
 
+parser.add_argument('--wandb', action='store_true', default=True)
+parser.add_argument('--no_wandb', dest='wandb', action='store_false')
+
 parser.add_argument("--datadir",
                     default='Data',
                     help="Top-level folder to save the data for DataLoader (the sub-folders will be \
@@ -159,8 +168,8 @@ parser.add_argument("--continuousTheta", default=False, type=bool,
 args = parser.parse_args()
 
 
-
-savename = args.pRNNtype + '-' + args.namext + '-s' + str(args.seed)
+date = time.strftime("m%d-%H%M%S")
+savename = args.pRNNtype + '-' + args.namext + '-' + date
 figfolder = 'nets/'+args.savefolder+'/trainfigs/'+savename
 analysisfolder = 'nets/'+args.savefolder+'/analysis/'+savename
 
@@ -172,6 +181,12 @@ torch.manual_seed(args.seed)
 random.seed(args.seed)
 np.random.seed(args.seed)
 
+if args.wandb:
+    run = wandb.init(
+    entity="sabrina-du-mila-mila",
+    project="curious-george",
+)
+
 if args.contin: #continue previous training, so load net from folder
     predictiveNet = PredictiveNet.loadNet(args.loadfolder+savename)
     if args.env == '':
@@ -182,7 +197,13 @@ if args.contin: #continue previous training, so load net from folder
         predictiveNet.addEnvironment(env)
     agent = create_agent(args.env, env, args.agent)
 else: #create new PredictiveNet and begin training
-    env = make_env(args.env, args.envPackage, args.actenc)
+    import config.enums as enums
+    env = make_farama_env(
+            env_key=enums.MinigridEnvNames.LRoom,
+            input_type=enums.AgentInputType.H_PO,
+            seed=args.seed,
+            act_enc=enums.ActionEncodingsEnum.SpeedHD,
+        )
     agent = create_agent(args.env, env, args.agent)
     predictiveNet = PredictiveNet(env,
                                   hidden_size = args.hiddensize,
@@ -201,6 +222,7 @@ else: #create new PredictiveNet and begin training
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
                                   continuousTheta = args.continuousTheta,
+                                  wandb_log= args.wandb,
                                   trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
     #predictiveNet.seed = args.seed
@@ -289,4 +311,4 @@ TrainingFigure(predictiveNet,savename=savename,savefolder=figfolder)
 #If the user doesn't want to save all that training data, delete it except the last one
 if args.saveTrainData is False:
     predictiveNet.TrainingSaver = predictiveNet.TrainingSaver.drop(predictiveNet.TrainingSaver.index[:-1])
-    predictiveNet.saveNet(args.savefolder+savename)
+    save_pN(predictiveNet, args.savefolder+savename)

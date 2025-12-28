@@ -11,10 +11,28 @@ import matplotlib.pyplot as plt
 
 from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
+from minigrid.wrappers import *
 
 from prnn.utils.Shell import *
-from prnn.examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
+from examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
 
+# Wrappers
+wrappers = {
+    "ReseedWrapper": ReseedWrapper,
+    "ActionBonus": ActionBonus,
+    "StateBonus": StateBonus,
+    "ImgObsWrapper": ImgObsWrapper,
+    "OneHotPartialObsWrapper": OneHotPartialObsWrapper,
+    "RGBImgObsWrapper": RGBImgObsWrapper,
+    "RGBImgPartialObsWrapper": RGBImgPartialObsWrapper,
+    "RGBImgPartialObsWrapper_HD": RGBImgPartialObsWrapper_HD,
+    "FullyObsWrapper": FullyObsWrapper,
+    "DictObservationSpaceWrapper": DictObservationSpaceWrapper,
+    "FlatObsWrapper": FlatObsWrapper,
+    "ViewSizeWrapper": ViewSizeWrapper,
+    "DirectionObsWrapper": DirectionObsWrapper,
+    "SymbolicObsWrapper": SymbolicObsWrapper,
+}
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              speed=0.2, thigmotaxis=0.2, HDbins=12, wrap=True,
@@ -26,7 +44,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     if package=='gym-minigrid':
         import gym
         import gym_minigrid
-        from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
+        from minigrid.wrappers import RGBImgPartialObsWrapper_HD
         if wrap:
             env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
         else:
@@ -37,7 +55,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     elif package=='farama-minigrid':
         import gymnasium as gym
         import minigrid
-        import prnn.examples.Lroom
+        import examples.Lroom
         if wrap:
             env = RGBImgPartialObsWrapper_HD_Farama(gym.make(env_key),tile_size=1)
         else:
@@ -85,6 +103,50 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')
     
+    return env
+
+
+def make_farama_env(env_key: str,
+    input_type: str,
+    agent_start_pos: tuple[int, int] | None = None,
+    agent_start_dir: int | None = None,
+    seed=0,
+    wrapper=None,
+    render_mode="rgb_array",
+    act_enc: str | None = None,
+    **kwargs, # e.g., subroom_size and open_all_paths for FourRooms, size for LRoom
+):
+    import gymnasium as gym
+    import config.enums as enums
+    
+    assert input_type in enums.AgentInputType
+    assert env_key in enums.MinigridEnvNames
+    assert act_enc in enums.ActionEncodingsEnum
+
+    env = gym.make(env_key, 
+                   agent_start_pos=agent_start_pos, 
+                   agent_start_dir=agent_start_dir,
+                   render_mode=render_mode,
+                   **kwargs)
+
+    if input_type == "Visual_FO":
+        # Not RGB one here because we want RL agent to have as much info as possible
+        env = FullyObsWrapper(env)
+
+    else: # elif "pRNN" in input_type or "PO" in input_type:
+        # The same RGB wrapper is used for comparability whenever partial observation is needed
+        env = RGBImgPartialObsWrapper_HD(env, tile_size=1)
+
+    """else:
+        # For the cases without any visual input
+        env = HDObsWrapper(env)"""
+
+    if wrapper:
+        env = wrappers[wrapper](env, **kwargs)
+
+    env.reset(seed=seed)
+    env = FaramaMinigridShell(env, act_enc, env_key)
+
     return env
 
 

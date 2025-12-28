@@ -165,6 +165,7 @@ class PredictiveNet:
 
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
+        self.pRNNtype = pRNNtype
         self.pRNN = netOptions[pRNNtype](self.obs_size, self.act_size, self.hidden_size,
                                          **architecture_kwargs)
         if identityInit: 

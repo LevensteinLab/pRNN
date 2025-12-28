@@ -226,10 +226,10 @@ class GymMinigridShell(Shell):
     def env2np(self, obs, act=None, **kwargs):
         hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
         if act is not None:
-            act = np.array(self.encodeAction(act=act,
-                                             obs=hd,
-                                             numSuppObs=self.numHDs,
-                                             numActs=self.action_space.n))
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    numSuppObs=self.numHDs,
+                                    numActs=self.action_space.n).numpy()
 
         obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
         obs = obs/255

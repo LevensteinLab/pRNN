@@ -90,6 +90,12 @@ from .CANNNet import (
     CANNRNN
 )
 
+# thetaRNN
+from .thetaRNN import (
+    LayerNormRNNCell,
+    RNNCell,
+)
+
 # Action encodings
 from .ActionEncodings import (
     OneHot,
@@ -162,6 +168,14 @@ from .general import (
     kl_divergence,
     delaydist,
     state2nap
+)
+
+from .enums import (
+    pRNNtypes,
+    MinigridEnvNames,
+    ActionEncodingsEnum,
+    AgentInputType,
+    AgentType,
 )
 
 __all__ = [

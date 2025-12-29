@@ -860,7 +860,7 @@ class PredictiveNet:
                            log_keys[2]: SWdist})
             else:
                 wandb.log({log_keys[0]: SI['SI'].mean()})
-        return place_fields, SI, decoder
+        return place_fields, SI, decoder, sRSA
 
 
     def decode(self, h, decoder, withHD = False):
@@ -1218,6 +1218,8 @@ class PredictiveNet:
         if self.wandb_log:
             wandb.log({'Observation Sequence': wandb.Image(plt.gcf())})
         plt.show()
+
+        plt.close(fig)
 
         return
 

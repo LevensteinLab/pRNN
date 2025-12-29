@@ -117,7 +117,7 @@ def make_farama_env(env_key: str,
     **kwargs, # e.g., subroom_size and open_all_paths for FourRooms, size for LRoom
 ):
     import gymnasium as gym
-    import config.enums as enums
+    import prnn.utils.enums as enums
     
     assert input_type in enums.AgentInputType
     assert env_key in enums.MinigridEnvNames

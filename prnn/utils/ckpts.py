@@ -4,7 +4,7 @@ import os
 
 from prnn.utils.predictiveNet import PredictiveNet
 from prnn.utils.Shell import FaramaMinigridShell
-from config.enums import pRNNtypes
+from prnn.utils.enums import pRNNtypes
 
 
 class CkptKeys(str, Enum):

@@ -197,7 +197,7 @@ if args.contin: #continue previous training, so load net from folder
         predictiveNet.addEnvironment(env)
     agent = create_agent(args.env, env, args.agent)
 else: #create new PredictiveNet and begin training
-    import config.enums as enums
+    import prnn.utils.enums as enums
     env = make_farama_env(
             env_key=enums.MinigridEnvNames.LRoom,
             input_type=enums.AgentInputType.H_PO,

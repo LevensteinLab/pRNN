@@ -12,7 +12,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 from prnn.utils.predictiveNet import PredictiveNet
-from prnn.utils.agent import create_agent
+from prnn.utils.RandomBatchedActionSequencesAgent import create_batched_agent
 from prnn.utils.data import create_dataloader
 from prnn.utils.env import make_env, make_farama_env, make_farama_envs
 from prnn.utils.figures import TrainingFigure
@@ -30,6 +30,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import random
+import datetime
 
 from types import SimpleNamespace
 # Parse arguments
@@ -44,7 +45,7 @@ parser.add_argument("--env",
                     help="name of the environment to train on (Default: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
 
 parser.add_argument("--agent",
-                    default='RandomActionAgent',
+                    default='RandomBatchedActionSequencesAgent',
                     # default='RatInABoxAgent',
                     help="name of the agent for environment exploration (Default: RandomActionAgent, other option: RatInABoxAgent)")
 
@@ -69,7 +70,7 @@ parser.add_argument("--numepochs",
                     type=int,
                     help="how many training epochs? (Default: 50)")
 
-parser.add_argument("--seqdur", default=500, type=int,
+parser.add_argument("--seqdur", default=5, type=int,
                     help="how long is each behavioral sequence? (Default: 500")
 
 parser.add_argument("--numtrials", default=1024, type=int,
@@ -165,7 +166,7 @@ parser.add_argument("--rollout_action", default="full", type=str,
 parser.add_argument("--continuousTheta", default=False, type=bool,
                     help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
-parser.add_argument("--number_of_environments", default=4, type=int,
+parser.add_argument("--number_of_environments", default=2, type=int,
                     help="Create number of environments for parallel training?")
 
 args = parser.parse_args()
@@ -190,129 +191,27 @@ if args.wandb:
     project="curious-george",
 )
 
-if args.contin: #continue previous training, so load net from folder
-    predictiveNet = PredictiveNet.loadNet(args.loadfolder+savename)
-    if args.env == '':
-        env = predictiveNet.loadEnvironment(args.load_env)
-        predictiveNet.addEnvironment(env)
-    else:
-        env = make_env(args.env, args.envPackage, args.actenc)
-        predictiveNet.addEnvironment(env)
-    agent = create_agent(args.env, env, args.agent)
-else: #create new PredictiveNet and begin training
-    import prnn.utils.enums as enums
-    env = make_farama_envs(
+
+import prnn.utils.enums as enums
+print(str(datetime.datetime.now()))
+shell_envs,envs = make_farama_envs(
             number_of_envs=args.number_of_environments,
             env_key=enums.MinigridEnvNames.LRoom,
             input_type=enums.AgentInputType.H_PO,
             seed=args.seed,
             act_enc=enums.ActionEncodingsEnum.SpeedHD,
         )
-    agent = create_agent(args.env, env, args.agent)
-    predictiveNet = PredictiveNet(env,
-                                  hidden_size = args.hiddensize,
-                                  pRNNtype = args.pRNNtype,
-                                  learningRate = args.lr,
-                                  weight_decay = args.weight_decay,
-                                  trainNoiseMeanStd = (args.noisemean,args.noisestd),
-                                  trainBias = args.trainBias,
-                                  dataloader = args.withDataLoader,
-                                  dropp = args.dropout,
-                                  use_LN = args.use_LN, #passing in the rest of the optional arguments. will get passed through the **
-                                  use_FF = args.use_FF,
-                                  mask_actions = args.mask_actions,
-                                  actOffset = args.actOffset,
-                                  k = args.k,
-                                  use_ALN = args.use_ALN,
-                                  rollout_action = args.rollout_action,
-                                  continuousTheta = args.continuousTheta,
-                                  wandb_log= args.wandb,
-                                  trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
-
-    #predictiveNet.seed = args.seed
-    #predictiveNet.trainArgs = args
-    predictiveNet.plotSampleTrajectory(env,agent,
-                                       savename=savename+'exTrajectory_untrained',
-                                       savefolder=figfolder)
-    #predictiveNet.savefolder = args.savefolder
-    #predictiveNet.savename = savename
-
-
-    if args.withDataLoader:
-        # Separate Data Loader should be created for every environment
-        create_dataloader(env, agent, args.dataNtraj, args.seqdur,
-                          args.datadir, generate=True,
-                          tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'),
-                          batch_size=args.batchsize, 
-                          num_workers=args.numworkers)
-        predictiveNet.useDataLoader = args.withDataLoader
+agent = create_batched_agent(args.env, envs, args.agent)
 
 
 #%% Training Epoch
 #Consider these as "trainingparameters" class/dictionary
 numepochs = args.numepochs
-sequence_duration = args.seqdur
-num_trials = args.numtrials
+traj_duration = args.seqdur
 if args.withDataLoader:
     batchsize = args.batchsize
 else:
     batchsize = 1
 
-predictiveNet.trainingCompleted = False
-if predictiveNet.numTrainingTrials == -1:
-    #Calculate initial spatial metrics etc
-    print('Training Baseline')
-    predictiveNet.useDataLoader = False
-    predictiveNet.trainingEpoch(env, agent,
-                            sequence_duration=sequence_duration,
-                            num_trials=1)
-    predictiveNet.useDataLoader = args.withDataLoader
-    print('Calculating Spatial Representation...')
-    place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                                  trainDecoder=True,saveTrainingData=True,
-                                                  bitsec= False,
-                                                  calculatesRSA = True, sleepstd=0.03)
-    predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    print('Calculating Decoding Performance...')
-    predictiveNet.calculateDecodingPerformance(env,agent,decoder,
-                                                savename=savename, savefolder=figfolder,
-                                                saveTrainingData=True)
-    #predictiveNet.plotDelayDist(env, agent, decoder)
-
-if hasattr(predictiveNet, 'numTrainingEpochs') is False:
-    predictiveNet.numTrainingEpochs = int(predictiveNet.numTrainingTrials/num_trials)
-
-progress = tqdm(total=numepochs, desc="Training Epochs") #tdqm status bar
-
-while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
-    print(f'Training Epoch {predictiveNet.numTrainingEpochs}')
-    predictiveNet.trainingEpoch(env, agent,
-                            sequence_duration=sequence_duration,
-                            num_trials=num_trials)
-    print('Calculating Spatial Representation...')
-    place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                                 trainDecoder=True, trainHDDecoder = True,
-                                                 saveTrainingData=True, bitsec= False,
-                                                 calculatesRSA = True, sleepstd=0.03)
-    print('Calculating Decoding Performance...')
-    predictiveNet.calculateDecodingPerformance(env,agent,decoder,
-                                                savename=savename, savefolder=figfolder,
-                                                saveTrainingData=True)
-    predictiveNet.plotLearningCurve(savename=savename,savefolder=figfolder,
-                                    incDecode=True)
-    predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    plt.show()
-    plt.close('all')
-    predictiveNet.saveNet(args.savefolder+savename)
-
-    progress.update(1)
-
-progress.close()
-
-predictiveNet.trainingCompleted = True
-TrainingFigure(predictiveNet,savename=savename,savefolder=figfolder)
-
-#If the user doesn't want to save all that training data, delete it except the last one
-if args.saveTrainData is False:
-    predictiveNet.TrainingSaver = predictiveNet.TrainingSaver.drop(predictiveNet.TrainingSaver.index[:-1])
-    save_pN(predictiveNet, args.savefolder+savename)
+agent.getObservations(envs,shell_envs,tsteps=traj_duration, includeRender=True)
+print(str(datetime.datetime.now()))

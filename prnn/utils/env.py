@@ -150,6 +150,45 @@ def make_farama_env(env_key: str,
     return env
 
 
+def make_farama_envs(
+    number_of_envs: int,
+    env_key: str,
+    input_type: str,
+    agent_start_pos: tuple[int, int] | None = None,
+    agent_start_dir: int | None = None,
+    seed=0,
+    wrapper=None,
+    render_mode="rgb_array",
+    act_enc: str | None = None,
+    **kwargs, # e.g., subroom_size and open_all_paths for FourRooms, size for LRoom
+):
+    from gymnasium.vector import AsyncVectorEnv
+    #loop to get the number of envs
+    envs = np.empty(number_of_envs, dtype=object)
+    for i in range(number_of_envs):
+        envs[i] = make_farama_env(
+                env_key=env_key,
+                input_type=input_type,
+                agent_start_pos=agent_start_pos,
+                agent_start_dir=agent_start_dir,
+                seed=seed + i,
+                wrapper=wrapper,
+                render_mode=render_mode,
+                act_enc=act_enc,
+                **kwargs,
+            )
+      
+    # Build env creator functions capturing each env object to avoid later name shadowing
+    env_fns = []
+    for i in range(number_of_envs):
+        env_obj = envs[i]
+        def _init(env_obj=env_obj):
+            return env_obj.env
+        env_fns.append(_init)
+
+    envs_vector = AsyncVectorEnv(env_fns, shared_memory=False)  
+
+    return envs,envs_vector
 # TODO: is obsolete? Remove and then remove the notion of highlight from render?
 def plot_env(env, highlight=True):
     

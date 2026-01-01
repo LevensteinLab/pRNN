@@ -253,6 +253,19 @@ class GymMinigridShell(Shell):
                       4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
         return np.array(hd)
     
+    
+    def get_goal_loc(self):
+        if hasattr(self.env.unwrapped, "goal_pos"):
+            return self.env.unwrapped.goal_pos
+        else:
+            return None
+    
+    def get_new_obj_pos(self):
+        if hasattr(self.env.unwrapped, "new_obj_pos"):
+            return self.env.unwrapped.new_obj_pos
+        else:
+            return None
+        
     def get_agent_pos(self):
         return self.env.unwrapped.agent_pos
     

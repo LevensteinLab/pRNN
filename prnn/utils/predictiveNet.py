@@ -21,6 +21,7 @@ import random
 from pathlib import Path
 from types import SimpleNamespace
 
+
 try:
     import wandb
 except ImportError:
@@ -443,6 +444,7 @@ class PredictiveNet:
                 obs,act = obs.to(device),act.to(device)
             except(AttributeError):
                 obs, act = [o.to(device) for o in obs], act.to(device)
+
             steploss, sparsity, meanrate = self.trainStep(obs,act, 
                                                           with_homeostat,
                                                           learningRate=learningRate,

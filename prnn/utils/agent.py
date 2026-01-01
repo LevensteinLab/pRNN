@@ -12,6 +12,8 @@ from numpy.random import choice
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
 
+import datetime
+
 def randActionSequence(tsteps,action_space,action_probability):
     
     action_space = np.arange(action_space.n) #convert gym to np
@@ -45,7 +47,9 @@ class RandomActionAgent:
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
         longer than act
         """
+        print("1." + str(datetime.datetime.now()))
         act = self.generateActionSequence(tsteps)
+        print("2." + str(datetime.datetime.now()))
 
         render = False
 
@@ -71,6 +75,7 @@ class RandomActionAgent:
             render[0] = env.render(mode=None, highlight=render_highlight)
         if conspecific:
             state['conspecific_pos'] = np.resize(env.env.conspecific.cur_pos,(1,2))
+        print("3." + str(datetime.datetime.now()))
             
         for aa in range(tsteps):
             obs[aa+1] = env.step(act[aa])[0]
@@ -84,6 +89,7 @@ class RandomActionAgent:
             if includeRender:
                 render[aa+1] = env.render(mode=None, highlight=render_highlight)
 
+        print("4." + str(datetime.datetime.now()))
         return obs, act, state, render
     
  

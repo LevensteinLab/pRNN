@@ -186,7 +186,8 @@ def make_farama_envs(
             return env_obj.env
         env_fns.append(_init)
 
-    envs_vector = AsyncVectorEnv(env_fns, shared_memory=False)  
+    envs_vector = AsyncVectorEnv(env_fns, shared_memory=False) 
+    envs_vector.render_mode="rgb_array" 
 
     return envs,envs_vector
 # TODO: is obsolete? Remove and then remove the notion of highlight from render?

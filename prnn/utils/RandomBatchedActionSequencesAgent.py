@@ -85,6 +85,8 @@ class RandomBatchedActionSequencesAgent:
         # can hold either a single observation or a batch (for vectorized envs).
         obs = np.empty(tsteps+1, dtype=object)
         obs[:] = None
+
+
         if reset:
             # Reset env and store initial observation(s). Support vectorized envs
             reset_result = env.reset()
@@ -98,10 +100,10 @@ class RandomBatchedActionSequencesAgent:
                  'agent_dir': shell_envs[0].get_agent_dir()
                 } #handle only first env to avoid issues with vectorized envs
         if includeRender:
-            render = [None for t in range(tsteps+1)]
-            render2 = [None for t in range(tsteps+1)]
-            render[0] = shell_envs[0].render(mode=None, highlight=render_highlight)
-            render2[0] = shell_envs[1].render(mode=None, highlight=render_highlight)
+            render = np.empty(tsteps+1, dtype=object)
+            render[:] = None
+            render[0] = env.call("render")
+
         if conspecific:
             state['conspecific_pos'] = np.resize(shell_envs[0].env.conspecific.cur_pos,(1,2))
         
@@ -110,8 +112,7 @@ class RandomBatchedActionSequencesAgent:
             # pick the action(s) for this timestep (will be scalar or vector)
             action = act[aa]
             print(f"{action=}")
-            if aa%500 == 0:
-                print(action)
+
             # step the env; gym returns either obs or a tuple whose first element is obs
             step_result = env.step(action)
             if isinstance(step_result, (tuple, list)):
@@ -130,15 +131,11 @@ class RandomBatchedActionSequencesAgent:
                 state['conspecific_pos'] = np.append(state['conspecific_pos'],
                                            np.resize(shell_envs[0].env.conspecific.cur_pos,(1,2)),axis=0)
             if includeRender:
-                render[aa+1] = shell_envs[0].render(mode=None, highlight=render_highlight)
-                render2[aa+1] = shell_envs[1].render(mode=None, highlight=render_highlight)
-
-            if aa%500 == 0:
-                print(obs[aa+1])
+                render[aa+1] = env.call("render")
 
         # Create matplotlib visualization if renders were collected
         if includeRender:
-            n_renders = len(render)
+            n_renders = tsteps+1
             fig, axes = plt.subplots(2, n_renders, figsize=(n_renders * 3, 6))
 
             # Handle case where there's only one render
@@ -147,13 +144,13 @@ class RandomBatchedActionSequencesAgent:
 
             # Row 1: render (shell_envs[0])
             for i in range(n_renders):
-                axes[0, i].imshow(render[i])
+                axes[0, i].imshow(render[i][0])
                 axes[0, i].set_title(f'Env 0 - Step {i}')
                 axes[0, i].axis('off')
 
             # Row 2: render2 (shell_envs[1])
             for i in range(n_renders):
-                axes[1, i].imshow(render2[i])
+                axes[1, i].imshow(render[i][1])
                 axes[1, i].set_title(f'Env 1 - Step {i}')
                 axes[1, i].axis('off')
 

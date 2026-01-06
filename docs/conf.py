@@ -21,7 +21,6 @@ extensions = [
     'sphinx.ext.autodoc',          # core autodoc
     'sphinx.ext.napoleon',         # for Google/NumPy-style docstrings
     'sphinx_autodoc_typehints',    # for type hints support
-    'sphinx_autodoc_typehints'
 ]
 
 autodoc_mock_imports = ["minigrid", "hydra", "miniworld", "seaborn"]

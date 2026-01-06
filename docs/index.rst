@@ -6,12 +6,15 @@
 pRNN documentation
 ==================
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+Tutorials and API reference for pRNN.
+---------------------------------
 
 
 .. toctree::
    :maxdepth: 2
 
+   quickstart
+   dataloader
+   models
+   training_nets  
    api/modules

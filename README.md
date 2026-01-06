@@ -18,4 +18,4 @@ To test if the package installation is successful, run:
     python test/test_imports.py
 
 
-You can find a getting started tutorial at docs/quickstart.rst
+You can find a getting started tutorial at our [readthedocs](https://prnn.readthedocs.io/en/latest/quickstart.html)

@@ -122,15 +122,15 @@ class LEnv_18(L_Env):
 
 register(
     id='LRoom-16x16-v0',
-    entry_point='prnn.examples.Lroom:LEnv_16'
+    entry_point='prnn.environments.Lroom:LEnv_16'
 )
 
 register(
     id='LRoom-20x20-v0',
-    entry_point='prnn.examples.Lroom:LEnv_20'
+    entry_point='prnn.environments.Lroom:LEnv_20'
 )
 
 register(
     id='LRoom-18x18-v0',
-    entry_point='prnn.examples.Lroom:LEnv_18'
+    entry_point='prnn.environments.Lroom:LEnv_18'
 )

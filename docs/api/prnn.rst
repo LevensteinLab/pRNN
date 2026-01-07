@@ -8,7 +8,7 @@ Subpackages
    :maxdepth: 4
 
    prnn.analysis
-   prnn.examples
+   prnn.environments
    prnn.utils
 
 Module contents

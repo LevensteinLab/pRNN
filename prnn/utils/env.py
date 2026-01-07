@@ -13,7 +13,7 @@ from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
 
 from prnn.utils.Shell import *
-from prnn.examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
+from prnn.environments.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
 
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',

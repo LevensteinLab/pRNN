@@ -9,10 +9,14 @@ Bash scripts may call this training script to automate training of networks on a
 
     #!/bin/bash
 
-    #SBATCH --job-name=prnn_arch
+    #SBATCH --job-name=prnn_training
     #SBATCH --output=logs/trainNet/prnn_%j.out
     #SBATCH --error=logs/trainNet/prnn_%j.err
-    #SBATCH --time=3:00:00
+    #SBATCH --time=24:00:00
+    #SBATCH --partition=gpu
+    #SBATCH --gpus=1
+    #SBATCH --mem=64GB
+
 
     cd ~
     module load miniconda
@@ -20,4 +24,6 @@ Bash scripts may call this training script to automate training of networks on a
     source ~/venvs/PredictiveReplay_39/bin/activate
 
     cd project/pRNN
-    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=500 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --k=5 
+    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=500 --numtrials=1024 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --k=5 
+
+Training with 500 epochs and 1024 trials may take several hours... Make sure to use a GPU partition if available. Model checkpoints, figures, and training curves will be saved to the specified ``savefolder``. You may also choose to lower the number of epochs and trials for quicker testing.

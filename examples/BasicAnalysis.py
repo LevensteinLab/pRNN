@@ -44,9 +44,6 @@ RGA = representationalGeometryAnalysis(predictiveNet, noisestd=sleepnoise,
 
 RGA.WakeSleepFigure(netname,savefolder)
 
-predictiveNet.pRNN.rnn.cell
-
-
 b_adapt = 1
 tau_adapt=100
 OTA_adapt = OfflineTrajectoryAnalysis(predictiveNet, noisestd=sleepnoise,
@@ -56,3 +53,11 @@ OTA_adapt = OfflineTrajectoryAnalysis(predictiveNet, noisestd=sleepnoise,
                                        compareWake=True)
 
 OTA_adapt.SpontTrajectoryFigure('adaptation',savefolder, trajRange=(150,250))
+
+
+OTA_query = OfflineTrajectoryAnalysis(predictiveNet, noisemag = 0, noisestd=sleepnoise,
+                               withIsomap=False, decoder=decoder,
+                                     actionAgent=True, calculateViewSimilarity=True,
+                               compareWake=True)
+
+OTA_query.SpontTrajectoryFigure('actionquery',savefolder, trajRange=(110,150))

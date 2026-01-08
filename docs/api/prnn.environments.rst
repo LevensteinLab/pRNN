@@ -1,4 +1,4 @@
-prnn.examples package
+prnn.environments package
 =====================
 
 Subpackages
@@ -7,23 +7,23 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   prnn.examples.Miniworld
+   prnn.environments.Miniworld
 
 Submodules
 ----------
 
-prnn.examples.Lroom module
+prnn.environments.Lroom module
 --------------------------
 
-.. automodule:: prnn.examples.Lroom
+.. automodule:: prnn.environments.Lroom
    :members:
    :show-inheritance:
    :undoc-members:
 
-prnn.examples.RatEnvironment module
+prnn.environments.RatEnvironment module
 -----------------------------------
 
-.. automodule:: prnn.examples.RatEnvironment
+.. automodule:: prnn.environments.RatEnvironment
    :members:
    :show-inheritance:
    :undoc-members:
@@ -31,7 +31,7 @@ prnn.examples.RatEnvironment module
 Module contents
 ---------------
 
-.. automodule:: prnn.examples
+.. automodule:: prnn.environments
    :members:
    :show-inheritance:
    :undoc-members:

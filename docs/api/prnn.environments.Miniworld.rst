@@ -1,21 +1,21 @@
-prnn.examples.Miniworld package
+prnn.environments.Miniworld package
 ===============================
 
 Submodules
 ----------
 
-prnn.examples.Miniworld.VAE module
+prnn.environments.Miniworld.VAE module
 ----------------------------------
 
-.. automodule:: prnn.examples.Miniworld.VAE
+.. automodule:: prnn.environments.Miniworld.VAE
    :members:
    :show-inheritance:
    :undoc-members:
 
-prnn.examples.Miniworld.env module
+prnn.environments.Miniworld.env module
 ----------------------------------
 
-.. automodule:: prnn.examples.Miniworld.env
+.. automodule:: prnn.environments.Miniworld.env
    :members:
    :show-inheritance:
    :undoc-members:
@@ -23,7 +23,7 @@ prnn.examples.Miniworld.env module
 Module contents
 ---------------
 
-.. automodule:: prnn.examples.Miniworld
+.. automodule:: prnn.environments.Miniworld
    :members:
    :show-inheritance:
    :undoc-members:

@@ -341,7 +341,7 @@ class pRNN(nn.Module):
             obs,act = obs.to(device),act.to(device)
             obs = torch.zeros_like(obs)
             
-            obs_pred, h_t, _ = self.forward(obs, act, noise_t=noise_t, state=state, theta=0)
+            obs_pred, h_t, _ = self.forward(obs, act, noise_params=noise_params, state=state, theta=0)
             noise_t = (noise_t,act)
         else:
             obs_pred,h_t = self.internal(noise_t, state=state)

@@ -37,7 +37,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     elif package=='farama-minigrid':
         import gymnasium as gym
         import minigrid
-        import prnn.examples.Lroom
+        import prnn.environments.Lroom
         if wrap:
             env = RGBImgPartialObsWrapper_HD_Farama(gym.make(env_key),tile_size=1)
         else:

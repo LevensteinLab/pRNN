@@ -130,6 +130,9 @@ parser.add_argument("--batchsize", default=16, type=int,
 parser.add_argument("--numworkers", default=1, type=int,
                     help="Number of dataloader workers (Default: 1)")
 
+parser.add_argument("--sparsity", default=0.5, type=float,
+                    help="Activation sparsity (via layer norm, irrelevant for non-LN networks) (Default: 0.5)")
+
 # Additional architecture kwargs
 
 parser.add_argument("--use_LN", default=True, type =bool, 
@@ -241,13 +244,13 @@ if predictiveNet.numTrainingTrials == -1:
                             sequence_duration=sequence_duration,
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
-    print('Calculating Spatial Representation...')
+    print('Calculating INITIAL Spatial Representation...')
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
                                                   bitsec= False,
                                                   calculatesRSA = True, sleepstd=0.03)
     predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
-    print('Calculating Decoding Performance...')
+    print('Calculating INITIAL Decoding Performance...')
     predictiveNet.calculateDecodingPerformance(env,agent,decoder,
                                                 savename=savename, savefolder=figfolder,
                                                 saveTrainingData=True)

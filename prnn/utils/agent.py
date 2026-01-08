@@ -278,7 +278,7 @@ def create_agent(envname, env, agentkey, agentname = ""):
         agent = RatInABoxAgent(name=type(env).__name__)
 
     elif agentkey == 'MiniworldRandomAgent':
-        from prnn.examples.RatEnvironment import make_rat_env
+        from prnn.environments.RatEnvironment import make_rat_env
         riab_env = make_rat_env(envname)
         agent = MiniworldRandomAgent(riab_env, name=agentname)
 

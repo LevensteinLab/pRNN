@@ -451,8 +451,9 @@ def makeAdaptingNet(pN, b, tau_a):
     input_size = pN.pRNN.rnn.cell.input_size
     hidden_size = pN.pRNN.rnn.cell.hidden_size
     if isinstance(pN.pRNN.rnn.cell,LayerNormRNNCell):
-        musig = [pN.pRNN.rnn.cell.layernorm.mu,pN.pRNN.rnn.cell.layernorm.sig]
-        adapting_pN.pRNN.rnn.cell = AdaptingLayerNormRNNCell(input_size, hidden_size, musig)
+        mu = pN.pRNN.rnn.cell.layernorm.mu
+        sig = pN.pRNN.rnn.cell.layernorm.sig
+        adapting_pN.pRNN.rnn.cell = AdaptingLayerNormRNNCell(input_size, hidden_size, mu=mu, sig=sig)
     elif isinstance(pN.pRNN.rnn.cell,RNNCell):
         adapting_pN.pRNN.rnn.cell = AdaptingRNNCell(input_size, hidden_size)
     else:

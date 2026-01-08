@@ -130,6 +130,9 @@ parser.add_argument("--batchsize", default=16, type=int,
 parser.add_argument("--numworkers", default=1, type=int,
                     help="Number of dataloader workers (Default: 1)")
 
+parser.add_argument("--sparsity", default=0.5, type=float,
+                    help="Activation sparsity (via layer norm, irrelevant for non-LN networks) (Default: 0.5)")
+
 # Additional architecture kwargs
 
 parser.add_argument("--use_LN", default=True, type =bool, 

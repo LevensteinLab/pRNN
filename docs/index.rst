@@ -16,5 +16,6 @@ Tutorials and API reference for pRNN.
    quickstart
    dataloader
    models
-   training_nets  
+   training_nets
+   basic_analysis  
    api/modules

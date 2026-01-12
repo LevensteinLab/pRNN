@@ -140,7 +140,7 @@ The ``trajRange`` parameter specifies which portion of the trajectory to visuali
 
 .. math::
 
-    h_t = AdaptNormReLU(W_{rec} h_{t-1} + W_{in} o_t + W{act} a_t, c_t)
+    h_t = \mathrm{AdaptNormReLU}\left(W_{rec} h_{t-1} + W_{in} o_t + W_{act} a_t, c_t\right)
     c_t = (1 - \frac{1}{\tau_{adapt}}) c_{t-1} + \frac{b_{adapt}}{\tau_{adapt}} h_{t-1}
 
 

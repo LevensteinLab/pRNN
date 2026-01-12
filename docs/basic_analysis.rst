@@ -136,12 +136,11 @@ The ``OfflineTrajectoryAnalysis`` class analyzes spontaneous trajectories genera
                                            compareWake=True)
     OTA_adapt.SpontTrajectoryFigure('adaptation',savefolder, trajRange=(150,250))
 
-The ``trajRange`` parameter specifies which portion of the trajectory to visualize. Setting ``withAdapt=True`` turns on adaptation in the network units, and ``b_adapt`` and ``tau_adapt`` parameters control the adaptation strength and timescale. note that adaptation takes the following form:
+The ``trajRange`` parameter specifies which portion of the trajectory to visualize. Setting ``withAdapt=True`` turns on adaptation in the network units, and ``b_adapt`` and ``tau_adapt`` parameters control the adaptation strength and timescale. Note that adaptation takes the following form:
 
 .. math::
 
     h_t = AdaptNormReLU(W_{rec} h_{t-1} + W_{in} o_t + W{act} a_t, c_t)
-
     c_t = (1 - \frac{1}{\tau_{adapt}}) c_{t-1} + \frac{b_{adapt}}{\tau_{adapt}} h_{t-1}
 
 

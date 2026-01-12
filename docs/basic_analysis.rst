@@ -1,7 +1,7 @@
 Basic Analysis with the pRNN Package
 ====================================
 
-This tutorial explains the ``BasicAnalysis.py`` script, which demonstrates how to perform a comprehensive analysis of a trained pRNN model. The script loads a pre-trained network, calculates spatial representations, evaluates decoding performance, and generates visualizations of the network's cognitive map properties. We have provided a ``BasicAnalysis.ipynb`` notebook in the examples folder if you'd like to run this analysis interactively.
+This tutorial explains how to do some basic analysis on a trained pRNN model. In the tutorial, you will load a pre-trained network, calculate spatial representations, evaluates decoding performance, and generates visualizations of the network's cognitive map properties. We have provided a ``BasicAnalysis.ipynb`` notebook in the examples folder if you'd like to run this analysis interactively, or a ``BasicAnalysis.py`` script, which can be run on a compute cluster.
 
 Imports and Setup
 -----------------
@@ -25,7 +25,9 @@ The analysis script imports necessary utilities from the pRNN package, as well a
     from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
     from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis
 
-The key analysis classes are ``SpatialTuningAnalysis``, ``OfflineTrajectoryAnalysis``, and ``representationalGeometryAnalysis``. These perform different types of analyses on the trained network's hidden representations. We also set the folder where all figures will be saved:
+The key analysis classes are ``SpatialTuningAnalysis``, ``representationalGeometryAnalysis``, ``OfflineTrajectoryAnalysis``. These are used to calculate tuning curves and other single-cell analysis of spatial representation in the network, investigate the population-level geometry of the spatial representation, and investigate decoded offline trajectories, or replay, in the network. 
+
+Let's first set the folder where all figures will be saved:
 
 .. code-block:: python
 
@@ -44,7 +46,7 @@ First, we load a pre-trained pRNN model and retrieve the environment it was trai
     exseed = 8
     predictiveNet = PredictiveNet.loadNet(netfolder+netname+'--s'+str(exseed))
 
-The ``netname`` and ``netfolder`` variables specify which trained network to load. The ``exseed`` parameter identifies a specific training seed. The ``EnvLibrary`` attribute of the ``predictiveNet`` object contains the environments the network was trained on. We retrieve the first environment:
+The ``netname`` and ``netfolder`` variables specify which trained network to load (you might need to change ``netfolder`` to match where the network is saved on your machine). The ``exseed`` parameter identifies a specific training seed. The ``EnvLibrary`` attribute of the ``predictiveNet`` object contains the environments the network was trained on. We retrieve the first environment:
 
 .. code-block:: python
 
@@ -71,16 +73,15 @@ The core of the analysis is to extract the network's spatial representation. We 
 .. code-block:: python
 
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                                 trainDecoder=True, trainHDDecoder = True)
+                                                 trainDecoder=True)
 
 This function:
 
-- Generates an agent trajectory through the environment
+- Generates an agent trajectory through the environment, this is XXX by deafult, and should be long enough that the agent thoroughly covers the environment, visiting each posisition multiple times from different directions. You can set this using ``numsteps=XXXX`` as appropriate for different environments.
 - Collects the network's hidden state activations at each position
-- Trains a linear decoder to predict position from hidden states
-- Returns ``place_fields`` (the spatial tuning of individual neurons), ``SI`` (spatial information), and the trained ``decoder`` object
+- Trains a linear decoder to predict position from hidden unit states (this will also be used later to decode the represented position during sleep)
+- Returns ``place_fields`` (the spatial tuning of individual neurons), ``SI`` (spatial information for each neuron's tuning curve), and the trained ``decoder`` object
 
-Setting ``trainDecoder=True`` and ``trainHDDecoder=True`` trains decoders for both position and head direction.
 
 Evaluating Decoding Performance
 --------------------------------
@@ -94,7 +95,7 @@ Once the decoder is trained, we evaluate how well the network's representations 
                                               trajectoryWindow=5,
                                               timesteps=1000)
 
-This function generates a trajectory and computes decoding error over time. The ``trajectoryWindow`` parameter sets the window for decoding, and ``timesteps`` specifies how long the trajectory is. Results are saved to ``savefolder`` with the filename based on ``savename``.
+This function generates a new "test" trajectory and computes decoding error over time. The ``trajectoryWindow`` parameter sets the window for decoding, and ``timesteps`` specifies how long the trajectory is. Results are saved to ``savefolder`` with the filename based on ``savename``.
 
 Spatial Tuning Analysis
 -----------------------
@@ -106,7 +107,7 @@ The ``SpatialTuningAnalysis`` class examines individual neuron tuning curves and
     STA = SpatialTuningAnalysis(predictiveNet,inputControl=True, untrainedControl=True)
     STA.TCExamplesFigure(netname,savefolder)
 
-By setting ``inputControl=True`` and ``untrainedControl=True``, the analysis generates control comparisons. The ``TCExamplesFigure`` method creates a figure showing example tuning curves for neurons and saves it with the specified name to the save folder. This helps visualize which neurons develop spatial tuning and how selective they are.
+By setting ``inputControl=True`` and ``untrainedControl=True``, the analysis generates control comparisons. The ``TCExamplesFigure`` method creates a figure showing example tuning curves for neurons, as well as the spatial info and variance explained by posiotion (EV_space) for each neuron, and saves it with the specified name to the save folder. This helps visualize which neurons develop spatial tuning and how selective they are. These are saved in the STA object if you need them for further analysis or comparison between networks - feel free to open up the ``SpatialTuningAnalysis.py`` file to see what else is stored there.
 
 Representational Geometry Analysis
 -----------------------------------
@@ -121,12 +122,12 @@ The representational geometry analysis examines the structure of the network's r
                                            withIsomap=True, n_neighbors = isomap_neighbors)
     RGA.WakeSleepFigure(netname,savefolder)
 
-The ``sleepnoise`` parameter controls the standard deviation of noise added to the network during offline analysis (simulating spontaneous activity). The ``isomap_neighbors`` parameter specifies how many neighbors are used in the Isomap dimensionality reduction. The ``WakeSleepFigure`` method generates a visualization comparing the structure of representations during wake and sleep states.
+The ``sleepnoise`` parameter controls the standard deviation of noise added to the network during offline analysis (simulating spontaneous activity). The ``isomap_neighbors`` parameter specifies how many neighbors are used in the Isomap dimensionality reduction. The ``WakeSleepFigure`` method generates a visualization comparing the structure of representations during wake and sleep states. This also calculates the networks spatial-representaitonal similarity analysis (sRSA), or correlation between distance in space and (cosine) distance in neural space, which is contained in the RGA object.
 
 Offline Trajectory Analysis with Adaptation
 --------------------------------------------
 
-The ``OfflineTrajectoryAnalysis`` class analyzes spontaneous trajectories generated by the network during offline (sleep-like) activity. The first instantiation examines trajectories with synaptic adaptation:
+The ``OfflineTrajectoryAnalysis`` class analyzes spontaneous trajectories generated by the network during offline (sleep-like) activity. The first instantiation examines trajectories with cellular adaptation:
 
 .. code-block:: python
 
@@ -135,26 +136,25 @@ The ``OfflineTrajectoryAnalysis`` class analyzes spontaneous trajectories genera
     OTA_adapt = OfflineTrajectoryAnalysis(predictiveNet, noisestd=sleepnoise,
                                        withIsomap=False, decoder=decoder, 
                                           withAdapt=True, b_adapt = b_adapt, tau_adapt=tau_adapt,
-                                          calculateViewSimilarity=True,
                                            compareWake=True)
     OTA_adapt.SpontTrajectoryFigure('adaptation',savefolder, trajRange=(150,250))
 
-The ``b_adapt`` and ``tau_adapt`` parameters control the adaptation dynamics. Setting ``withAdapt=True`` enables adaptation mechanisms. The ``calculateViewSimilarity=True`` and ``compareWake=True`` flags enable additional analyses. The ``trajRange`` parameter specifies which portion of the trajectory to visualize.
+Setting ``withAdapt=True`` turns on adaptation in the network units, and ``b_adapt`` and ``tau_adapt`` parameters control the adaptation strength and timescale. The ``trajRange`` parameter specifies which portion of the trajectory to visualize.
 
 Offline Trajectory Analysis with Action-Based Query
 ----------------------------------------------------
 
-The second offline trajectory analysis examines trajectories generated when the network receives action queries:
+The second offline trajectory analysis examines trajectories generated when the network receives action (speed+HD) queries:
 
 .. code-block:: python
 
-    OTA_query = OfflineTrajectoryAnalysis(predictiveNet, noisemag = 0, noisestd=sleepnoise,
+    OTA_query = OfflineTrajectoryAnalysis(predictiveNet, noisestd=sleepnoise,
                                    withIsomap=False, decoder=decoder,
-                                         actionAgent=True, calculateViewSimilarity=True,
+                                         actionAgent=True,
                                    compareWake=True)
     OTA_query.SpontTrajectoryFigure('actionquery',savefolder, trajRange=(110,150))
 
-Here, ``actionAgent=True`` means the network receives action inputs during the offline trajectory. ``noisemag=0`` means no additional noise magnitude is applied. This analysis reveals whether the network can generate coherent trajectories that follow action-based commands.
+Here, ``actionAgent=True`` means the network receives random action inputs during the offline trajectory, which will direct how it moves through the environment.
 
 Running the Analysis
 --------------------

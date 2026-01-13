@@ -1,32 +1,28 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+
 from prnn.utils.predictiveNet import PredictiveNet
 from prnn.utils.agent import RandomActionAgent
-import itertools
-import torch
-import random
-from prnn.utils.env import make_env
-from prnn.utils.general import saveFig
-from prnn.utils.figures import TrainingFigure
-import matplotlib.pyplot as plt
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis
-from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis
+from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
 
 savefolder = 'BasicAnalysisFigs'
 
 #Example Net
-netname = 'thRNN_5win'
+netname = 'Masked'
 netfolder = '/maskedk_panel/'
-exseed = 102
-predictiveNet = PredictiveNet.loadNet(netfolder+netname+'-SpeedHD-s'+str(exseed))
+exseed = 8
+#predictiveNet = PredictiveNet.loadNet(netfolder+netname+'-SpeedHD-s'+str(exseed))
+predictiveNet = PredictiveNet.loadNet(netfolder+netname+'--s'+str(exseed))
 
 env = predictiveNet.EnvLibrary[0]
 agentname = 'RandomActionAgent'
 action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
 agent = RandomActionAgent(env.action_space,action_probability)
 place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
-                                             trainDecoder=True, trainHDDecoder = True)
+                                             trainDecoder=True)
 
 predictiveNet.calculateDecodingPerformance(env,agent,decoder,
                                             savename=netname, savefolder=savefolder,
@@ -49,7 +45,6 @@ tau_adapt=100
 OTA_adapt = OfflineTrajectoryAnalysis(predictiveNet, noisestd=sleepnoise,
                                    withIsomap=False, decoder=decoder, 
                                       withAdapt=True, b_adapt = b_adapt, tau_adapt=tau_adapt,
-                                      calculateViewSimilarity=True,
                                        compareWake=True)
 
 OTA_adapt.SpontTrajectoryFigure('adaptation',savefolder, trajRange=(150,250))
@@ -57,7 +52,7 @@ OTA_adapt.SpontTrajectoryFigure('adaptation',savefolder, trajRange=(150,250))
 
 OTA_query = OfflineTrajectoryAnalysis(predictiveNet, noisemag = 0, noisestd=sleepnoise,
                                withIsomap=False, decoder=decoder,
-                                     actionAgent=True, calculateViewSimilarity=True,
+                                     actionAgent=True,
                                compareWake=True)
 
 OTA_query.SpontTrajectoryFigure('actionquery',savefolder, trajRange=(110,150))

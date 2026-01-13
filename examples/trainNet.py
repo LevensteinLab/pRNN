@@ -81,8 +81,8 @@ parser.add_argument("--load_env", default=-1, type=int,
 parser.add_argument("-s", "--seed", default=8, type=int,
                     help="Random Seed? (Default: 8)")
 
-parser.add_argument("--lr", default=3e-3, type=float,    #former default:2e-4 (not relative)
-                    help="Learning Rate? (Relative to init sqrt(1/k) for each layer) (Default: 3e-3)")
+parser.add_argument("--lr", default=2e-3, type=float,    #former default:2e-4 (not relative)
+                    help="Learning Rate? (Relative to init sqrt(1/k) for each layer) (Default: 2e-3)")
 
 parser.add_argument("--weight_decay", default=3e-3, type=float, #former default:6e-7 (not relative)
                     help="Weight Decay? (Relative to learning rate) (Default: 3e-3)")
@@ -105,9 +105,9 @@ parser.add_argument("--namext", default='',
                     help="Extension to the savename?")
 
 parser.add_argument("--actenc",
-                    default='OnehotHD',
+                    default='OneHotHD',
                     # default='ContSpeedOnehotHD',
-                    help="Action encoding, options: OnehotHD (default),SpeedHD, Onehot, Velocities, \
+                    help="Action encoding, options: OneHotHD (default),SpeedHD, OneHot, Velocities, \
                         Continuous, ContSpeedRotation, ContSpeedHD, ContSpeedOnehotHD")
 
 parser.add_argument('--saveTrainData', action='store_true', default=True)

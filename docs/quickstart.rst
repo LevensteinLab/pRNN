@@ -7,6 +7,15 @@ This quickstart guide will help you train a pRNN model. We've implemented ``tuto
 - An agent object, defined in ``agent.py``. This defines how actions are taken within the environment and maintains a ``state`` attribute that keepts track of the agent's position and head direction over time.
 - A ``predictiveNet`` object. This is the object that contains the network. This network learns to predict egocentric sensory observations as the agent moves around the environment. As a result, the predictveNet develops a cognitive map of the environment. It contains utilities to manage training steps of the network, such as producing predictions and adjusting weights, as well as plotting functionality.
 
+For this quickstart tutorial, you'll want to install the ``minigrid`` package from Farama Foundation into your environment. You can do this by cloning the latest version onto your machine and pip installing it in editable mode:
+
+.. code-block:: bash
+
+    git clone git@github.com:Farama-Foundation/Minigrid.git   
+    pip install -e .
+
+Make sure to also install the pRNN package in editable mode as well. See the README for instructions on how to do this.
+
 We'll first import the ``predictiveNet`` class, which contains the machinery to train a ``pRNN`` model. We also import ``make_env`` and ``RandomActionAgent`` from ``utils``. Environments are made to manage different scenarios in which ``pRNNs`` are trained in, varying by world environment package (e.g. gym-minigrid, farama-minigrid, Rat-in-a-Box, miniworld, etc), encoding of actions, and observation type. The ``RandomActionAgent`` will return a sequence of random actions for the egocentric agent to use while navigating the environment specified with ``make_env``. 
 
 .. code-block:: python
@@ -25,13 +34,13 @@ We'll first import the ``predictiveNet`` class, which contains the machinery to 
     wandb not installed, will not log to wandb
 
 
-Here, we specify which package will generate the world environment (here ``gym-minigrid``), and in which particular setting the agent will be placed in (here ``MiniGrid-LRoom-18x18-v0``). For this particular run, we'll also specify the encoding scheme for the actions. Head direction (forward, left, right, backwards) is one-hot encoded, and we also store agent speed. (#TODO confirm size).
+Here, we specify which package will generate the world environment (here ``farama-minigrid``), and in which particular setting the agent will be placed in (here ``LRoom-20x20-v0``). For this particular run, we'll also specify the encoding scheme for the actions. Head direction (forward, left, right, backwards) is one-hot encoded, and we also store agent speed. (#TODO confirm size).
 
 .. code-block:: python
 
     #Make a gridworld environment
-    env_package = 'gym-minigrid' 
-    env_key = 'MiniGrid-LRoom-18x18-v0'
+    env_package = 'farama-minigrid' 
+    env_key = 'LRoom-20x20-v0'
     act_enc = 'SpeedHD' #actions will be encoded as speed and one hot-encoded head direction
 
     env = make_env(env_key=env_key, package=env_package, act_enc=act_enc)

@@ -19,7 +19,86 @@ def randActionSequence(tsteps,action_space,action_probability):
     action_sequence = choice(action_space, size=(tsteps,), p=action_probability)
     
     return action_sequence
+
+def random_insert(vector, insert_value, probability=0.2):
+    # Generate a random mask for insertion points (one less than the vector length)
+    insertion_mask = np.random.rand(len(vector) - 1) < probability
+
+    # Create a new list to hold the result
+    result = []
+    for i in range(len(vector) - 1):
+        result.append(vector[i])  # Add the current element
+        if insertion_mask[i]:     # Insert 3 with the given probability
+            result.append(insert_value)
+    result.append(vector[-1])    # Add the last element
+
+    return result
     
+class LoopAgent:
+    def __init__(self, action_space, p_stop=0.2):
+        
+        self.action_space = action_space
+        self.p_stop = p_stop
+    
+    def generateActionSequence(self, tsteps, env, p_stop=0.2):
+
+        #Deterministic action sequences
+        straight = 2
+        left_turn = 0
+        right_turn = 1
+        stop = 3
+
+        # Agent always goes left
+        loop_sequence =  [left_turn] + \
+                                [straight]*(env.env.block_width+env.env.corridor_width) + [left_turn] + \
+                                [straight]*(env.env.block_height+env.env.corridor_width) + [left_turn] + \
+                                [straight]*(env.env.block_width+env.env.corridor_width) + [left_turn] + \
+                                [straight]*(env.env.block_height+env.env.corridor_width)
+
+        # Overshoot by repeating the sequence enough times
+        action_sequence = loop_sequence * ((tsteps // len(loop_sequence)) + 1)
+        action_sequence = random_insert(action_sequence, stop, probability=p_stop)
+
+        # Slice to get exactly tsteps actions
+        action_sequence = action_sequence[:tsteps] 
+
+        return action_sequence
+
+    def getObservations(self, env, tsteps, reset=True, includeRender=False, render_highlight=True, **kwargs):   
+        """
+        Get a sequence of observations. act[t] is the action after observing
+        obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
+        longer than act
+        """
+        act = self.generateActionSequence(tsteps, env, p_stop=self.p_stop)
+        #Alternative to deterministic - probabilistic based on agent position from env
+        render = False
+        if reset is False:
+            raise ValueError('Reset must currently be true for this agent...')
+            
+        obs = [None for t in range(tsteps+1)]
+        if reset:
+            obs[0] = env.reset()
+        else:
+            o = env.env.gen_obs()
+            obs[0] = env.env.observation(o)
+        state = {'agent_pos': np.resize(env.get_agent_pos(),(1,2)), 
+                 'agent_dir': env.get_agent_dir()
+                }
+        if includeRender:
+            render = [None for t in range(tsteps+1)]
+            render[0] = env.render(mode=None, highlight=render_highlight)
+            
+        for aa in range(tsteps):
+            obs[aa+1] = env.step(act[aa])[0]
+            state['agent_pos'] = np.append(state['agent_pos'],
+                                           np.resize(env.get_agent_pos(),(1,2)),axis=0)
+            state['agent_dir'] = np.append(state['agent_dir'],
+                                           env.get_agent_dir())
+            if includeRender:
+                render[aa+1] = env.render(mode=None, highlight=render_highlight)
+
+        return obs, act, state, render
 
 class AlternationAgent:
     def __init__(self, action_space, p_stop=0.2, random_trial_start=True):

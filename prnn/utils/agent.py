@@ -9,6 +9,7 @@ Created on Fri Nov 12 20:05:03 2021
 import numpy as np
 
 from numpy.random import choice
+import random
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
 

@@ -155,9 +155,6 @@ class PredictiveNet:
         self.trainArgs.lr = learningRate #handle separately because it's a different name 
         self.trainNoiseMeanStd = trainNoiseMeanStd
 
-        if not hasattr(trainArgs, "sparsity"): #if sparsity was not passed in through trainNet, use the default from constructor
-            self.trainArgs.sparsity = target_sparsity 
-
         #Set up the environmental I/O parms
         self.EnvLibrary = []
         self.env_shell = env

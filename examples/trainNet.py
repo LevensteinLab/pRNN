@@ -87,7 +87,7 @@ parser.add_argument("--lr", default=2e-3, type=float,    #former default:2e-4 (n
 parser.add_argument("--weight_decay", default=3e-3, type=float, #former default:6e-7 (not relative)
                     help="Weight Decay? (Relative to learning rate) (Default: 3e-3)")
 
-parser.add_argument("--ntimescale", default=2, type=float,
+parser.add_argument("--neuralTimescale", default=2, type=float,
                     help="Neural timescale (Default: 2 timesteps)")
 
 parser.add_argument("--dropout", default=0.15, type=float,
@@ -204,6 +204,8 @@ else: #create new PredictiveNet and begin training
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
                                   continuousTheta = args.continuousTheta,
+                                  neuralTimescale = args.neuralTimescale,
+                                  sparsity = args.sparsity,
                                   trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
     #predictiveNet.seed = args.seed

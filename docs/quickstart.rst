@@ -177,6 +177,6 @@ Looks like we'll need to train some more. This may take a while... Often we like
     
     python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=6 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --inMaskLength = 5 --useLN = True
 
-You'll want to modify it or make your own, to fit the needs of your own project.
+You'll want to modify it or make your own, to fit the needs of your own project. See the :doc:`training and loading pRNNs <training_nets>` page for more information on how to use this script.
 
 

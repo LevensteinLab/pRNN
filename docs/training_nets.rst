@@ -24,8 +24,8 @@ Bash scripts may call this training script to automate training of networks on a
     source ~/venvs/PredictiveReplay_39/bin/activate
 
     cd project/pRNN
-    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=500 --numtrials=1024 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --k=5 
+    python trainNet.py --savefolder='examplenet/' --lr=2e-3 --numepochs=50 --numtrials=1024 --batchsize=16 --pRNNtype='Masked' --actenc='SpeedHD' --k=5 
 
-Training with 500 epochs and 1024 trials may take several hours... Make sure to use a GPU partition if available. Model checkpoints, figures, and training curves will be saved to the specified ``savefolder``. You may also choose to lower the number of epochs and trials for quicker testing. 
+Training with 50 epochs and 1024 trials may take several hours... Make sure to use a GPU partition if available. Model checkpoints, figures, and training curves will be saved to the specified ``savefolder``. You may also choose to lower the number of epochs and trials for quicker testing. 
 
 Once you've trained a network, you can check out the :doc:`tutorial on basic analysis <tutorial_basic_analysis>` for more information on loading and analyzing your trained pRNN!

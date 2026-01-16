@@ -3,7 +3,7 @@ Basic Analysis with the pRNN Package
 
 This tutorial explains how to do some basic analysis on a trained pRNN model. Note that you will need to have already trained a pRNN model to follow along with this tutorial. A partially-trained model works as well; if you have a ``.pkl`` file, you can load it using the ``PredictiveNet.loadNet`` method. If you don't, please refer to the :ref:`training tutorial <training_nets>` documentation.
 
-In the tutorial, you will load a pre-trained network, calculate spatial representations, evaluate decoding performance, and generate visualizations of the network's cognitive map properties. We have provided a ``BasicAnalysis.ipynb`` notebook in the examples folder if you'd like to run this analysis interactively, or a ``BasicAnalysis.py`` script, which can be run on a compute cluster.
+In the tutorial, you will load a pre-trained network, calculate spatial representations, evaluate decoding performance, and generate visualizations of the network's cognitive map properties. We have provided a ``BasicAnalysis.ipynb`` notebook in the examples folder if you'd like to run this analysis interactively, or a ``BasicAnalysis.py`` script, which can be run on a compute cluster. We recommend using a GPU with at least 16GB for these scripts.
 
 Imports and Setup
 -----------------

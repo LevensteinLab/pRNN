@@ -18,6 +18,7 @@ class L_Env(MiniGridEnv):
         Lwidth=10, Lheight=8,
         agent_start_pos=(1,1),
         agent_start_dir=0,
+        agent_view_size=7,
         **kwargs
     ):
         self.agent_start_pos = agent_start_pos
@@ -33,7 +34,8 @@ class L_Env(MiniGridEnv):
             grid_size=size,
             max_steps=10*size*size,
             # Set this to True for maximum speed
-            see_through_walls=True
+            see_through_walls=True,
+            agent_view_size=agent_view_size,
         )
 
     @staticmethod
@@ -61,9 +63,9 @@ class L_Env(MiniGridEnv):
             self.place_agent()
             
         #Place the shapes
-        triloc  =   (width/3-4,height/3-4)
-        plusloc =   (2*width/3-2,height/3-4)
-        xloc    =   (width/3-3,2*height/3-2)
+        triloc  =   (width//3-4,height//3-4)
+        plusloc =   (2*width//3-2,height//3-4)
+        xloc    =   (width//3-3,2*height//3-2)
         self.place_shape('triangle',triloc,'blue')
         self.place_shape('plus',plusloc,'red')
         self.place_shape('x',xloc,'yellow')
@@ -119,6 +121,11 @@ class LEnv_18(L_Env):
         super().__init__(size=18,Lwidth=10,Lheight=8,
                          agent_start_pos=None,**kwargs)
         
+class LEnv_18_v5(L_Env):
+    def __init__(self, **kwargs):
+        super().__init__(size=18,Lwidth=10,Lheight=8,
+                         agent_start_pos=None, agent_view_size=5, **kwargs)
+        
 
 register(
     id='LRoom-16x16-v0',
@@ -134,3 +141,7 @@ register(
     id='LRoom-18x18-v0',
     entry_point='prnn.environments.Lroom:LEnv_18'
 )
+
+register(
+    id='LRoom-18x18-v5-v0',
+    entry_point='prnn.environments.Lroom:LEnv_18_v5')

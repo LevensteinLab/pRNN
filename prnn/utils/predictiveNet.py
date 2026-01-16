@@ -151,8 +151,8 @@ class PredictiveNet:
 
         for k, v in input_args.items():
             setattr(self.trainArgs, k, v)
-        self.trainArgs.lr = learningRate #handle separately because it's a different name 
 
+        self.trainArgs.lr = learningRate #handle separately because it's a different name 
         self.trainNoiseMeanStd = trainNoiseMeanStd
 
         #Set up the environmental I/O parms

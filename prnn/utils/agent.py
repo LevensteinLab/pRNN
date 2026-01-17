@@ -39,6 +39,7 @@ class LoopAgent:
         
         self.action_space = action_space
         self.p_stop = p_stop
+        self.name = 'LoopAgent'
     
     def generateActionSequence(self, tsteps, env, p_stop=0.2):
 
@@ -433,6 +434,8 @@ def create_agent(envname, env, agentkey, agentname = ""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
+        if 'Alternation' in envname:
+            action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0]) 
         else:
             action_probability = np.array([0.15,0.15,0.6,0.1])
         agent = RandomActionAgent(env.action_space, action_probability)
@@ -444,5 +447,8 @@ def create_agent(envname, env, agentkey, agentname = ""):
         from prnn.environments.RatEnvironment import make_rat_env
         riab_env = make_rat_env(envname)
         agent = MiniworldRandomAgent(riab_env, name=agentname)
+
+    if agentkey == 'LoopAgent':
+        agent = LoopAgent(env.action_space, p_stop=0.2)
 
     return agent

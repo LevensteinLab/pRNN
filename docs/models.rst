@@ -63,3 +63,13 @@ Note that the ``pRNNtype`` is one of many predefined architectures (predefined i
     pRNNtype = 'Rollout' 
     predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = False, k = 5, continuousTheta = False)
 
+In addition to specifying various arguments for the architectures, you can also specify arguments to configure the initialization scheme:
+
+.. code-block:: python
+
+    #Make a pRNN
+    num_neurons = 500
+    pRNNtype = 'Rollout' 
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = False, k = 5, continuousTheta = False, init = "log_normal")
+
+This will initialize weights with values sampled from a log-normal distribution. After sampling, it is optionally possible to zero out a certain percentage of these weights to introduce sparsity. By default, the weights will instead be initialized with the Xavier/Glorot scheme (i.e. drawn from a scaled uniform distribution).

@@ -22,7 +22,7 @@ First, we need to instantiate an environment and agent (with corresponding actio
 .. code-block:: python
 
     # Create the environment and the agent
-    env = make_env(env_key='LRoom-20x20-v0', package='farama-minigrid', act_enc='OneHotHD') #OneHotHD isn't working... 
+    env = make_env(env_key='LRoom-20x20-v0', package='farama-minigrid', act_enc='SpeedHD')  
     agent = RandomActionAgent(env.action_space, np.array([0.15,0.15,0.6,0.1,0,0,0]))
 
 

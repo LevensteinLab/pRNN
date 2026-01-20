@@ -171,7 +171,7 @@ The shape of the hidden state, ``h``, depends on whether the model batches, and 
 
 You can check out the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``, or the :mod:`prnn.utils.Architectures` documentation to learn how to build your own.
 
-Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader.rst>` or ``dataloader_example.ipynb`` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
+Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader>` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
 
 .. code-block:: bash
     

@@ -2,22 +2,31 @@ import numpy as np
 import ratinabox
 from ratinabox.Environment import Environment
 
-FoV_params_default = {"spatial_resolution": 0.01,
-                      "angle_range": [0, 45],
-                      "distance_range": [0.0, 0.33]
-                      }
-
-Grid_params_default = {"n": 150,
-                       "gridscale_distribution": "modules",
-                       "gridscale": (0.1, 0.2, 0.3, 0.4, 0.5,
-                                     0.6, 0.7, 0.8, 0.9, 1.0),
-                       "orientation_distribution": "modules",
-                       "orientation": (2*np.pi/5, 8*np.pi/5, 4*np.pi/5,
-                                       3*np.pi/5, np.pi, 7*np.pi/5,
-                                       np.pi/5, 6*np.pi/5, 9*np.pi/5, 0),
-                       "phase_offset_distribution": "uniform",
-                       "phase_offset": (0, 2 * np.pi),
-                       }
+config_default = {
+  'speed': 0.2, # Speed of the agent
+  'thigmotaxis': 0.2, # Thigmotaxis parameter
+  'sigmaD': 0.03, # Standard deviation for distance in RiaB agent
+  'sigmaA': 2.5, # Standard deviation for angle in RiaB agent
+  'FoV_params': # Vision cells parameters
+    {
+        "spatial_resolution": 0.01,
+        "angle_range": [0, 45],
+        "distance_range": [0.0, 0.33]
+    },
+  'Grid_params': # Grid cells parameters
+    {
+        "n": 150,
+        "gridscale_distribution": "modules",
+        "gridscale": (0.1, 0.2, 0.3, 0.4, 0.5,
+                        0.6, 0.7, 0.8, 0.9, 1.0),
+        "orientation_distribution": "modules",
+        "orientation": (2*np.pi/5, 8*np.pi/5, 4*np.pi/5,
+                        3*np.pi/5, np.pi, 7*np.pi/5,
+                        np.pi/5, 6*np.pi/5, 9*np.pi/5, 0),
+        "phase_offset_distribution": "uniform",
+        "phase_offset": (0, 2 * np.pi),
+    }
+}
 
 shapegrid={
     'plus':np.array(

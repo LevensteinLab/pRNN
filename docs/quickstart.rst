@@ -168,10 +168,19 @@ The shape of the hidden state, ``h``, depends on whether the model batches, and 
 .. figure:: _static/Masked_5frames.png
     :alt: Consecutive frames that the agent took.
 
+After training, you will likely want to save the network for later analysis. This can be done with the included ``predictiveNet.saveNet()`` method, which accepts arguments to specify save name and location. Essentially, this method serializes ("pickles") the network for later use, and handles other object attributes that cannot be serialized.
+
+.. code-block:: python
+
+    predictiveNet.saveNet(savename="Masked_k5", savefolder="nets/")
+
+Note that there is also a corresponding ``predictiveNet.loadNet()`` that unpickles the network, restores any needed attributes, and performs additional configuration.
 
 You can check out the :doc:`models <models>` page to learn more about which types of models are suppored with ``predictiveNet``, or the :mod:`prnn.utils.Architectures` documentation to learn how to build your own.
 
-Looks like we'll need to train some more. This may take a while... Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader>` for information on how to do this. The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
+From the results above, it looks like we'd need to train some more. Often we like to precompute a dataset of random trajectories to speed things up. Check out :doc:`the dataloader example <dataloader>` for information on how to do this. 
+
+The script trainNet.py can be used to train a network for many epochs and save the results. This can be called in a bash scipt to submit a job using e.g. 
 
 .. code-block:: bash
     

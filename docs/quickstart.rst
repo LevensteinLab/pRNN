@@ -53,14 +53,14 @@ We specify the agent parameters:
     action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
     agent = RandomActionAgent(env.action_space, action_probability)
 
-Next, we construct the pRNN model. Note that the ``predictiveNet`` class recieves both the ``env`` variable as well as the type of pRNN we're training. See the "Models" page for an explanation of which models are supported, as well as ``Architectures.py`` for a full list. Generally, we focus on three types: next-step prediction models, masked prediction models, and rollout models. Here, we choose to construct a pRNN with five timestep observations masked. If we set ``pRNNtype = "Rollout"``, we may also like to provide additional keyword arguments to further specify the model; such as ``inMask_length``, which sets the number of future observations that are masked, and ``useLN`` which determines whether or not to apply LayerNorm. We can also pass arguments that specify the initialization scheme, sparsity of recurrent weights, learning rates, and weight decay.
+Next, we construct the pRNN model. Note that the ``predictiveNet`` class recieves both the ``env`` variable as well as the type of pRNN we're training. See the "Models" page for an explanation of which models are supported, as well as ``Architectures.py`` for a full list. Generally, we focus on three types: next-step prediction models, masked prediction models, and rollout models. Here, we choose to construct a pRNN with five timestep observations masked. If we set ``pRNNtype = "Masked"``, we may also like to provide additional keyword arguments to further specify the model; such as ``inMask_length``, which sets the number of future observations that are masked, and ``useLN`` which determines whether or not to apply LayerNorm.
 
 .. code-block:: python
 
     #Make a pRNN
-    num_neurons = 800
-    pRNNtype = "Rollout"
-    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, k = 5, use_LN = True, init="log_normal", sparsity=0.05, eg_weight_decay=1e-8, eg_lr=2e-3, bias_lr=0.1)
+    num_neurons = 500
+    pRNNtype = "Masked"
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, k = 5, use_LN = True)
 
 Once the environment, agent, and network have been defined, it's possible to plot a sample trajectory to provide an example of actions and observations. The following lines will plot the agent in the environment, show it's egocentric view, and what it's prediction is for that timestep. Note that the pRNN has not been trained yet, so predictions will be noisy dependent on the initialization scheme. By default, weights are initialzied uniformly according to the Xavier initialization scheme.
 

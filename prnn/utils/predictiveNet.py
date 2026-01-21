@@ -104,7 +104,7 @@ netOptions = {"NextStep": partial(NextStepRNN), #general architectures, all extr
                 'thcycRNN_5win_fullc_prevAct' : thcycRNN_5win_fullc_prevAct,
                 'thcycRNN_5win_holdc_prevAct' : thcycRNN_5win_holdc_prevAct,
                 'lognRNN_rollout': lognRNN_rollout, #LOG NORMAL INIT
-                'lognRNN_mask': lognRNN_rollout,
+                'lognRNN_mask': lognRNN_mask,
                 'multRNN_5win_i01_o01': multRNN_5win_i01_o01, 
                 'multRNN_5win_i1_o0' : multRNN_5win_i1_o0, 
                 'multRNN_5win_i01_o0' : multRNN_5win_i01_o0, 

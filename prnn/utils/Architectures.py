@@ -710,8 +710,8 @@ thcycRNN_5win_first_prevAct = partial(RolloutRNN, use_ALN = False, k = 5, contin
 """ Log Normal Initialization"""
 
 #use LayerNormCell, no more LogNRNNCell
-lognRNN_rollout = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = False, rollout_action = "full", init = "log_normal", hidden_size=800,  sparsity=0.05)
-lognRNN_mask = partial(MaskedRNN, use_LN = True, k = 5, init = "log_normal", hidden_size=800, sparsity=0.05)
+lognRNN_rollout = partial(RolloutRNN, use_ALN = False, k = 5, continuousTheta = False, rollout_action = "full", init = "log_normal", sparsity=0.05)
+lognRNN_mask = partial(MaskedRNN, use_LN = True, k = 5, init = "log_normal", sparsity=0.05)
 
 """ Multimodal pRNNs """ 
 

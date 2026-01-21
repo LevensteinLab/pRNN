@@ -69,7 +69,7 @@ parser.add_argument("--seqdur", default=500, type=int,
 parser.add_argument("--numtrials", default=1024, type=int,
                     help="How many trials in an epoch? Best if divisible by batch size (Default: 1024")
 
-parser.add_argument("--hiddensize", default=500, type=int,
+parser.add_argument("--hidden_size", default=500, type=int,
                     help="how many hidden units? (Default: 500")
 
 parser.add_argument("-c", "--contin", default= False, action="store_true",
@@ -199,7 +199,7 @@ else: #create new PredictiveNet and begin training
     env = make_env(args.env, args.envPackage, args.actenc)
     agent = create_agent(args.env, env, args.agent)
     predictiveNet = PredictiveNet(env,
-                                  hidden_size = args.hiddensize,
+                                  hidden_size = args.hidden_size,
                                   pRNNtype = args.pRNNtype,
                                   learningRate = args.lr,
                                   weight_decay = args.weight_decay,

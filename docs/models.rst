@@ -63,3 +63,15 @@ Note that the ``pRNNtype`` is one of many predefined architectures (predefined i
     pRNNtype = 'Rollout' 
     predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = False, k = 5, continuousTheta = False)
 
+In addition to specifying various arguments for the architectures, you can also specify arguments to configure the initialization scheme (i.e. the ``init`` argument). For example:
+
+.. code-block:: python
+
+    #Make a pRNN
+    num_neurons = 800
+    pRNNtype = 'Rollout' 
+    predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, use_ALN = False, k = 5, continuousTheta = False, init = "log_normal", sparsity = 0.05, eg_weight_decay=1e-8, eg_lr=2e-3, bias_lr=0.1)
+
+This will initialize weights with values sampled from a log-normal distribution. Note that, if we would like to use log-normal initialization, we should specify a few extra parameters relating to the exponentiated gradient (EG) descent algorithm. It's a learning algorithm that preserves skewed (positive) log-normal weight distributions, sparse connectivity, and Dale's Law. This learning approach has yielded neurons that are more spatially-tuned. See the related paper for more details, [here](https://www.biorxiv.org/content/10.1101/2024.10.25.620272v1). The ``sparsity`` parameter handles the degree of this sparse connectivity. 
+
+By default, however, the weights will instead be initialized with the Xavier/Glorot scheme (i.e. drawn from a scaled uniform distribution).

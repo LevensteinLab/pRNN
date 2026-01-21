@@ -27,9 +27,7 @@ dependencies = [
     "pyparsing",
     "importlib_metadata",
     "ruamel.yaml",
-    #"gym==0.21.0 --no-binary :all:", TODO: Need to fix this
     "gymnasium==0.29.1",
-    "ratinabox==1.7.1"
 ]
 
 setup(

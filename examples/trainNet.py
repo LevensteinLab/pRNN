@@ -159,6 +159,17 @@ parser.add_argument("--rollout_action", default="full", type=str,
 parser.add_argument("--continuousTheta", default=False, type=bool,
                     help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
 
+# EG params
+
+parser.add_argument("--eg_weight_decay", default=1e-6, type=float,
+                    help="Weight Decay for Exponentiated Gradient Descent (Default: 1e-6)")
+
+parser.add_argument("--eg_lr", default=None,
+                    help="Learning Rate for Exponentiated Gradient Descent (Default: None (do not use EG))")
+
+parser.add_argument("--bias_lr", default=0.1,
+                    help="Learning Rate for Biases when using Exponentiated Gradient Descent (Default: 0.1)")
+
 args = parser.parse_args()
 
 
@@ -204,8 +215,6 @@ else: #create new PredictiveNet and begin training
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
                                   continuousTheta = args.continuousTheta,
-                                  neuralTimescale = args.neuralTimescale,
-                                  sparsity = args.sparsity,
                                   trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
     #predictiveNet.seed = args.seed

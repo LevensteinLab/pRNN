@@ -533,7 +533,7 @@ class NextStepRNN(pRNN):
                           cell=cell, bptttrunc=bptttrunc, 
                           neuralTimescale=neuralTimescale, 
                           dropp=dropp, f=f, predOffset=predOffset, actOffset=0,
-                          inMask=[True], outMask=[True], actMask=None)        
+                          inMask=[True], outMask=[True], actMask=None, **cell_kwargs)        
         if use_FF:
             self.W.requires_grad_(False)
             self.W.zero_()
@@ -579,7 +579,7 @@ class MaskedRNN(pRNN):
                           f=f,
                           predOffset=0, actOffset=actOffset,
                           inMask=inMask, outMask=outMask,
-                          actMask=actMask)
+                          actMask=actMask, **cell_kwargs)
 
 class RolloutRNN(pRNN_th):
     """
@@ -620,7 +620,7 @@ class RolloutRNN(pRNN_th):
                                        neuralTimescale=neuralTimescale, dropp=dropp,
                                        f=f,
                                        predOffset=0, actOffset=actOffset,
-                                       continuousTheta=continuousTheta, actionTheta=actionTheta)
+                                       continuousTheta=continuousTheta, actionTheta=actionTheta, **cell_kwargs)
 
 
 """ Next-step Prediction Networks"""

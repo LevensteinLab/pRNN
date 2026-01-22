@@ -143,6 +143,7 @@ class RNNCell(BaseCell):
         init = kwargs["init"] if "init" in kwargs else init
         self.initialize_weights(input_size = input_size, hidden_size = hidden_size, init = init, **kwargs)
 
+
     def initialize_weights(self, input_size: int, hidden_size: int, init: str, **kwargs):
         """
         Initialize weights for input, recurrent, and bias parameters
@@ -166,6 +167,7 @@ class RNNCell(BaseCell):
             self.weight_ih, self.weight_hh, self.bias = xavier_init(input_size, hidden_size, self.weight_ih, self.weight_hh, self.bias)
 
         if init == "log_normal": 
+            print('hello')
             #pull out extra keyword args needed for log normal init
             mean_std_ratio = kwargs["mean_std_ratio"] if "mean_std_ratio" in kwargs else 1.
             sparsity = kwargs["sparsity"] if "sparsity" in kwargs else 1.

@@ -215,6 +215,9 @@ else: #create new PredictiveNet and begin training
                                   use_ALN = args.use_ALN,
                                   rollout_action = args.rollout_action,
                                   continuousTheta = args.continuousTheta,
+                                  eg_lr = args.eg_lr,
+                                  eg_weight_decay= args.eg_weight_decay,
+                                  bias_lr = args.bias_lr,
                                   trainArgs = SimpleNamespace(**args.__dict__)) #allows values in trainArgs to be accessible 
 
     #predictiveNet.seed = args.seed

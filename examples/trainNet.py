@@ -233,7 +233,7 @@ else: #create new PredictiveNet and begin training
         # Separate Data Loader should be created for every environment
         create_dataloader(env, agent, args.dataNtraj, args.seqdur,
                           args.datadir, generate=True,
-                          tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'),
+                        #   tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'), # This should stay commented out unless running on MILA cluster
                           batch_size=args.batchsize, 
                           num_workers=args.numworkers)
         predictiveNet.useDataLoader = args.withDataLoader

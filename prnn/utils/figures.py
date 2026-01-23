@@ -31,11 +31,14 @@ def TrainingFigure(predictiveNet,
     numPFpanels = 4
     trials = ~predictiveNet.TrainingSaver['SI'].isna()
     index = predictiveNet.TrainingSaver['SI'].index[trials]  
-    PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels))
+    if len(index)<numPFpanels:
+        print("Not enough data to plot place fields")
+        return False
+    PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels)).astype(int)
     #PFtrainsteps=np.delete(PFtrainsteps,0)
 
     #Final PF panel
-    trainstep = index[PFtrainsteps[numPFpanels-1]]
+    trainstep = index[int(PFtrainsteps[numPFpanels-1])]
     #PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
     place_fields = predictiveNet.TrainingSaver.place_fields[trainstep]
     SI = predictiveNet.TrainingSaver.SI[trainstep]

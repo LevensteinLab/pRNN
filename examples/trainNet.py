@@ -164,10 +164,10 @@ parser.add_argument("--continuousTheta", default=False, type=bool,
 parser.add_argument("--eg_weight_decay", default=1e-6, type=float,
                     help="Weight Decay for Exponentiated Gradient Descent (Default: 1e-6)")
 
-parser.add_argument("--eg_lr", default=None,
+parser.add_argument("--eg_lr", default=None, type=float,
                     help="Learning Rate for Exponentiated Gradient Descent (Default: None (do not use EG))")
 
-parser.add_argument("--bias_lr", default=0.1,
+parser.add_argument("--bias_lr", default=0.1, type=float,
                     help="Learning Rate for Biases when using Exponentiated Gradient Descent (Default: 0.1)")
 
 args = parser.parse_args()
@@ -233,7 +233,7 @@ else: #create new PredictiveNet and begin training
         # Separate Data Loader should be created for every environment
         create_dataloader(env, agent, args.dataNtraj, args.seqdur,
                           args.datadir, generate=True,
-                          tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'),
+                        #   tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'), # This should stay commented out unless running on MILA cluster
                           batch_size=args.batchsize, 
                           num_workers=args.numworkers)
         predictiveNet.useDataLoader = args.withDataLoader

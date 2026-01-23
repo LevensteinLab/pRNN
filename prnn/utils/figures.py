@@ -38,7 +38,7 @@ def TrainingFigure(predictiveNet,
     #PFtrainsteps=np.delete(PFtrainsteps,0)
 
     #Final PF panel
-    trainstep = index[PFtrainsteps[numPFpanels-1]]
+    trainstep = index[int(PFtrainsteps[numPFpanels-1])]
     #PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
     place_fields = predictiveNet.TrainingSaver.place_fields[trainstep]
     SI = predictiveNet.TrainingSaver.SI[trainstep]

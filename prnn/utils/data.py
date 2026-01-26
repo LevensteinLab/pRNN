@@ -134,16 +134,16 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
 def create_dataloader(env, agent, n_trajs, seq_length, folder,
                       generate=True, tmp_folder=None, batch_size=32,
                       num_workers=0, save_raw=False, load_raw=False):
-    folder = folder + '/' + env.name + '-' + agent.name
+    folder = folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc 
     if generate:
         generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=save_raw)
     if not tmp_folder:
         tmp_folder = folder
     elif not load_raw:
-        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name
+        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc  
         copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("raw.npy", "state.npy"))
     else:
-        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name
+        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc 
         copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("obs*", "state.npy"))
     if not load_raw:
         dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)

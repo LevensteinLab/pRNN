@@ -94,6 +94,16 @@ Once the decoder is trained, we evaluate how well the network's representations 
 
 This function generates a new "test" trajectory and computes decoding error over time. The ``trajectoryWindow`` parameter sets the window for decoding, and ``timesteps`` specifies how long the trajectory is. Results are saved to ``savefolder`` with the filename based on ``savename``.
 
+.. figure:: _static/decoding_performance.png
+    :alt: Overview of linear decoder performance
+
+- Top row: (left) the trajectory taken of length trajectoryWindow, (right) distribution of decoder error compared to random shuffled data. Should show low decoder error for the actual data.
+- State: shows actual action sequences across 6 sequential time steps.
+- Observation: shows the egocentric view of the agent for the same 6 sequential timestemps.
+- Predicted: the predicted observation for that timestep from the linear decoder returned in the above cell
+- Bottom row: predicted global location for that timestep from the linear decoder.
+
+
 Spatial Tuning Analysis
 -----------------------
 
@@ -103,6 +113,9 @@ The ``SpatialTuningAnalysis`` class examines individual neuron tuning curves and
 
     STA = SpatialTuningAnalysis(predictiveNet,inputControl=True, untrainedControl=True)
     STA.TCExamplesFigure(netname,savefolder)
+
+.. figure:: _static/sta_tcexamples.png
+    :alt: Example tuning curves of units with high SI and EV
 
 By setting ``inputControl=True`` and ``untrainedControl=True``, the analysis generates control comparisons. The ``TCExamplesFigure`` method creates a figure showing example tuning curves for neurons, as well as the spatial info and variance explained by position (EV_space) for each neuron, and saves it with the specified name to the save folder. This helps visualize which neurons develop spatial tuning and how selective they are. These are saved in the STA object if you need them for further analysis or comparison between networks - feel free to open up the ``SpatialTuningAnalysis.py`` file to see what else is stored there.
 
@@ -119,7 +132,30 @@ The representational geometry analysis examines the structure of the network's r
                                            withIsomap=True, n_neighbors = isomap_neighbors)
     RGA.WakeSleepFigure(netname,savefolder)
 
+.. figure:: _static/repgeoex.png
+    :alt: Representational geometry comparison between neural and spatial low-dimensional spaces. 
+
+Isomap visualization of population activity in the network in which units assigned to represent nearby positions are connected with recurrent excitation and those representing distant positions are mutually inhibiting. Each point represents a population activity vector at a point in time, colored by the position of the agent (wake), with sleep timepoints in red. Spatial representational similarity analysis (sRSA) measures the correlation between spatial and neural activity distances, while Sleep-Wake distance (SW Dist) measures the neural distance between sleep and wake activity in the network.  
+
 The ``noisestd`` parameter controls the standard deviation of noise added to the network during offline analysis (simulating spontaneous activity). The ``n_neighbors`` parameter specifies how many neighbors are used in the Isomap dimensionality reduction. The ``WakeSleepFigure`` method generates a visualization comparing the structure of representations during wake and sleep states. This also calculates the networks spatial-representational similarity analysis (sRSA), or correlation between distance in space and (cosine) distance in neural space, which is contained in the RGA object.
+
+Tuning Curve Analysis and Cell Types
+------------------------------------
+The ``TuningCurveAnalysis`` class takes in a predictiveNet object and classifies units based on their tuning curve properties.
+
+.. figure:: _static/tca_celltypes.png
+    :alt: Tuning curve analysis and cell type classification. 
+
+Upper left shows you the percentage of the network per class type. Middle shows a PCA embedded of the various features used to classify each unit, colored by their group ID. Right shows EVs versus SI for each unit, again colored by cell type. Below are example tuning curves for each cell class. The cell types include: 
+- untuned
+- HD_cells: head direction cells, units with a preference for head direction but no spatial preference 
+- single_field: a canonical "place cell" with a centralized symetric place field
+- border_cells: units that fire preferentially along environmental boundaries
+- spatial_HD: some combination of spatial and head direction preferences
+- complex_cells: units that have high SIs but cannot be categorized into the above types 
+- dead: occasionally you will get units that have no activity 
+
+
 
 Offline Trajectory Analysis with Adaptation
 --------------------------------------------

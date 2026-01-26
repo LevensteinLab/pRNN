@@ -15,7 +15,6 @@ nets/*
 Figures/*
 ${SLURM_TMPDIR}/*
 
-prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
 
 # sphinx stuff

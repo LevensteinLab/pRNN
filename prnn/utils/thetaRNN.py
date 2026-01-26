@@ -143,6 +143,7 @@ class RNNCell(BaseCell):
         init = kwargs["init"] if "init" in kwargs else init
         self.initialize_weights(input_size = input_size, hidden_size = hidden_size, init = init, **kwargs)
 
+
     def initialize_weights(self, input_size: int, hidden_size: int, init: str, **kwargs):
         """
         Initialize weights for input, recurrent, and bias parameters

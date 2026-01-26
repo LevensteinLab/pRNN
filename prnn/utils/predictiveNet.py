@@ -142,6 +142,7 @@ class PredictiveNet:
         """
 
         #get all constructor arguments and save them separately in trainArgs for later access...
+        
         self.trainArgs = trainArgs
 
         input_args = locals()

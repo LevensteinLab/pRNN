@@ -33,9 +33,9 @@ parser = argparse.ArgumentParser()
 ## General parameters
 
 parser.add_argument("--env",
-                    default='MiniGrid-LRoom-18x18-v0',
+                    default='LRoom-18x18-v0',
                     # default='RiaB-LRoom',
-                    help="name of the environment to train on (Default: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
+                    help="name of the environment to train on (Default: LRoom-18x18-v0 for gym-minigrid: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
 
 parser.add_argument("--agent",
                     default='RandomActionAgent',
@@ -43,9 +43,9 @@ parser.add_argument("--agent",
                     help="name of the agent for environment exploration (Default: RandomActionAgent, other option: RatInABoxAgent)")
 
 parser.add_argument("--envPackage",
-                    default='gym-minigrid',
+                    default='farama-minigrid',
                     # default='ratinabox_remix',
-                    help="which package the environment comes from? (Default: gym-minigrid; other options: farama-minigrid, ratinabox, ratinabox_remix)")
+                    help="which package the environment comes from? (Default: farama-minigrid; other options: gym-minigrid, ratinabox, ratinabox_remix)")
 
 parser.add_argument("--pRNNtype", default='Masked',
                     help="Which pRNN type?")

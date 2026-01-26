@@ -114,6 +114,9 @@ The ``SpatialTuningAnalysis`` class examines individual neuron tuning curves and
     STA = SpatialTuningAnalysis(predictiveNet,inputControl=True, untrainedControl=True)
     STA.TCExamplesFigure(netname,savefolder)
 
+.. figure:: _static/sta_tcexamples.png
+    :alt: Example tuning curves of units with high SI and EV
+
 By setting ``inputControl=True`` and ``untrainedControl=True``, the analysis generates control comparisons. The ``TCExamplesFigure`` method creates a figure showing example tuning curves for neurons, as well as the spatial info and variance explained by position (EV_space) for each neuron, and saves it with the specified name to the save folder. This helps visualize which neurons develop spatial tuning and how selective they are. These are saved in the STA object if you need them for further analysis or comparison between networks - feel free to open up the ``SpatialTuningAnalysis.py`` file to see what else is stored there.
 
 Representational Geometry Analysis
@@ -128,6 +131,11 @@ The representational geometry analysis examines the structure of the network's r
     RGA = representationalGeometryAnalysis(predictiveNet, noisestd=sleepnoise,
                                            withIsomap=True, n_neighbors = isomap_neighbors)
     RGA.WakeSleepFigure(netname,savefolder)
+
+.. figure:: _static/repgeoex.png
+    :alt: Representational geometry comparison between neural and spatial low-dimensional spaces. 
+
+Isomap visualization of population activity in the network in which units assigned to represent nearby positions are connected with recurrent excitation and those representing distant positions are mutually inhibiting. Each point represents a population activity vector at a point in time, colored by the position of the agent (wake), with sleep timepoints in red. Spatial representational similarity analysis (sRSA) measures the correlation between spatial and neural activity distances, while Sleep-Wake distance (SW Dist) measures the neural distance between sleep and wake activity in the network.  
 
 The ``noisestd`` parameter controls the standard deviation of noise added to the network during offline analysis (simulating spontaneous activity). The ``n_neighbors`` parameter specifies how many neighbors are used in the Isomap dimensionality reduction. The ``WakeSleepFigure`` method generates a visualization comparing the structure of representations during wake and sleep states. This also calculates the networks spatial-representational similarity analysis (sRSA), or correlation between distance in space and (cosine) distance in neural space, which is contained in the RGA object.
 

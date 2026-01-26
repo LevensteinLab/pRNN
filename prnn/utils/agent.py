@@ -270,6 +270,8 @@ def create_agent(envname, env, agentkey, agentname = ""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
+        elif 'Alternation' in envname:
+            action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
         else:
             action_probability = np.array([0.15,0.15,0.6,0.1])
         agent = RandomActionAgent(env.action_space, action_probability)

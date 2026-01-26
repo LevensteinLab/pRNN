@@ -21,7 +21,7 @@ trainNet_prnn.py
 docs/_build/
 docs/_autosummary/
 docs/_apidoc/
-docs/_doctrees/s
+docs/_doctrees/
 
 # logging & plotting
 logs/

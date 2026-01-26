@@ -94,6 +94,16 @@ Once the decoder is trained, we evaluate how well the network's representations 
 
 This function generates a new "test" trajectory and computes decoding error over time. The ``trajectoryWindow`` parameter sets the window for decoding, and ``timesteps`` specifies how long the trajectory is. Results are saved to ``savefolder`` with the filename based on ``savename``.
 
+.. figure:: _static/decoding_performance.png
+    :alt: Overview of linear decoder performance
+
+- Top row: (left) the trajectory taken of length trajectoryWindow, (right) distribution of decoder error compared to random shuffled data. Should show low decoder error for the actual data.
+- State: shows actual action sequences across 6 sequential time steps.
+- Observation: shows the egocentric view of the agent for the same 6 sequential timestemps.
+- Predicted: the predicted observation for that timestep from the linear decoder returned in the above cell
+- Bottom row: predicted global location for that timestep from the linear decoder.
+
+
 Spatial Tuning Analysis
 -----------------------
 

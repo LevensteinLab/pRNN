@@ -167,7 +167,6 @@ class RNNCell(BaseCell):
             self.weight_ih, self.weight_hh, self.bias = xavier_init(input_size, hidden_size, self.weight_ih, self.weight_hh, self.bias)
 
         if init == "log_normal": 
-            print('hello')
             #pull out extra keyword args needed for log normal init
             mean_std_ratio = kwargs["mean_std_ratio"] if "mean_std_ratio" in kwargs else 1.
             sparsity = kwargs["sparsity"] if "sparsity" in kwargs else 1.

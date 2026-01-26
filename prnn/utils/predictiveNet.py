@@ -21,7 +21,7 @@ import random
 from pathlib import Path
 from types import SimpleNamespace
 
-
+import datetime
 try:
     import wandb
 except ImportError:
@@ -164,6 +164,8 @@ class PredictiveNet:
         self.addEnvironment(env)
         self.useDataLoader = dataloader
 
+        print(f'Initializing pRNN of type {pRNNtype} with hidden size {hidden_size}...')
+        print("act_size: " + str(self.act_size) + ", obs_size: " + str(self.obs_size))
         #Set up the network and optimization stuff
         self.hidden_size = hidden_size
         self.pRNNtype = pRNNtype
@@ -216,14 +218,15 @@ class PredictiveNet:
             shape = (act.size(-1), 1, self.hidden_size)
             
         else:
-            shape = (1, 1, self.hidden_size)
+            shape = (obs.size(0), 1, self.hidden_size)
+            print(obs.size(0))
             
         if randInit and len(state) == 0:
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
         
         obs_pred, h, obs_next = self.pRNN(obs, act, noise_params=self.trainNoiseMeanStd,
-                                          state=state, mask=mask, batched=batched, 
+                                          state=state, mask=mask, batched=batched,
                                           fullRNNstate=fullRNNstate)
 
         return obs_pred, obs_next, h
@@ -264,6 +267,7 @@ class PredictiveNet:
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
         """
+        tic = time.time()
         if self.train_encoder:
             enc_loss = self.env_shell.loss['loss']
             self.env_shell.encoder.optimizer.zero_grad() 
@@ -272,11 +276,18 @@ class PredictiveNet:
         else:
             enc_loss = 0
 
+        print("prepare for predict...." +  str(time.time()-tic))
+        tic = time.time()
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
+        print(obs_pred.shape)
+        print(obs_next.shape)
         if type(obs_pred) == tuple:
+            print("Tuple obs_pred")
             obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
+        print("predict...." +  str(time.time()-tic))
+        tic = time.time()
         if with_homeostat:
             target_sparsity = self.target_sparsity
             target_rate = self.target_rate
@@ -291,7 +302,8 @@ class PredictiveNet:
         if learningRate is not None:
             oldlr = self.optimizer.param_groups[0]['lr']
             self.optimizer.param_groups[0]['lr'] = learningRate
-        
+        print("homeostaticLoss...." +  str(time.time()-tic))
+        tic = time.time()
         #Backpropagation (through time)
         self.optimizer.zero_grad()  #Clear the gradients
         loss.backward()             #Backpropagate w.r.t the loss
@@ -299,14 +311,19 @@ class PredictiveNet:
         if self.train_encoder:
             self.env_shell.encoder.optimizer.step()
         
+        print("backprop...." +  str(time.time()-tic))   
+        tic = time.time()
         if learningRate is not None:
-            self.optimizer.param_groups[0]['lr'] = oldlr
+            self.optimizer.param_groups[0]['lr'] = oldlrq
 
         steploss = predloss.item()
         if self.train_encoder:
             self.recordTrainingTrial(steploss, enc_loss)
         else:
             self.recordTrainingTrial(steploss)
+        
+        print("recordTrainingTrial...." +  str(time.time()-tic))   
+        tic = time.time()
 
         return steploss, sparsity, meanrate
     
@@ -417,7 +434,8 @@ class PredictiveNet:
                             sequence_duration=2000, num_trials=100,
                             with_homeostat=False,
                             learningRate=None,
-                            forceDevice=None):
+                            forceDevice=None,
+                            number_of_environments=1):
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if forceDevice is not None:
@@ -429,33 +447,56 @@ class PredictiveNet:
                 self.env_shell.encoder.eval()
             else:
                 self.env_shell.encoder.train()
-        print(f'Training pRNN on {device}...')
+        print(f'Training pRNN* on {device}...')
             
         # c=100
-        for bb in range(num_trials):
+        c = num_trials/number_of_environments
+        for bb in range(int(c)):
             tic = time.time()
-            obs,act,_,_ = self.collectObservationSequence(env, 
-                                                          agent, 
+            
+            obs, act = None, None
+            for i in range(number_of_environments):
+                obs_temp,act_temp,_,_ = self.collectObservationSequence(env,
+                                                          agent,
                                                           sequence_duration,
                                                           dataloader=self.useDataLoader,
-                                                          device=device,
-                                                          compute_loss=self.train_encoder)
+                                                         compute_loss=self.train_encoder)
+                if obs is None:
+                    obs = obs_temp
+                    act = act_temp
+                else:
+                    obs = torch.cat((obs, obs_temp), dim=0)
+                    act = torch.cat((act, act_temp), dim=0)
+
+            # Add extra dimension to match DataLoader format: (batch, 1, seq_len, features)
+            # This is needed for batched mode to work correctly with multiple environments
+            if number_of_environments > 1:
+                obs = obs.unsqueeze(1)
+                act = act.unsqueeze(1)
+
+            print(f"Tensor Dim: {obs.dim()}")
+            print(f"Tensor Shape: {obs.shape}")
             try:
                 obs,act = obs.to(device),act.to(device)
             except(AttributeError):
                 obs, act = [o.to(device) for o in obs], act.to(device)
-
-            steploss, sparsity, meanrate = self.trainStep(obs,act, 
+            #print("collectObservationSequence...." +  str(time.time()-tic))
+            tic = time.time()
+            # Use batched mode when we have multiple environments or when using DataLoader
+            use_batched = number_of_environments > 1 or self.useDataLoader
+            steploss, sparsity, meanrate = self.trainStep(obs,act,
                                                           with_homeostat,
                                                           learningRate=learningRate,
-                                                          batched=self.useDataLoader)
+                                                          batched=use_batched)
+            #print("trainStep...." +  str(time.time()-tic))
             #self.addTrainingData('sequence_duration',sequence_duration)
             #self.addTrainingData('clocktime',time.time()-tic)
             #Until batch is implemented....
             # if (bb*batch_size+c) >= 100 or bb==num_trials//batch_size-1:
-            if (100*bb /num_trials) % 10 == 0 or bb==num_trials-1:
+            if True:
+            
                 # c-=100
-                print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb:>5d}\{num_trials:>5d}]")
+                print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb:>5d}\{int(c):>5d}]")
                 # print(f"loss: {steploss:>.2}, sparsity: {sparsity:>.2}, meanrate: {meanrate:>.2} [{bb*batch_size:>5d}\{num_trials:>5d}]")
         
         self.numTrainingEpochs +=1

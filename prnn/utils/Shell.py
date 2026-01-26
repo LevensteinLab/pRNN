@@ -93,7 +93,7 @@ class Shell:
                                          compute_loss=compute_loss,
                                          from_raw=True)
         else:
-
+ 
             obs, act, state, render = agent.getObservations(self,tsteps,
                                                     includeRender=includeRender,
                                                     discretize=discretize,

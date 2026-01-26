@@ -67,18 +67,18 @@ class RandomBatchedActionSequencesAgent:
             return randActionSequence(tsteps, self.action_space, action_probability)
     
     
-    def getObservations(self, env, shell_envs, tsteps, reset=True, includeRender=False, render_highlight=True, **kwargs):   
+    def getObservations(self, env, shell_env, tsteps, reset=True, includeRender=False, render_highlight=True, **kwargs):   
         """
         Get a sequence of observations. act[t] is the action after observing
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
         longer than act
         """
         act = self.generateActionSequence(tsteps)
-        print(act.shape)   
+        #print(act.shape)   
         render = False
 
         conspecific = False #This is ugly and shouldn't be here... sorry please don't hate me Alex :')
-        if hasattr(shell_envs[0].env, 'conspecific'): # handle only the first env to avoid issues with vectorized envs
+        if hasattr(shell_env.env, 'conspecific'): # handle only the first env to avoid issues with vectorized envs
             conspecific = True
 
         # initialize container for observations (tsteps+1). Use object dtype so each entry
@@ -96,8 +96,8 @@ class RandomBatchedActionSequencesAgent:
             else:
                 reset_obs = reset_result
             obs[0] = reset_obs
-        state = {'agent_pos': np.resize(shell_envs[0].get_agent_pos(),(1,2)), 
-                 'agent_dir': shell_envs[0].get_agent_dir()
+        state = {'agent_pos': np.resize(shell_env.get_agent_pos(),(1,2)), 
+                 'agent_dir': shell_env.get_agent_dir()
                 } #handle only first env to avoid issues with vectorized envs
         if includeRender:
             render = np.empty(tsteps+1, dtype=object)
@@ -105,13 +105,17 @@ class RandomBatchedActionSequencesAgent:
             render[0] = env.call("render")
 
         if conspecific:
-            state['conspecific_pos'] = np.resize(shell_envs[0].env.conspecific.cur_pos,(1,2))
+            state['conspecific_pos'] = np.resize(shell_env.env.conspecific.cur_pos,(1,2))
         
+        state['agent_pos'] = np.zeros((tsteps+1, 2))
+        state['agent_dir'] = np.zeros((tsteps+1, 2))
+        if conspecific:
+            state['conspecific_pos'] =  np.zeros((tsteps+1, 2))
             
         for aa in range(tsteps):
             # pick the action(s) for this timestep (will be scalar or vector)
             action = act[aa]
-            print(f"{action=}")
+            #print(f"{action=}")
 
             # step the env; gym returns either obs or a tuple whose first element is obs
             step_result = env.step(action)
@@ -122,43 +126,16 @@ class RandomBatchedActionSequencesAgent:
 
             obs[aa+1] = step_obs
 
-            state['agent_pos'] = np.append(state['agent_pos'],
-                                           np.resize(shell_envs[0].get_agent_pos(),(1,2)),axis=0)
+            state['agent_pos'][aa] = shell_env.get_agent_pos()
             
-            state['agent_dir'] = np.append(state['agent_dir'],
-                                           shell_envs[0].get_agent_dir())
+            state['agent_dir'][aa] = shell_env.get_agent_dir()
             if conspecific:
-                state['conspecific_pos'] = np.append(state['conspecific_pos'],
-                                           np.resize(shell_envs[0].env.conspecific.cur_pos,(1,2)),axis=0)
+                state['conspecific_pos'][aa] = shell_env.env.conspecific.cur_pos
+
             if includeRender:
                 render[aa+1] = env.call("render")
 
-        # Create matplotlib visualization if renders were collected
-        if includeRender:
-            n_renders = tsteps+1
-            fig, axes = plt.subplots(2, n_renders, figsize=(n_renders * 3, 6))
-
-            # Handle case where there's only one render
-            if n_renders == 1:
-                axes = axes.reshape(2, 1)
-
-            # Row 1: render (shell_envs[0])
-            for i in range(n_renders):
-                axes[0, i].imshow(render[i][0])
-                axes[0, i].set_title(f'Env 0 - Step {i}')
-                axes[0, i].axis('off')
-
-            # Row 2: render2 (shell_envs[1])
-            for i in range(n_renders):
-                axes[1, i].imshow(render[i][1])
-                axes[1, i].set_title(f'Env 1 - Step {i}')
-                axes[1, i].axis('off')
-
-            plt.tight_layout()
-            plt.savefig(f"render.png")
-            plt.show()
-
-        return obs, act    
+        return obs, act, state, render    
 
 def create_batched_agent(envname, envs, agentkey, agentname = ""):
     action_probability = np.array([0.15,0.15,0.6,0.1])

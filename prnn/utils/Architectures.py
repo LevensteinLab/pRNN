@@ -118,7 +118,7 @@ class pRNN(nn.Module):
 
         self.rnn = thetaRNNLayer(cell, bptttrunc, input_size, hidden_size,
                                     defaultTheta=k, continuousTheta=continuousTheta, #k here refers to number of predictions in rollout (inner loop number)
-                                    musig=musig, **cell_kwargs)
+                                    mu = mu, sig = 1, **cell_kwargs)
         
         self.outlayer = nn.Sequential(
             nn.Linear(hidden_size, output_size, bias=False),

@@ -139,6 +139,24 @@ Isomap visualization of population activity in the network in which units assign
 
 The ``noisestd`` parameter controls the standard deviation of noise added to the network during offline analysis (simulating spontaneous activity). The ``n_neighbors`` parameter specifies how many neighbors are used in the Isomap dimensionality reduction. The ``WakeSleepFigure`` method generates a visualization comparing the structure of representations during wake and sleep states. This also calculates the networks spatial-representational similarity analysis (sRSA), or correlation between distance in space and (cosine) distance in neural space, which is contained in the RGA object.
 
+Tuning Curve Analysis and Cell Types
+------------------------------------
+The ``TuningCurveAnalysis`` class takes in a predictiveNet object and classifies units based on their tuning curve properties.
+
+.. figure:: _static/tca_celltypes.png
+    :alt: Tuning curve analysis and cell type classification. 
+
+Upper left shows you the percentage of the network per class type. Middle shows a PCA embedded of the various features used to classify each unit, colored by their group ID. Right shows EVs versus SI for each unit, again colored by cell type. Below are example tuning curves for each cell class. The cell types include: 
+- untuned
+- HD_cells: head direction cells, units with a preference for head direction but no spatial preference 
+- single_field: a canonical "place cell" with a centralized symetric place field
+- border_cells: units that fire preferentially along environmental boundaries
+- spatial_HD: some combination of spatial and head direction preferences
+- complex_cells: units that have high SIs but cannot be categorized into the above types 
+- dead: occasionally you will get units that have no activity 
+
+
+
 Offline Trajectory Analysis with Adaptation
 --------------------------------------------
 

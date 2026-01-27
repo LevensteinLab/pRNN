@@ -69,9 +69,9 @@ Let's take a look at the hidden unit activations in the rollout network:
     obs_pred, obs_next, h  = predictiveNet.predict(obs,act, fullRNNstate=False)
     print(h.shape)
 
-For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[1, T, N]`` where ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k, T, N]`` where ``k`` is the number of rollout steps. 
+For the :class:`prnn.utils.Architectures.NextStepRNN` and :class:`prnn.utils.Architectures.MaskedRNN`, the shape of ``h`` will be ``[1, T, N]`` where ``T`` is the number of timesteps, and ``N`` is the number of neurons in the network. In the case of :class:`prnn.utils.Architectures.RolloutRNN`, the shape of ``h`` will be ``[k+1, T, N]`` where ``k`` is the number of rollout steps. 
 
-Also recall that ``h.shape`` will return ``[k, T, N]`` without batching and ``[k, T, N, B]`` when trained from a dataset with batching, where ``k`` is the number of rollout predictions per timestep. 
+Also recall that ``h.shape`` will return ``[k+1, T, N]`` without batching and ``[k+1, T, N, B]`` when trained from a dataset with batching, where ``k`` is the number of rollout predictions per timestep. 
 
 
 Sparse-lognormal pRNN

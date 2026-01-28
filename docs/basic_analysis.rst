@@ -57,6 +57,7 @@ Next, we define an agent that will interact with the environment during analysis
 .. code-block:: python
 
     agentname = 'RandomActionAgent'
+    # action space: turn left, turn right, move forward, pause, pick up item, use item, drop item? 
     action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
     agent = RandomActionAgent(env.action_space,action_probability)
 

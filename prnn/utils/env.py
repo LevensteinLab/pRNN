@@ -15,6 +15,7 @@ from minigrid.wrappers import *
 
 from prnn.utils.Shell import *
 from examples.RatEnvironment import make_rat_env, FoV_params_default, Grid_params_default
+from prnn.utils.ShellVectorized import FaramaMinigridShellVectorized
 
 # Wrappers
 wrappers = {
@@ -187,9 +188,11 @@ def make_farama_envs(
         env_fns.append(_init)
 
     envs_vector = AsyncVectorEnv(env_fns, shared_memory=False) 
-    envs_vector.render_mode="rgb_array" 
+    envs_vector.render_mode=render_mode
+    envs_vector.reset(seed=seed)
+    
 
-    return envs,envs_vector
+    return FaramaMinigridShellVectorized(envs_vector, act_enc, env_key)
 # TODO: is obsolete? Remove and then remove the notion of highlight from render?
 def plot_env(env, highlight=True):
     

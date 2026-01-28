@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from numpy.random import choice
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
+import time
 
 import datetime
 
@@ -73,10 +74,12 @@ class RandomBatchedActionSequencesAgent:
         obs[t], obs[t+1] is the resulting observation. obs will be 1 entry 
         longer than act
         """
+        tic = time.time()
         act = self.generateActionSequence(tsteps)
         #print(act.shape)   
         render = False
-
+        print("generateActionSequence...." +  str(time.time()-tic))    
+        tic = time.time()
         conspecific = False #This is ugly and shouldn't be here... sorry please don't hate me Alex :')
         if hasattr(shell_env.env, 'conspecific'): # handle only the first env to avoid issues with vectorized envs
             conspecific = True
@@ -107,8 +110,8 @@ class RandomBatchedActionSequencesAgent:
         if conspecific:
             state['conspecific_pos'] = np.resize(shell_env.env.conspecific.cur_pos,(1,2))
         
-        state['agent_pos'] = np.zeros((tsteps+1, 2))
-        state['agent_dir'] = np.zeros((tsteps+1, 2))
+        state['agent_pos'] = np.zeros((tsteps+1, 2), dtype=int)
+        state['agent_dir'] = np.zeros(tsteps+1, dtype=int)
         if conspecific:
             state['conspecific_pos'] =  np.zeros((tsteps+1, 2))
             
@@ -134,11 +137,11 @@ class RandomBatchedActionSequencesAgent:
 
             if includeRender:
                 render[aa+1] = env.call("render")
-
+        print("step done...." +  str(time.time()-tic)) 
         return obs, act, state, render    
 
 def create_batched_agent(envname, envs, agentkey, agentname = ""):
     action_probability = np.array([0.15,0.15,0.6,0.1])
-    agent = RandomBatchedActionSequencesAgent(envs.action_space, action_probability)
+    agent = RandomBatchedActionSequencesAgent(envs.envs.action_space, action_probability)
 
     return agent

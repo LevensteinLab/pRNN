@@ -28,33 +28,35 @@ def TrainingFigure(predictiveNet,
     predictiveNet.plotLearningCurve(axis=LCax,maxBoxes=11,incDecode = incDecode)
     
     #Find which training steps have place fields
-    numPFpanels = 4
-    trials = ~predictiveNet.TrainingSaver['SI'].isna()
-    index = predictiveNet.TrainingSaver['SI'].index[trials]  
-    PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels))
-    #PFtrainsteps=np.delete(PFtrainsteps,0)
+    hasSI = 'SI' in predictiveNet.TrainingSaver.columns
+    if hasSI:
+        numPFpanels = 4
+        trials = ~predictiveNet.TrainingSaver['SI'].isna()
+        index = predictiveNet.TrainingSaver['SI'].index[trials]
+        PFtrainsteps = np.round(np.linspace(1,len(index)-1,numPFpanels))
+        #PFtrainsteps=np.delete(PFtrainsteps,0)
 
-    #Final PF panel
-    trainstep = index[int(PFtrainsteps[numPFpanels-1])]
-    #PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
-    place_fields = predictiveNet.TrainingSaver.place_fields[trainstep]
-    SI = predictiveNet.TrainingSaver.SI[trainstep]
-    predictiveNet.plotTuningCurvePanel(fig=finalPFfig,
-                                       place_fields=place_fields,SI=SI)
-    
-    #SI Histogram    
-    SIhistax=SIhistfig.subplots(1,1)
-    SIhistax.hist(SI,color='red')
-    plt.xlabel('SI')
-    plt.ylabel('# Units')
-    
-    for PFpanel in range(3):
-        trainstep = index[int(PFtrainsteps[PFpanel])]
-        PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
+        #Final PF panel
+        trainstep = index[int(PFtrainsteps[numPFpanels-1])]
+        #PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
         place_fields = predictiveNet.TrainingSaver.place_fields[trainstep]
         SI = predictiveNet.TrainingSaver.SI[trainstep]
-        predictiveNet.plotTuningCurvePanel(fig=PFfigs[PFpanel],
-                                           place_fields=place_fields,SI=None)
+        predictiveNet.plotTuningCurvePanel(fig=finalPFfig,
+                                           place_fields=place_fields,SI=SI)
+
+        #SI Histogram
+        SIhistax=SIhistfig.subplots(1,1)
+        SIhistax.hist(SI,color='red')
+        plt.xlabel('SI')
+        plt.ylabel('# Units')
+
+        for PFpanel in range(3):
+            trainstep = index[int(PFtrainsteps[PFpanel])]
+            PFfigs[PFpanel].suptitle(f'Step: {trainstep}')
+            place_fields = predictiveNet.TrainingSaver.place_fields[trainstep]
+            SI = predictiveNet.TrainingSaver.SI[trainstep]
+            predictiveNet.plotTuningCurvePanel(fig=PFfigs[PFpanel],
+                                               place_fields=place_fields,SI=None)
         
     
     if savename is not None: 

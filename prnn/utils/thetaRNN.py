@@ -173,7 +173,6 @@ class RNNCell(BaseCell):
                     sparsity: Fraction of nonzero connections in initialization. Default 1.
         """
         # init weights
-        print("normal base")
         self.weight_ih = Parameter(torch.empty(hidden_size, input_size))
         self.weight_hh = Parameter(torch.empty(hidden_size, hidden_size))
         self.bias = Parameter(torch.zeros(hidden_size))
@@ -244,7 +243,6 @@ class AdaptingRNNCell(RNNCell):
             tau_a (_type_, optional): Decay in adaptation. Defaults to 8..
         """
         # initialize class attributes and weights
-        print("Adapting")
         super().__init__(input_size, hidden_size, actfun, init)
         self.b = b
         self.tau_a = tau_a
@@ -287,7 +285,6 @@ class LayerNormRNNCell(RNNCell):
             mu (int, optional): Mean for LayerNorm. Defaults to 0.
             sig (int, optional): Std dev for LayerNorm. Defaults to 1.
         """
-        print("layernorm")
         super().__init__(input_size, hidden_size, actfun, init)
         # set up layernorm
         self.layernorm = LayerNorm(hidden_size, mu, sig)
@@ -330,7 +327,6 @@ class DivNormRNNCell(RNNCell):
             k (int, optional): Constant to multiply mean activity by.
         """
         super().__init__(input_size, hidden_size, actfun, init)
-        print("divnorm")
         # set up divnorm
         self.bias = Parameter(torch.zeros(hidden_size))  # initialize biases to zero
         if k_n == "inhibiton":
@@ -362,8 +358,6 @@ class AdaptingLayerNormRNNCell(LayerNormRNNCell, AdaptingRNNCell):
     def __init__(
         self, input_size, hidden_size, actfun="relu", init="xavier", b=0.3, tau_a=8, *args, **kwargs
     ):
-        print("Adapting Layernorm")
-
         # set up both adaptation and layernorm stuff
         super().__init__(
             input_size=input_size,
@@ -375,7 +369,6 @@ class AdaptingLayerNormRNNCell(LayerNormRNNCell, AdaptingRNNCell):
             *args,
             **kwargs,
         )
-        print("hello")
         # LayerNormRNNCell.__init__(self, input_size, hidden_size, actfun, init)
 
     def forward(self, input: Tensor, internal: Tensor, state: Tensor):

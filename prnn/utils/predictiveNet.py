@@ -117,6 +117,14 @@ netOptions = {
 
 lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss}
 
+CELL_TYPES = {
+    "RNNCell": RNNCell,
+    "LayerNormRNNCell": LayerNormRNNCell,
+    "AdaptingLayerNormRNNCell": AdaptingLayerNormRNNCell,
+    "AdaptingRNNCell": AdaptingRNNCell,
+    "DivNormRNNCell": DivNormRNNCell,
+}
+
 
 class PredictiveNet:
     """
@@ -189,7 +197,6 @@ class PredictiveNet:
 
         # Set up the network and optimization stuff
         self.hidden_size = hidden_size
-        print(architecture_kwargs)
         self.pRNN = netOptions[pRNNtype](
             self.obs_size, self.act_size, self.hidden_size, **architecture_kwargs
         )

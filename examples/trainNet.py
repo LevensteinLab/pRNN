@@ -141,7 +141,7 @@ parser.add_argument("--namext", default="", help="Extension to the savename?")
 
 parser.add_argument(
     "--actenc",
-    default="OneHotHD",
+    default="SpeedHD",
     # default='ContSpeedOnehotHD',
     help="Action encoding, options: OneHotHD (default),SpeedHD, OneHot, Velocities, \
                         Continuous, ContSpeedRotation, ContSpeedHD, ContSpeedOnehotHD",
@@ -199,7 +199,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--k",
-    default=0,
+    default=5,
     type=int,
     help="Number of predictions; i.e. number of future timesteps to mask or number of rollouts",
 )
@@ -233,7 +233,7 @@ parser.add_argument(
     "--bias_lr",
     default=0.1,
     type=float,
-    help="Learning Rate for Biases when using Exponentiated Gradient Descent (Default: 0.1)",
+    help="Learning Rate for Biases",
 )
 
 args = parser.parse_args()
@@ -252,9 +252,15 @@ architecture_kwargs = {
     "continuousTheta": args.continuousTheta,
 }
 if args.cell is not None:
+    if args.cell not in CELL_TYPES.keys():
+            raise ValueError(
+            f"Cell type '{args.cell}' not recognized. "
+            f"Available cell types: {list(CELL_TYPES.keys())}"
+        )
+    
     architecture_kwargs["cell"] = CELL_TYPES[
-        args.cell
-    ]  # this way default setting for cell will used for each pRNNtype unless overridden here
+            args.cell
+        ]  # this way default setting for cell will used for each pRNNtype unless overridden here
 
 # %%
 torch.manual_seed(args.seed)
@@ -362,7 +368,7 @@ while predictiveNet.numTrainingEpochs < numepochs:  # run through all epochs
         env,
         agent,
         trainDecoder=True,
-        trainHDDecoder=True,
+        trainHDDecoder=False,
         saveTrainingData=True,
         bitsec=False,
         calculatesRSA=True,

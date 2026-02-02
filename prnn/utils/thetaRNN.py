@@ -315,7 +315,8 @@ class DivNormRNNCell(RNNCell):
         hidden_size: int,
         actfun: str = "relu",
         init="log_normal",
-        k_n=None,
+        k_div=1,
+        inhibition=False,
         *args,
         **kwargs,
     ):
@@ -329,18 +330,19 @@ class DivNormRNNCell(RNNCell):
         super().__init__(input_size, hidden_size, actfun, init)
         # set up divnorm
         self.bias = Parameter(torch.zeros(hidden_size))  # initialize biases to zero
-        if k_n == "inhibiton":
-            self.k_n = Parameter(
-                torch.ones(hidden_size, hidden_size)
-            )  # if they initialize to 0 thats full inhibition?
-        self.divnorm = DivNorm(hidden_size, k_n=k_n)
+        if inhibition:
+            self.W_ie = Parameter(
+                torch.full((hidden_size, hidden_size), 1 / hidden_size)
+            )  # inihbition weight matrix
+        else:
+            self.W_ie = None
+        self.divnorm = DivNorm(hidden_size, k_div=k_div, W_ie=self.W_ie)
 
     def forward(self, input: Tensor, internal: Tensor, state: Tensor):
         """
         Apply DivNorm before activation function. No adaptation.
         """
         hx = state[0]
-
         x = self.divnorm(
             super().update_preactivation(input, hx)
         )  # apply divnorm to output of preactivation
@@ -418,7 +420,7 @@ class DivNorm(nn.Module):
     Class for DivNorm object.
     """
 
-    def __init__(self, normalized_shape, k_n=None):
+    def __init__(self, normalized_shape, k_div, W_ie):
         """Constructor.
 
         Args:
@@ -428,30 +430,26 @@ class DivNorm(nn.Module):
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
         normalized_shape = torch.Size(normalized_shape)
-
+        self.normalized_shape = normalized_shape
+        self.k_div = k_div
+        self.W_ie = W_ie
         # XXX: This is true for our LSTM / NLP use case and helps simplify code
         assert len(normalized_shape) == 1
 
-        self.normalized_shape = normalized_shape
-        if k_n is not None:
-            self.k_n = k_n
-        else:
-            self.k_n = 1 / normalized_shape[0]
-
     def compute_divnorm_stats(self, input):
-        tot_act = input.sum(-1, keepdim=True)
-        if len(self.k_n.shape) == 2:
+        # this either creates uses a weight matrix initialized to 1/N, or just averages over all units
+        if self.W_ie is not None:
             weighted_activity = torch.mm(
-                input, self.k_n.T
+                input, self.W_ie.t()
             )  # is this multiplication correct for a weight matrix?
         else:
-            weighted_activity = tot_act * self.k_n
+            weighted_activity = input.mean(-1, keepdim=True)
 
         return weighted_activity
 
     def forward(self, input):
         weighted_activity = self.compute_divnorm_stats(input)
-        return input / (1 + weighted_activity)
+        return input / (1 + self.k_div * weighted_activity)
 
 
 class thetaRNNLayer(nn.Module):

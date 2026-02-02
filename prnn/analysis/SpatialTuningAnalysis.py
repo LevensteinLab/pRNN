@@ -4,6 +4,7 @@ from scipy.stats import spearmanr
 import matplotlib.pyplot as plt
 from prnn.utils.general import saveFig, savePkl, loadPkl
 from copy import deepcopy
+import warnings
 
 class SpatialTuningAnalysis:
     def __init__(self,predictiveNet,timesteps_wake = 5000,
@@ -20,14 +21,21 @@ class SpatialTuningAnalysis:
         self.reliabilityMetric = reliabilityMetric
         self.fig_type = fig_type
         
-        self.env = env if env is not None else predictiveNet.EnvLibrary[0]
+        if env is None:
+            warnings.warn('No env provided, using first env in EnvLibrary. This will be depreciated in the future')
+            self.env = predictiveNet.EnvLibrary[0]
+        else:
+            self.env = env
         self.start_pos = self.env.start_pos # the numbering of occupiable locations starts from this
         self.n_obs = self.env.n_obs
         
         # this is for backward compatibility, better provide the agent as an arg
         if not agent:
+            warnings.warn('No agent provided, using a RandomActionAgent. This will be depreciated in the future')
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
             agent = RandomActionAgent(self.env.action_space, action_probability)
+        else:
+            agent = agent
         
         if self.inputControl:
             print('Getting Tuning Curves for Input Units')
@@ -43,9 +51,11 @@ class SpatialTuningAnalysis:
             self.tuning_curves = place_fields           
         else:    
             try: #Bug with nets that don't save whole training data
+                print('Getting Tuning Curves from the TrainingSaver.')
                 self.tuning_curves = self.pN.TrainingSaver['place_fields'].values[-1]
                 self.SI = np.squeeze(self.pN.TrainingSaver['SI'].values[-1])
             except:
+                print('Getting Tuning Curves from the TrainingSaver')
                 self.tuning_curves = self.pN.TrainingSaver['place_fields']
                 self.SI = self.pN.TrainingSaver['SI']
         

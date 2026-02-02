@@ -92,9 +92,19 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         env = MiniworldVAEShell(env, act_enc, env_key,
                                 encoder, HDbins)
 
+    elif package=='unity':
+        from prnn.environments.Unity.UnityEnvironment import UnityEnv
+        env = UnityEnv(
+            app_path=env_key,
+            no_graphics=False,
+            time_scale=20.0,
+            seed=seed,
+        )
+        env = UnityShell(env, act_enc, env_key)
+
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')
-    
+
     return env
 
 

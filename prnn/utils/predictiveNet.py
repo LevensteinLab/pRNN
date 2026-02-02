@@ -723,7 +723,7 @@ class PredictiveNet:
                                                                   minmax=minmax
                                                                   )
         SI = nap.compute_2d_mutual_info(place_fields, position, position.time_support,
-                                        bitssec=bitsec)
+                                        minmax=minmax, bitssec=bitsec)
         #Remove units that aren't active in enough timepoints
         numactiveT = np.sum((h>0).numpy(),axis=1)
         inactive_cells = numactiveT<activeTimeThreshold
@@ -740,7 +740,7 @@ class PredictiveNet:
                                                                     nb_bins=nb_bins,
                                                                     minmax=minmax)
             HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
-                                            bitssec=bitsec)
+                                            minmax=minmax,bitssec=bitsec)
             SI['HDinfo'] = HD_info['SI']
 
 
@@ -757,7 +757,7 @@ class PredictiveNet:
                                                                   minmax=minmax
                                                                   )
             SI_input = nap.compute_2d_mutual_info(pf_input, position, position.time_support,
-                                            bitssec=bitsec)
+                                            minmax=minmax, bitssec=bitsec)
             SI_input['pfs'] = pf_input.values()
             SI['inputCtrl'] = SI_input['SI']
             SI['inputFields'] = SI_input['pfs']#pd.DataFrame.from_dict(pf_input)

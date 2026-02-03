@@ -253,14 +253,14 @@ architecture_kwargs = {
 }
 if args.cell is not None:
     if args.cell not in CELL_TYPES.keys():
-            raise ValueError(
+        raise ValueError(
             f"Cell type '{args.cell}' not recognized. "
             f"Available cell types: {list(CELL_TYPES.keys())}"
         )
-    
+
     architecture_kwargs["cell"] = CELL_TYPES[
-            args.cell
-        ]  # this way default setting for cell will used for each pRNNtype unless overridden here
+        args.cell
+    ]  # this way default setting for cell will used for each pRNNtype unless overridden here
 
 # %%
 torch.manual_seed(args.seed)

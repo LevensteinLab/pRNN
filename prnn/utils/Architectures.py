@@ -9,7 +9,6 @@ from prnn.utils.thetaRNN import (
     thetaRNNLayer,
     AdaptingLayerNormRNNCell,
     AdaptingRNNCell,
-    DivNormRNNCell,
 )
 from prnn.utils.pytorchInits import CANN_
 from abc import ABC, abstractmethod

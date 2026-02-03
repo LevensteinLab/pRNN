@@ -25,6 +25,48 @@ from mlagents_envs.side_channel.engine_configuration_channel import (
     EngineConfigurationChannel,
 )
 
+# ---------------------------------------------------------------------------
+# Monkey-patch mlagents_envs to handle HWC <-> CHW mismatch for compressed
+# visual observations.  The Unity build may send compressed (PNG) images that
+# decompress to HWC, while mlagents_envs 0.30.0 expects CHW.  Rather than
+# editing the installed package, we patch the single function here so the fix
+# travels with the project.
+# ---------------------------------------------------------------------------
+import mlagents_envs.rpc_utils as _rpc_utils
+from mlagents_envs.timers import timed as _timed
+
+@_timed
+def _patched_observation_to_np_array(obs, expected_shape=None):
+    if expected_shape is not None:
+        if list(obs.shape) != list(expected_shape):
+            raise _rpc_utils.UnityObservationException(
+                f"Observation did not have the expected shape - "
+                f"got {obs.shape} but expected {expected_shape}"
+            )
+    if obs.compression_type == _rpc_utils.COMPRESSION_TYPE_NONE:
+        img = np.array(obs.float_data.data, dtype=np.float32)
+        img = np.reshape(img, obs.shape)
+        return img
+    else:
+        expected_channels = obs.shape[2] if len(obs.shape) == 3 else obs.shape[-1]
+        img = _rpc_utils.process_pixels(
+            obs.compressed_data, expected_channels,
+            list(obs.compressed_channel_mapping),
+        )
+        if list(obs.shape) != list(img.shape):
+            # Handle HWC -> CHW transpose when shapes match after transposing
+            if (len(img.shape) == 3
+                    and list(obs.shape) == [img.shape[2], img.shape[0], img.shape[1]]):
+                img = np.transpose(img, (2, 0, 1))
+            else:
+                raise _rpc_utils.UnityObservationException(
+                    f"Decompressed observation did not have the expected shape - "
+                    f"decompressed had {img.shape} but expected {obs.shape}"
+                )
+        return img
+
+_rpc_utils._observation_to_np_array = _patched_observation_to_np_array
+
 class UnityEnv(gymnasium.Env):
     """Single-agent Gymnasium wrapper around a Unity ML-Agents environment."""
 

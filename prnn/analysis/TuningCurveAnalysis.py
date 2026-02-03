@@ -627,16 +627,17 @@ def convertHorzVertIdx(i, h, w):
 
 
 def cellClassHistogram(groupID, groupNames=None, colors=None, cmap=None):
-    counts, bins, patches = plt.hist(
-        groupID, bins=np.arange(-0.5, max(groupID) + 1.5), density=True
-    )
+    # Create bins for ALL possible groups (not just present ones)
+    max_group = max(groupID) if groupNames is None else len(groupNames) - 1
+    counts, bins, patches = plt.hist(groupID, bins=np.arange(-0.5, max_group + 1.5), density=True)
+
     bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
     if groupNames is not None:
-        # Filter group names to only include groups that have cells
-        unique_groups = np.unique(groupID)
-        filtered_groupNames = [groupNames[i] for i in unique_groups if i < len(groupNames)]
-        plt.xticks(bin_centers, filtered_groupNames, rotation=90)
+        plt.xticks(bin_centers, groupNames, rotation=90)
+
     if cmap is not None:
+        # Color ALL patches, including zero-count ones
         for gidx, patch in enumerate(patches):
             color = cmap(gidx)
             patch.set_facecolor(color)

@@ -4,7 +4,7 @@ import random
 import numpy as np
 
 
-class Alternation_Env(MiniGridEnv):
+class Loop_Track(MiniGridEnv):
     """
     Empty grid environment, no obstacles, sparse reward
     """
@@ -43,14 +43,22 @@ class Alternation_Env(MiniGridEnv):
         self.corridor_width = 3
         self.block_height = height-2-2*self.corridor_width
         self.block_width = int((width-2-3*self.corridor_width)/2)
-        for i in range(self.corridor_width+1,height-self.corridor_width-1):
-            self.grid.horz_wall(self.corridor_width+1, i, length=self.block_width)
-            self.grid.horz_wall(2*self.corridor_width+self.block_width+1, i, length=self.block_width)
+
+        # for i in range(self.corridor_width+1,height-self.corridor_width-1):
+        #     self.grid.horz_wall(self.corridor_width+1, i, length=self.block_width)
+        #     self.grid.horz_wall(2*self.corridor_width+self.block_width+1, i, length=self.block_width)
+        w = self.corridor_width
+
+        # Fill the interior with walls, leaving a perimeter corridor of width w
+        for x in range(1 + w, width - 1 - w):
+            for y in range(1 + w, height - 1 - w):
+                self.put_obj(Wall(), x, y)
+
         
         #Place the shapes
         triloc  =   (1,1)
-        plusloc =   (width-2,height//2)
-        xloc    = (width // 2, height - 4)
+        plusloc =   (width-self.corridor_width-1,height/2)
+        xloc    =   (1+self.corridor_width+self.block_width,height-3*self.corridor_width)
         self.place_shape('triangle',triloc,'blue')
         self.place_shape('plus',plusloc,'red')
         self.place_shape('x',xloc,'yellow')
@@ -63,7 +71,7 @@ class Alternation_Env(MiniGridEnv):
             self.agent_pos = self.place_agent()
             self.agent_dir = self.agent_dir
 
-        self.mission = "alternate"
+        self.mission = "loop"
 
 
     def place_shape(self,shape,pos,color):
@@ -92,6 +100,6 @@ class Alternation_Env(MiniGridEnv):
 
 
 register(
-    id='MiniGrid-Alternation-24x24-v0',
-    entry_point='gym_minigrid.envs:Alternation_Env'
+    id='MiniGrid-Loop-Track-24x24-v0',
+    entry_point='prnn.environments.LoopTrack:Loop_Track'
 )

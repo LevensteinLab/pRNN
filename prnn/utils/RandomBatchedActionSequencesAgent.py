@@ -78,7 +78,7 @@ class RandomBatchedActionSequencesAgent:
         act = self.generateActionSequence(tsteps)
         #print(act.shape)   
         render = False
-        print("generateActionSequence...." +  str(time.time()-tic))    
+        print("generateActionSequence*...." +  str(time.time()-tic) + " " + str(tsteps))    
         tic = time.time()
         conspecific = False #This is ugly and shouldn't be here... sorry please don't hate me Alex :')
         if hasattr(shell_env.env, 'conspecific'): # handle only the first env to avoid issues with vectorized envs
@@ -106,6 +106,7 @@ class RandomBatchedActionSequencesAgent:
             render = np.empty(tsteps+1, dtype=object)
             render[:] = None
             render[0] = env.call("render")
+            
 
         if conspecific:
             state['conspecific_pos'] = np.resize(shell_env.env.conspecific.cur_pos,(1,2))
@@ -122,6 +123,9 @@ class RandomBatchedActionSequencesAgent:
 
             # step the env; gym returns either obs or a tuple whose first element is obs
             step_result = env.step(action)
+            #print("after step...." +  str(time.time()-tic))    
+            #tic = time.time()
+             
             if isinstance(step_result, (tuple, list)):
                 step_obs = step_result[0]
             else:
@@ -136,7 +140,7 @@ class RandomBatchedActionSequencesAgent:
                 state['conspecific_pos'][aa] = shell_env.env.conspecific.cur_pos
 
             if includeRender:
-                render[aa+1] = env.call("render")
+                render[aa+1] =  [None]
         print("step done...." +  str(time.time()-tic)) 
         return obs, act, state, render    
 

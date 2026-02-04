@@ -271,16 +271,16 @@ if predictiveNet.numTrainingTrials == -1:
     predictiveNet.trainingEpoch(envs, agent,
                             sequence_duration=sequence_duration,
                             num_trials=1)
-    if False:
+    if True:
         predictiveNet.useDataLoader = args.withDataLoader
         print('Calculating Spatial Representation...')
-        place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(envs,agent,
+        place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(envs,agent,timesteps=500,
                                                         trainDecoder=True,saveTrainingData=True,
                                                         bitsec= False,
                                                         calculatesRSA = True, sleepstd=0.03)
         predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
         print('Calculating Decoding Performance...')
-        predictiveNet.calculateDecodingPerformance(envs,agent,decoder,
+        predictiveNet.calculateDecodingPerformance(envs,agent,decoder,timesteps=500,
                                                         savename=savename, savefolder=figfolder,
                                                         saveTrainingData=True)
     #predictiveNet.plotDelayDist(env, agent, decoder)
@@ -297,16 +297,16 @@ if True:
                                 sequence_duration=sequence_duration,
                                 num_trials=num_trials,
                                 number_of_environments=args.number_of_environments)
-        if False:
+        if True:
             print('Calculating Spatial Representation...' +  str(time.time() - tic))
             tic = time.time()
             place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(envs,agent,
-                                                        trainDecoder=True, trainHDDecoder = True,
+                                                        trainDecoder=True, trainHDDecoder = True,timesteps=500,
                                                         saveTrainingData=True, bitsec= False,
                                                         calculatesRSA = True, sleepstd=0.03)
             print('Calculating Decoding Performance...' +  str(time.time() - tic))
             tic = time.time()
-            predictiveNet.calculateDecodingPerformance(envs,agent,decoder,
+            predictiveNet.calculateDecodingPerformance(envs,agent,decoder,timesteps=500,
                                                         savename=savename, savefolder=figfolder,
                                                         saveTrainingData=True)
             predictiveNet.plotLearningCurve(savename=savename,savefolder=figfolder,

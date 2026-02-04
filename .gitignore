@@ -13,6 +13,8 @@ slurm*
 Data/*
 nets/*
 Figures/*
+*.png
+*.txt
 
 prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py

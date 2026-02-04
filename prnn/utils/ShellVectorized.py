@@ -301,7 +301,9 @@ class GymMinigridShellVectorized(ShellVectorized):
         # AsyncVectorEnv.call("render") returns a list of frames (one per env)
         if isinstance(frame, (list, tuple)):
             frame = frame[0]
-        plt.imshow(frame)
+        
+        if frame is not None:
+            plt.imshow(frame)
 
     def show_state_traj(self, start, end, state, render, **kwargs):
         trajectory_ts = np.arange(start, end+1)
@@ -310,7 +312,9 @@ class GymMinigridShellVectorized(ShellVectorized):
             # AsyncVectorEnv.call("render") returns a list of frames (one per env)
             if isinstance(frame, (list, tuple)):
                 frame = frame[0]
-            plt.imshow(frame)
+                
+            if frame is not None:
+                plt.imshow(frame)
         plt.plot((state['agent_pos'][trajectory_ts,0]+0.5)*512/16,
                     (state['agent_pos'][trajectory_ts,1]+0.5)*512/16,color='r')
 

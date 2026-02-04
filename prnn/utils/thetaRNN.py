@@ -243,7 +243,7 @@ class AdaptingRNNCell(RNNCell):
             tau_a (_type_, optional): Decay in adaptation. Defaults to 8..
         """
         # initialize class attributes and weights
-        super().__init__(input_size, hidden_size, actfun, init)
+        super().__init__(input_size, hidden_size, actfun, init, *args, **kwargs)
         self.b = b
         self.tau_a = tau_a
 
@@ -285,7 +285,7 @@ class LayerNormRNNCell(RNNCell):
             mu (int, optional): Mean for LayerNorm. Defaults to 0.
             sig (int, optional): Std dev for LayerNorm. Defaults to 1.
         """
-        super().__init__(input_size, hidden_size, actfun, init)
+        super().__init__(input_size, hidden_size, actfun, init, *args, **kwargs)
         # set up layernorm
         self.layernorm = LayerNorm(hidden_size, mu, sig)
         self.layernorm.mu = Parameter(torch.zeros(self.hidden_size) + self.layernorm.mu)

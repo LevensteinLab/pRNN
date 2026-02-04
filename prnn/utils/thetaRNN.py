@@ -182,7 +182,6 @@ class RNNCell(BaseCell):
             self.weight_ih, self.weight_hh = xavier_init(
                 input_size, hidden_size, self.weight_ih, self.weight_hh
             )
-
         if init == "log_normal":
             # pull out extra keyword args needed for log normal init
             mean_std_ratio = kwargs["mean_std_ratio"] if "mean_std_ratio" in kwargs else 1.0
@@ -243,7 +242,7 @@ class AdaptingRNNCell(RNNCell):
             tau_a (_type_, optional): Decay in adaptation. Defaults to 8..
         """
         # initialize class attributes and weights
-        super().__init__(input_size, hidden_size, actfun, init)
+        super().__init__(input_size, hidden_size, actfun, init, *args, **kwargs)
         self.b = b
         self.tau_a = tau_a
 
@@ -285,7 +284,7 @@ class LayerNormRNNCell(RNNCell):
             mu (int, optional): Mean for LayerNorm. Defaults to 0.
             sig (int, optional): Std dev for LayerNorm. Defaults to 1.
         """
-        super().__init__(input_size, hidden_size, actfun, init)
+        super().__init__(input_size, hidden_size, actfun, init, *args, **kwargs)
         # set up layernorm
         self.layernorm = LayerNorm(hidden_size, mu, sig)
         self.layernorm.mu = Parameter(torch.zeros(self.hidden_size) + self.layernorm.mu)
@@ -300,6 +299,54 @@ class LayerNormRNNCell(RNNCell):
             super().update_preactivation(input, hx)
         )  # apply layernorm to output of preactivation
         hy = self.actfun(x + internal)
+        return hy, (hy,)
+
+
+class DivNormRNNCell(RNNCell):
+    """
+    RNN Cell that applies DivNorm before activation function.
+    Inherits from RNNCell.
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        actfun: str = "relu",
+        init="log_normal",
+        k_div=1,
+        sigma=1,
+        inhibition=False,
+        *args,
+        **kwargs,
+    ):
+        """Constructor.
+
+        Args:
+            Inherits input_size, hidden_size, actfun, init from RNNCell.
+            init (str, optional): Weight initialization scheme. Defaults to "log_norm".
+            k (int, optional): Constant to multiply mean activity by.
+        """
+        super().__init__(input_size, hidden_size, actfun, init, **kwargs)
+        # set up divnorm
+        self.bias = Parameter(torch.zeros(hidden_size))  # initialize biases to zero
+        if inhibition:
+            self.W_ie = Parameter(
+                torch.full((hidden_size, hidden_size), 1 / hidden_size)
+            )  # inihbition weight matrix
+        else:
+            self.W_ie = None
+        self.divnorm = DivNorm(hidden_size, k_div=k_div, sigma=sigma, W_ie=self.W_ie)
+
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor):
+        """
+        Apply DivNorm before activation function. No adaptation.
+        """
+        hx = state[0]
+        x = self.divnorm(
+            super().update_preactivation(input, hx)
+        )  # apply divnorm to output of preactivation
+        hy = self.actfun(x + internal + self.bias)  # apply bias before relu but after divnorm
         return hy, (hy,)
 
 
@@ -366,6 +413,44 @@ class LayerNorm(nn.Module):
     def forward(self, input):
         mu, sigma = self.compute_layernorm_stats(input)
         return (input - mu) / sigma * self.sig + self.mu
+
+
+class DivNorm(nn.Module):
+    """
+    Class for DivNorm object.
+    """
+
+    def __init__(self, normalized_shape, k_div, sigma, W_ie):
+        """Constructor.
+
+        Args:
+            normalized_shape (int): Size of the network (hidden_size)
+        """
+        super(DivNorm, self).__init__()
+        if isinstance(normalized_shape, numbers.Integral):
+            normalized_shape = (normalized_shape,)
+        normalized_shape = torch.Size(normalized_shape)
+        self.normalized_shape = normalized_shape
+        self.k_div = k_div
+        self.W_ie = W_ie
+        self.sigma = sigma
+        # XXX: This is true for our LSTM / NLP use case and helps simplify code
+        assert len(normalized_shape) == 1
+
+    def compute_divnorm_stats(self, input):
+        # this either creates uses a weight matrix initialized to 1/N, or just averages over all units
+        if self.W_ie is not None:
+            weighted_activity = torch.mm(
+                input, self.W_ie.t()
+            )  # is this multiplication correct for a weight matrix?
+        else:
+            weighted_activity = input.mean(-1, keepdim=True)
+
+        return weighted_activity
+
+    def forward(self, input):
+        weighted_activity = self.compute_divnorm_stats(input)
+        return input / (self.sigma + self.k_div * weighted_activity)
 
 
 class thetaRNNLayer(nn.Module):

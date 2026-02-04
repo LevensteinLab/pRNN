@@ -122,6 +122,7 @@ CELL_TYPES = {
     "LayerNormRNNCell": LayerNormRNNCell,
     "AdaptingLayerNormRNNCell": AdaptingLayerNormRNNCell,
     "AdaptingRNNCell": AdaptingRNNCell,
+    "DivNormRNNCell": DivNormRNNCell,
 }
 
 

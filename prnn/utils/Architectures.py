@@ -9,6 +9,7 @@ from prnn.utils.thetaRNN import (
     thetaRNNLayer,
     AdaptingLayerNormRNNCell,
     AdaptingRNNCell,
+    DivNormRNNCell,
 )
 from prnn.utils.pytorchInits import CANN_
 from abc import ABC, abstractmethod
@@ -61,7 +62,7 @@ class pRNN(nn.Module):
             obs_size (int): Size of each agent observation. Flattened?
             act_size (int): Size of action vector.
             hidden_size (int, optional): Number of recurrent neurons. Defaults to 500.
-            cell (RNNCell, optional): Specified RNNCell type for layers. Defaults to RNNCell. Options: LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell, DivNormRNNCell.
+            cell (RNNCell, optional): Specified RNNCell type for layers. Defaults to RNNCell. Options: LayerNormRNNCell, AdaptingLayerNormRNNCell, AdaptingRNNCell.
             dropp (int, optional): Dropout probability. Defaults to 0.
             bptttrunc (int, optional): Backpropagation Through Time, Truncated. Defaults to 50.
             k (int, optional): Number of predictions in rollout. Defaults to 0.
@@ -80,7 +81,6 @@ class pRNN(nn.Module):
                 output_size (int): Specially defined output size. Default: obs_size
         """
         super(pRNN, self).__init__()
-
         # pRNN architecture parameters
         self.predOffset = predOffset
         self.actOffset = actOffset
@@ -154,7 +154,6 @@ class pRNN(nn.Module):
         # Sparsity via layernorm subtraction
         mu = norm.ppf(f)
         musig = [mu, 1]
-
         self.rnn = thetaRNNLayer(
             cell,
             bptttrunc,

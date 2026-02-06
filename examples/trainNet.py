@@ -334,7 +334,7 @@ if predictiveNet.numTrainingTrials == -1:
     # Calculate initial spatial metrics etc
     print("Training Baseline")
     predictiveNet.useDataLoader = False
-    predictiveNet.trainingEpoch(env, agent, sequence_duration=sequence_duration, num_trials=1)
+    predictiveNet.trainingEpoch(env, agent, sequence_duration=sequence_duration, num_trials=num_trials)
     predictiveNet.useDataLoader = args.withDataLoader
     print("Calculating INITIAL Spatial Representation...")
     place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(

@@ -264,7 +264,7 @@ if predictiveNet.numTrainingTrials == -1:
                             num_trials=1)
     predictiveNet.useDataLoader = args.withDataLoader
     print('Calculating Spatial Representation...')
-    place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
+    place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                   trainDecoder=True,saveTrainingData=True,
                                                   bitsec= False,
                                                   calculatesRSA = True, sleepstd=0.03)
@@ -286,7 +286,7 @@ while predictiveNet.numTrainingEpochs<numepochs: #run through all epochs
                             sequence_duration=sequence_duration,
                             num_trials=num_trials)
     print('Calculating Spatial Representation...')
-    place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(env,agent,
+    place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env,agent,
                                                  trainDecoder=True, trainHDDecoder = True,
                                                  saveTrainingData=True, bitsec= False,
                                                  calculatesRSA = True, sleepstd=0.03)

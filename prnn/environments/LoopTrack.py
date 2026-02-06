@@ -12,7 +12,7 @@ class Loop_Track(MiniGridEnv):
     def __init__(
         self,
         size=23,
-        agent_start_pos=(11,2), #Previously (11,20)
+        agent_start_pos=(11,2),
         agent_start_dir=3,
         agent_view_size = 7,
         goal_pos = None,
@@ -41,24 +41,16 @@ class Loop_Track(MiniGridEnv):
         self.grid.vert_wall(width-1,0)
 
         self.corridor_width = 3
-        self.block_height = height-2-2*self.corridor_width
-        self.block_width = int((width-2-3*self.corridor_width)/2)
+        self.block_width = width-2-2*self.corridor_width #15
 
-        # for i in range(self.corridor_width+1,height-self.corridor_width-1):
-        #     self.grid.horz_wall(self.corridor_width+1, i, length=self.block_width)
-        #     self.grid.horz_wall(2*self.corridor_width+self.block_width+1, i, length=self.block_width)
-        w = self.corridor_width
+        # iterate over rows and draw a horizontal wall
+        for row in range(self.corridor_width+1,height-self.corridor_width-1): #4,19 -> 4,18
+            self.grid.horz_wall(self.corridor_width+1, row, length=self.block_width)
 
-        # Fill the interior with walls, leaving a perimeter corridor of width w
-        for x in range(1 + w, width - 1 - w):
-            for y in range(1 + w, height - 1 - w):
-                self.put_obj(Wall(), x, y)
-
-        
         #Place the shapes
         triloc  =   (1,1)
         plusloc =   (width-self.corridor_width-1,height/2)
-        xloc    =   (1+self.corridor_width+self.block_width,height-3*self.corridor_width)
+        xloc = (np.floor(width/2),height-self.corridor_width-1)
         self.place_shape('triangle',triloc,'blue')
         self.place_shape('plus',plusloc,'red')
         self.place_shape('x',xloc,'yellow')

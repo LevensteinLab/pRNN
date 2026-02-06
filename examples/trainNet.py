@@ -23,15 +23,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import random
+import warnings
 
 from types import SimpleNamespace
+import wandb
 
+# Ignore UserWarnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Parse arguments
-
 parser = argparse.ArgumentParser()
 
 ## General parameters
+parser.add_argument('--wandb', action='store_true', default=True)
+parser.add_argument('--no_wandb', dest='wandb', action='store_false')
 
 parser.add_argument(
     "--env",
@@ -238,7 +243,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+# Wandb
+if args.wandb:
+    run = wandb.init(
+    entity="blake-richards",
+    project="curious-george",
+)
 
+# Train
 savename = args.pRNNtype + "-" + args.namext + "-s" + str(args.seed)
 figfolder = "nets/" + args.savefolder + "/trainfigs/" + savename
 analysisfolder = "nets/" + args.savefolder + "/analysis/" + savename
@@ -292,6 +304,7 @@ else:  # create new PredictiveNet and begin training
         bias_lr=args.bias_lr,
         dataloader=args.withDataLoader,
         trainArgs=SimpleNamespace(**args.__dict__),
+        wandb_log=args.wandb,
         **architecture_kwargs,
     )  # allows values in trainArgs to be accessible
 

@@ -204,6 +204,7 @@ if args.contin: #continue previous training, so load net from folder
     agent = create_agent(args.env, envs, args.agent)
 else: #create new PredictiveNet and begin training
     import prnn.utils.enums as enums
+    #This part is for parallelized environments, so we create a batch of envs and a batched agent to go with it. If not using parallel envs, just create one env and a regular agent
     envs = make_farama_envs(
             number_of_envs=args.number_of_environments,
             env_key=enums.MinigridEnvNames.LRoom,
@@ -212,6 +213,15 @@ else: #create new PredictiveNet and begin training
             act_enc=enums.ActionEncodingsEnum.SpeedHD,
         )
     agent = create_batched_agent(args.env, envs, args.agent)
+    #We create a single environment for spatial representation analysis and plotting purposes, but the training will be done on the batch of envs
+    env = make_farama_env(
+            env_key=enums.MinigridEnvNames.LRoom,
+            input_type=enums.AgentInputType.H_PO,
+            seed=args.seed,
+            act_enc=enums.ActionEncodingsEnum.SpeedHD,
+            render_mode=None
+        )
+    agent_single = create_agent(args.env, env, args.agent)   
 
 
     predictiveNet = PredictiveNet(envs,
@@ -274,13 +284,13 @@ if predictiveNet.numTrainingTrials == -1:
     if True:
         predictiveNet.useDataLoader = args.withDataLoader
         print('Calculating Spatial Representation...')
-        place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(envs,agent,timesteps=500,
+        place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env=env,agent=agent_single,
                                                         trainDecoder=True,saveTrainingData=True,
                                                         bitsec= False,
                                                         calculatesRSA = True, sleepstd=0.03)
         predictiveNet.plotTuningCurvePanel(savename=savename,savefolder=figfolder)
         print('Calculating Decoding Performance...')
-        predictiveNet.calculateDecodingPerformance(envs,agent,decoder,timesteps=500,
+        predictiveNet.calculateDecodingPerformance(env=env,agent=agent_single,decoder=decoder,
                                                         savename=savename, savefolder=figfolder,
                                                         saveTrainingData=True)
     #predictiveNet.plotDelayDist(env, agent, decoder)
@@ -300,13 +310,13 @@ if True:
         if True:
             print('Calculating Spatial Representation...' +  str(time.time() - tic))
             tic = time.time()
-            place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(envs,agent,
-                                                        trainDecoder=True, trainHDDecoder = True,timesteps=500,
+            place_fields, SI, decoder, sRSA = predictiveNet.calculateSpatialRepresentation(env=env,agent=agent_single,
+                                                        trainDecoder=True, trainHDDecoder = True,
                                                         saveTrainingData=True, bitsec= False,
                                                         calculatesRSA = True, sleepstd=0.03)
             print('Calculating Decoding Performance...' +  str(time.time() - tic))
             tic = time.time()
-            predictiveNet.calculateDecodingPerformance(envs,agent,decoder,timesteps=500,
+            predictiveNet.calculateDecodingPerformance(env=env,agent=agent_single,decoder=decoder,
                                                         savename=savename, savefolder=figfolder,
                                                         saveTrainingData=True)
             predictiveNet.plotLearningCurve(savename=savename,savefolder=figfolder,

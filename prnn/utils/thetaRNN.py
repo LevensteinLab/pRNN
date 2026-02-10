@@ -21,6 +21,7 @@ import numbers
 import numpy as np
 import math
 import torch.nn.utils.prune as prune
+from torch.distributions import Gamma
 
 from abc import ABC, abstractmethod
 
@@ -91,6 +92,18 @@ def sparse_lognormal_(
             tensor.mul_(sparse_mask)
 
     return tensor
+
+def gamma_init(tensor, hidden_size, k_gamma, target_mean):
+    theta = 1/(k_gamma*hidden_size*(1-target_mean))
+    rate = 1/theta 
+    size = tensor.size 
+    gamma_weights = Gamma(concentration=k_gamma, rate = rate).sample(size)
+    return gamma_weights
+
+
+               
+
+
 
 
 activations = {"relu": torch.nn.ReLU(), "sigmoid": torch.nn.Sigmoid(), "tanh": torch.nn.Tanh()}
@@ -193,6 +206,12 @@ class RNNCell(BaseCell):
             self.weight_hh = sparse_lognormal_(
                 self.weight_hh, mean_std_ratio=mean_std_ratio, sparsity=sparsity
             )
+
+        if init == 'gamma':
+            target_mean = kwargs["target_mean"] if "target_mean" in kwargs else 1.0 #is this right?
+            k_gamma = kwargs["k_gamma"] if "k_gamma" in kwargs else 1.0
+            self.weight_hh = gamma_init(self.weight_hh, hiddesn_size, k_gamma, target_mean)
+            self.weight_ih = gamma_init(self.weight_ih, hidden_size, k_gamma, target_mean)
 
     def update_preactivation(self, input, hx, *args, **kwargs) -> Tensor:
         """

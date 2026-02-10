@@ -16,6 +16,8 @@ Data/*
 nets/*
 Figures/*
 ${SLURM_TMPDIR}/*
+*.png
+*.txt
 
 trainNet_prnn.py
 
@@ -28,6 +30,7 @@ docs/_doctrees/
 # logging & plotting
 logs/
 plots/
+wandb/
 
 #local test scripts
 local/

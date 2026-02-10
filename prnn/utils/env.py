@@ -13,10 +13,29 @@ from omegaconf import OmegaConf
 
 from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
+from minigrid.wrappers import *
 
 from prnn.utils.Shell import *
 from prnn.environments.RatEnvironment import make_rat_env, config_default
+from prnn.utils.ShellVectorized import FaramaMinigridShellVectorized
 
+# Wrappers
+wrappers = {
+    "ReseedWrapper": ReseedWrapper,
+    "ActionBonus": ActionBonus,
+    "StateBonus": StateBonus,
+    "ImgObsWrapper": ImgObsWrapper,
+    "OneHotPartialObsWrapper": OneHotPartialObsWrapper,
+    "RGBImgObsWrapper": RGBImgObsWrapper,
+    "RGBImgPartialObsWrapper": RGBImgPartialObsWrapper,
+    "RGBImgPartialObsWrapper_HD": RGBImgPartialObsWrapper_HD,
+    "FullyObsWrapper": FullyObsWrapper,
+    "DictObservationSpaceWrapper": DictObservationSpaceWrapper,
+    "FlatObsWrapper": FlatObsWrapper,
+    "ViewSizeWrapper": ViewSizeWrapper,
+    "DirectionObsWrapper": DirectionObsWrapper,
+    "SymbolicObsWrapper": SymbolicObsWrapper,
+}
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              riab_cfg=config_default, HDbins=12, wrap=True,
@@ -27,7 +46,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     if package=='gym-minigrid':
         import gym
         import gym_minigrid
-        from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
+        from minigrid.wrappers import RGBImgPartialObsWrapper_HD
         if wrap:
             env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
         else:
@@ -98,6 +117,100 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     return env
 
 
+def make_farama_env(env_key: str,
+    input_type: str,
+    agent_start_pos: tuple[int, int] | None = None,
+    agent_start_dir: int | None = None,
+    seed=0,
+    wrapper=None,
+    render_mode="rgb_array",
+    act_enc: str | None = None,
+    **kwargs, # e.g., subroom_size and open_all_paths for FourRooms, size for LRoom
+):
+    import gymnasium as gym
+    import minigrid
+    import prnn.environments.Lroom
+
+    import prnn.utils.enums as enums
+    
+    assert input_type in enums.AgentInputType
+    #assert env_key in enums.MinigridEnvNames
+    assert act_enc in enums.ActionEncodingsEnum
+
+    env = gym.make(env_key, 
+                   agent_start_pos=agent_start_pos, 
+                   agent_start_dir=agent_start_dir,
+                   render_mode=render_mode,
+                   **kwargs)
+
+    if input_type == "Visual_FO":
+        # Not RGB one here because we want RL agent to have as much info as possible
+        env = FullyObsWrapper(env)
+
+    else: # elif "pRNN" in input_type or "PO" in input_type:
+        # The same RGB wrapper is used for comparability whenever partial observation is needed
+        env = RGBImgPartialObsWrapper_HD(env, tile_size=1)
+
+    """else:
+        # For the cases without any visual input
+        env = HDObsWrapper(env)"""
+
+    if wrapper:
+        env = wrappers[wrapper](env, **kwargs)
+
+    env.reset(seed=seed)
+    print(env.action_space)
+    env = FaramaMinigridShell(env, act_enc, env_key)
+
+    return env
+
+
+def make_farama_envs(
+    number_of_envs: int,
+    env_key: str,
+    package: str,
+    input_type: str,
+    agent_start_pos: tuple[int, int] | None = None,
+    agent_start_dir: int | None = None,
+    seed=0,
+    wrapper=None,
+    render_mode="rgb_array",
+    act_enc: str | None = None,
+    **kwargs, # e.g., subroom_size and open_all_paths for FourRooms, size for LRoom
+):
+    from gymnasium.vector import AsyncVectorEnv
+    #loop to get the number of envs
+    envs = np.empty(number_of_envs, dtype=object)
+    for i in range(number_of_envs):
+        if True :
+            envs[i] = make_env(env_key, package=package, act_enc=act_enc)
+        else:
+            envs[i] = make_farama_env(
+                env_key=env_key,
+                input_type=input_type,
+                agent_start_pos=agent_start_pos,
+                agent_start_dir=agent_start_dir,
+                seed=seed + i,
+                wrapper=wrapper,
+                render_mode=render_mode,
+                act_enc=act_enc,
+                **kwargs,
+            )
+      
+    # Build env creator functions capturing each env object to avoid later name shadowing
+    env_fns = []
+    for i in range(number_of_envs):
+        env_obj = envs[i]
+        def _init(env_obj=env_obj):
+            return env_obj.env
+        env_fns.append(_init)
+
+    envs_vector = AsyncVectorEnv(env_fns, shared_memory=False) 
+    envs_vector.render_mode=render_mode
+    envs_vector.reset(seed=seed)
+    
+
+    return FaramaMinigridShellVectorized(envs_vector, act_enc, env_key)
 # TODO: is obsolete? Remove and then remove the notion of highlight from render?
 def plot_env(env, highlight=True):
     

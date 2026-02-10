@@ -1,0 +1,90 @@
+[project]
+name = "prnn"
+version = "0.1.0"
+description = "Python Library for Predictive RNNs Modeling Hippocampal Representation and Replay"
+readme = "README.md"
+requires-python = ">=3.9, <=3.10.15"
+license = "MIT"
+authors = [
+    { name = "Daniel Levenstein", email = "daniel.levenstein@mila.quebec" },
+    { name = "Sabrina Du", email = "sabrina.du@mila.quebec"},
+]
+
+dependencies = [
+    "minigrid", # Custom Minigrid package in local folder
+    "gymnasium==0.29.1",
+    "ratinabox==1.7.1",
+    "pynapple==0.6.1",
+    "numpy>=1.22.4",
+    "scipy>=1.12.0",
+    "pandas>=1.5.3",
+    "scikit-learn>=1.4.0",
+    "matplotlib>=3.5.3",
+    "ruamel.yaml>=0.18.6",
+    "torch>=2.7.1",
+    "torchvision>=0.20.1",
+    "gym>=0.26.2",
+    "importlib-metadata>=7.0.1",
+    "pyparsing>=3.1.1",
+    "zipp>=3.17.0",
+    "wandb>=0.21.3",
+    "hydra-core>=1.3.2",
+    "torch-ac>=1.4.0",
+    "plotly>=6.3.0",
+    "jaxtyping>=0.2.36",
+    "moviepy>=2.2.1",
+    "kaleido>=1.1.0",
+    "gym-minigrid>=1.2.2",
+    "miniworld>=2.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "rust-just>=1.42.4",
+    "pytest>=8.4.2",
+    "ruff>=0.13.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["prnn"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["prnn", "test"]
+python_files = ["test_*.py", "test.py"]
+python_functions = ["test_*"]
+addopts = "--durations=5 -m 'not slow'"
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::UserWarning:gymnasium.utils.passive_env_checker",
+    "ignore::UserWarning:gymnasium.envs.registration",
+    "ignore::UserWarning:gymnasium.core"
+]
+markers = ["slow: marks tests as slow to run"]
+
+[tool.ruff]
+include = [
+    "pyproject.toml",
+    "prnn/**/*.py",
+    "test/*.py",
+    "trainNet.py",
+]
+
+[tool.uv.sources]
+minigrid = { path = "../minigrid", editable=true }
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = [
+    "../minigrid",
+]
+
+[project.urls]
+Homepage = "https://github.com/SabrinaDu7/pRNN.git"

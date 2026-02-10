@@ -100,7 +100,7 @@ class Shell:
                                          compute_loss=compute_loss,
                                          from_raw=True)
         else:
-
+ 
             obs, act, state, render = agent.getObservations(self,tsteps,
                                                     includeRender=includeRender,
                                                     discretize=discretize,
@@ -233,10 +233,10 @@ class GymMinigridShell(Shell):
     def env2np(self, obs, act=None, **kwargs):
         hd = np.array([self.get_hd(obs[t]) for t in range(len(obs))])
         if act is not None:
-            act = np.array(self.encodeAction(act=act,
-                                             obs=hd,
-                                             numSuppObs=self.numHDs,
-                                             numActs=self.action_space.n))
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    numSuppObs=self.numHDs,
+                                    numActs=self.action_space.n).numpy()
 
         obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
         obs = obs/255
@@ -260,6 +260,19 @@ class GymMinigridShell(Shell):
                       4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
         return np.array(hd)
     
+    
+    def get_goal_loc(self):
+        if hasattr(self.env.unwrapped, "goal_pos"):
+            return self.env.unwrapped.goal_pos
+        else:
+            return None
+    
+    def get_new_obj_pos(self):
+        if hasattr(self.env.unwrapped, "new_obj_pos"):
+            return self.env.unwrapped.new_obj_pos
+        else:
+            return None
+        
     def get_agent_pos(self):
         return self.env.unwrapped.agent_pos
     

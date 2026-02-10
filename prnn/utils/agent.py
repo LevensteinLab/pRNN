@@ -12,11 +12,13 @@ from numpy.random import choice
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
 
+import datetime
+
 def randActionSequence(tsteps,action_space,action_probability):
     
     action_space = np.arange(action_space.n) #convert gym to np
+    print(f"Generated random action sequence of length {action_space} with probabilities {action_probability}")
     action_sequence = choice(action_space, size=(tsteps,), p=action_probability)
-    
     return action_sequence
     
 

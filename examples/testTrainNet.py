@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jun 14 22:07:04 2022
+
+@author: dl2820
+"""
+
+
+#%%
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
+from prnn.utils.predictiveNet import PredictiveNet
+from prnn.utils.RandomBatchedActionSequencesAgent import create_batched_agent
+from prnn.utils.data import create_dataloader
+from prnn.utils.env import make_env, make_farama_env, make_farama_envs
+from prnn.utils.figures import TrainingFigure
+from prnn.utils.figures import SpontTrajectoryFigure
+from prnn.utils.ckpts import save_pN, load_pN
+from prnn.analysis.OfflineTrajectoryAnalysis import OfflineTrajectoryAnalysis
+import argparse
+from tqdm import tqdm
+import wandb
+
+#TODO: get rid of these dependencies
+import time
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import random
+import datetime
+
+from types import SimpleNamespace
+# Parse arguments
+
+parser = argparse.ArgumentParser()
+
+## General parameters
+
+parser.add_argument("--env",
+                    default='MiniGrid-LRoom-v0',
+                    # default='RiaB-LRoom',
+                    help="name of the environment to train on (Default: MiniGrid-LRoom-18x18-v0, for RiaB: RiaB-LRoom)")
+
+parser.add_argument("--agent",
+                    default='RandomBatchedActionSequencesAgent',
+                    # default='RatInABoxAgent',
+                    help="name of the agent for environment exploration (Default: RandomActionAgent, other option: RatInABoxAgent)")
+
+parser.add_argument("--envPackage",
+                    default='farama-minigrid',
+                    # default='ratinabox_remix',
+                    help="which package the environment comes from? (Default: gym-minigrid; other options: farama-minigrid, ratinabox, ratinabox_remix)")
+
+parser.add_argument("--pRNNtype", default='Masked',
+                    help="Which pRNN type?")
+
+parser.add_argument("--savefolder",
+                    default='',
+                    # default='riab_test_newrepo',
+                    help="Where to save the net? (foldername/)")
+
+parser.add_argument("--loadfolder", default='',
+                    help="Where to load the net? (foldername/)")
+
+parser.add_argument("--numepochs",
+                    default=50,
+                    type=int,
+                    help="how many training epochs? (Default: 50)")
+
+parser.add_argument("--seqdur", default=5, type=int,
+                    help="how long is each behavioral sequence? (Default: 500")
+
+parser.add_argument("--numtrials", default=1024, type=int,
+                    help="How many trials in an epoch? Best if divisible by batch size (Default: 1024")
+
+parser.add_argument("--hiddensize", default=500, type=int,
+                    help="how many hidden units? (Default: 500")
+
+parser.add_argument("-c", "--contin", default= False, action="store_true",
+                    help="Continue previous training?")
+
+parser.add_argument("--load_env", default=-1, type=int,
+                    help="Load Environment for continued Training. Specify unique env id")
+
+parser.add_argument("-s", "--seed", default=8, type=int,
+                    help="Random Seed? (Default: 8)")
+
+parser.add_argument("--lr", default=3e-3, type=float,    #former default:2e-4 (not relative)
+                    help="Learning Rate? (Relative to init sqrt(1/k) for each layer) (Default: 3e-3)")
+
+parser.add_argument("--weight_decay", default=3e-3, type=float, #former default:6e-7 (not relative)
+                    help="Weight Decay? (Relative to learning rate) (Default: 3e-3)")
+
+parser.add_argument("--ntimescale", default=2, type=float,
+                    help="Neural timescale (Default: 2 timesteps)")
+
+parser.add_argument("--dropout", default=0.15, type=float,
+                    help="Dropout probability (Default: 0.15)")
+
+parser.add_argument("--noisemean", default=0, type=float,
+                    help="Mean offset for internal noise (Default: 0)")
+
+parser.add_argument("--noisestd", default=0.03, type=float,
+                    help="Std of internal noise (Default: 0.03)")
+
+parser.add_argument('--trainBias', action='store_true', default=True)
+
+parser.add_argument("--namext", default='',
+                    help="Extension to the savename?")
+
+parser.add_argument("--actenc",
+                    default='OnehotHD',
+                    # default='ContSpeedOnehotHD',
+                    help="Action encoding, options: OnehotHD (default),SpeedHD, Onehot, Velocities, \
+                        Continuous, ContSpeedRotation, ContSpeedHD, ContSpeedOnehotHD")
+
+parser.add_argument('--saveTrainData', action='store_true', default=True)
+parser.add_argument('--no-saveTrainData', dest='saveTrainData', action='store_false')
+
+parser.add_argument('--withDataLoader', action='store_true', default=True)
+parser.add_argument('--noDataLoader', dest='withDataLoader', action='store_false')
+
+parser.add_argument('--wandb', action='store_true', default=True)
+parser.add_argument('--no_wandb', dest='wandb', action='store_false')
+
+parser.add_argument("--datadir",
+                    default='Data',
+                    help="Top-level folder to save the data for DataLoader (the sub-folders will be \
+                        created automatically for each individual env name)")
+
+parser.add_argument("--dataNtraj", default=10240, type=int,
+                    help="Number of trajectories in the DataLoader (Default: 10240)")
+
+parser.add_argument("--batchsize", default=16, type=int,
+                    help="Number of trajectories in the DataLoader output batch (Default: 16)")
+
+parser.add_argument("--numworkers", default=1, type=int,
+                    help="Number of dataloader workers (Default: 1)")
+
+# Additional architecture kwargs
+
+parser.add_argument("--use_LN", default=True, type =bool, 
+                    help="Use LayerNorm?")
+
+parser.add_argument("--use_FF", default=False, type=bool,
+                    help="Make network Feed Forward only?")
+
+parser.add_argument("--mask_actions", default=False, type=bool,
+                    help="Mask actions from model input as well?")
+
+parser.add_argument("--actOffset", default=0, type=int,
+                    help="Number of timesteps to offset actions by (backwards)")
+
+parser.add_argument("--k", default=0, type=int,
+                    help="Number of predictions; i.e. number of future timesteps to mask or number of rollouts")
+
+parser.add_argument("--use_ALN", default=False, type=bool,
+                    help="Use AdaptiveLayerNorm?")
+
+parser.add_argument("--rollout_action", default="full", type=str,
+                    help="Action structure")
+
+parser.add_argument("--continuousTheta", default=False, type=bool,
+                    help="Carry over hidden state from the kth rollout to the t+1'th timestep?")
+
+parser.add_argument("--number_of_environments", default=2, type=int,
+                    help="Create number of environments for parallel training?")
+
+args = parser.parse_args()
+
+
+date = time.strftime("m%d-%H%M%S")
+savename = args.pRNNtype + '-' + args.namext + '-' + date
+figfolder = 'nets/'+args.savefolder+'/trainfigs/'+savename
+analysisfolder = 'nets/'+args.savefolder+'/analysis/'+savename
+
+
+
+
+#%%
+torch.manual_seed(args.seed)
+random.seed(args.seed)
+np.random.seed(args.seed)
+
+if args.wandb:
+    run = wandb.init(
+    entity="blake-richards",
+    project="curious-george",
+)
+
+
+import prnn.utils.enums as enums
+print(str(datetime.datetime.now()))
+shell_envs,envs = make_farama_envs(
+            number_of_envs=args.number_of_environments,
+            env_key=enums.MinigridEnvNames.LRoom,
+            input_type=enums.AgentInputType.H_PO,
+            seed=args.seed,
+            act_enc=enums.ActionEncodingsEnum.SpeedHD,
+        )
+agent = create_batched_agent(args.env, envs, args.agent)
+
+
+#%% Training Epoch
+#Consider these as "trainingparameters" class/dictionary
+numepochs = args.numepochs
+traj_duration = args.seqdur
+if args.withDataLoader:
+    batchsize = args.batchsize
+else:
+    batchsize = 1
+
+agent.getObservations(envs,shell_envs,tsteps=traj_duration, includeRender=True)
+print(str(datetime.datetime.now()))

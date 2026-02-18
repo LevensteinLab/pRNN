@@ -236,236 +236,101 @@ class TestPartialPresets:
             )
 
 
-# # ============================================================================
-# # TEST 4: CELL-SPECIFIC PARAMETERS FLOW CORRECTLY
-# # ============================================================================
+# ============================================================================
+# TEST 4: CELL-SPECIFIC PARAMETERS FLOW CORRECTLY
+# ============================================================================
 
 
-# class TestCellParameters:
-#     """Test that cell-specific parameters reach the cell correctly"""
+class TestCellParameters:
+    """Test that cell-specific parameters reach the cell correctly"""
 
-#     def test_divnorm_parameters_reach_cell(self, mock_env, base_architecture_kwargs):
-#         """Test that DivNorm parameters are correctly passed to cell"""
-#         kwargs = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.8,
-#             "k_div": 2.0,
-#             "sigma": 1.5,
-#             "train_divnorm": False,
-#         }
+    def test_cell_override_works(self, mock_env, base_architecture_kwargs):
+        """Test that cell override argument works"""
+        # Test with LayerNormRNNCell
+        net_ln = PredictiveNet(
+            mock_env,
+            pRNNtype="Masked",
+            hidden_size=100,
+            cell=LayerNormRNNCell,
+            **base_architecture_kwargs,
+        )
 
-#         net = PredictiveNet(
-#             mock_env, pRNNtype="Masked", hidden_size=100, cell="DivNormRNNCell", **kwargs
-#         )
+        assert net_ln.pRNN.rnn.cell.__class__.__name__ == "LayerNormRNNCell", (
+            f"Expected LayerNormRNNCell, got {net_ln.pRNN.rnn.cell.__class__.__name__}"
+        )
 
-#         cell = net.pRNN.rnn.cell
+    def test_sparsity_reaches_layernorm_cell(self, mock_env, base_architecture_kwargs):
+        """Test that sparsity parameter reaches LayerNormRNNCell"""
+        kwargs = {
+            **base_architecture_kwargs,
+            "sparsity": 0.3,
+        }
 
-#         # Check parameters reached the cell
-#         assert hasattr(cell, "divnorm"), "Cell should have divnorm module"
-#         assert hasattr(cell, "target_mean"), "Cell should have target_mean"
-#         assert cell.target_mean == 0.8, f"Expected target_mean=0.8, got {cell.target_mean}"
+        net = PredictiveNet(
+            mock_env,
+            pRNNtype="lognRNN_mask",  # Uses LayerNormRNNCell
+            hidden_size=100,
+            **kwargs,
+        )
 
-#         # Check k_div and sigma values
-#         assert cell.divnorm.k_div.item() == 2.0, (
-#             f"Expected k_div=2.0, got {cell.divnorm.k_div.item()}"
-#         )
-#         assert cell.divnorm.sigma.item() == 1.5, (
-#             f"Expected sigma=1.5, got {cell.divnorm.sigma.item()}"
-#         )
-
-#     def test_divnorm_trainable_parameters(self, mock_env, base_architecture_kwargs):
-#         """Test that train_divnorm correctly makes parameters trainable"""
-#         # Test with train_divnorm=True
-#         kwargs_trainable = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "k_div": 1.0,
-#             "sigma": 1.0,
-#             "train_divnorm": True,
-#         }
-
-#         net = PredictiveNet(
-#             mock_env, pRNNtype="Masked", hidden_size=100, cell="DivNormRNNCell", **kwargs_trainable
-#         )
-
-#         cell = net.pRNN.rnn.cell
-#         assert isinstance(cell.divnorm.k_div, torch.nn.Parameter), (
-#             "k_div should be a Parameter when train_divnorm=True"
-#         )
-#         assert isinstance(cell.divnorm.sigma, torch.nn.Parameter), (
-#             "sigma should be a Parameter when train_divnorm=True"
-#         )
-
-#         # Test with train_divnorm=False
-#         kwargs_fixed = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "k_div": 1.0,
-#             "sigma": 1.0,
-#             "train_divnorm": False,
-#         }
-
-#         net_fixed = PredictiveNet(
-#             mock_env, pRNNtype="Masked", hidden_size=100, cell="DivNormRNNCell", **kwargs_fixed
-#         )
-
-#         cell_fixed = net_fixed.pRNN.rnn.cell
-#         assert not isinstance(cell_fixed.divnorm.k_div, torch.nn.Parameter), (
-#             "k_div should be a buffer when train_divnorm=False"
-#         )
-#         assert not isinstance(cell_fixed.divnorm.sigma, torch.nn.Parameter), (
-#             "sigma should be a buffer when train_divnorm=False"
-#         )
-
-#     def test_cell_override_works(self, mock_env, base_architecture_kwargs):
-#         """Test that cell override argument works"""
-#         # Test with LayerNormRNNCell
-#         net_ln = PredictiveNet(
-#             mock_env,
-#             pRNNtype="Masked",
-#             hidden_size=100,
-#             cell="LayerNormRNNCell",
-#             **base_architecture_kwargs,
-#         )
-
-#         assert net_ln.pRNN.rnn.cell.__class__.__name__ == "LayerNormRNNCell", (
-#             f"Expected LayerNormRNNCell, got {net_ln.pRNN.rnn.cell.__class__.__name__}"
-#         )
-
-#         # Test with DivNormRNNCell
-#         kwargs_divnorm = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "train_divnorm": False,
-#         }
-#         net_dn = PredictiveNet(
-#             mock_env, pRNNtype="Masked", hidden_size=100, cell="DivNormRNNCell", **kwargs_divnorm
-#         )
-
-#         assert net_dn.pRNN.rnn.cell.__class__.__name__ == "DivNormRNNCell", (
-#             f"Expected DivNormRNNCell, got {net_dn.pRNN.rnn.cell.__class__.__name__}"
-#         )
-
-#     def test_sparsity_reaches_layernorm_cell(self, mock_env, base_architecture_kwargs):
-#         """Test that sparsity parameter reaches LayerNormRNNCell"""
-#         kwargs = {
-#             **base_architecture_kwargs,
-#             "sparsity": 0.3,
-#         }
-
-#         net = PredictiveNet(
-#             mock_env,
-#             pRNNtype="lognRNN_mask",  # Uses LayerNormRNNCell
-#             hidden_size=100,
-#             **kwargs,
-#         )
-
-#         cell = net.pRNN.rnn.cell
-#         assert hasattr(cell, "f"), "LayerNormRNNCell should have sparsity (f)"
-#         # sparsity should equal cell.f
-#         assert cell.f == 0.3, f"Expected f=0.3, got {cell.f}"
+        sparsity_w = (net.pRNN.W == 0).float().mean().item() * 100
+        expected_sparsity = 70.0
+        tolerance = 5.0
+        assert abs(sparsity_w - expected_sparsity) < tolerance, (
+            f"Expected ~{expected_sparsity}% zeros (sparsity=0.05), but got {sparsity_w:.2f}% zeros for recurrent weights"
+        )
 
 
-# # ============================================================================
-# # TEST 5: OPTIMIZER PARAMETER GROUPS
-# # ============================================================================
+# ============================================================================
+# TEST 5: OPTIMIZER PARAMETER GROUPS
+# ============================================================================
 
 
-# class TestOptimizerParameterGroups:
-#     """Test that optimizer parameter groups are correctly configured"""
+class TestOptimizerParameterGroups:
+    """Test that optimizer parameter groups are correctly configured"""
 
-#     def test_divnorm_in_optimizer_when_trainable(self, mock_env, base_architecture_kwargs):
-#         """Test that k_div and sigma are in optimizer when train_divnorm=True"""
-#         kwargs = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "train_divnorm": True,
-#         }
+    def test_bias_in_optimizer_when_trainable(self, mock_env, base_architecture_kwargs):
+        """Test that bias is in optimizer when trainBias=True"""
+        net = PredictiveNet(
+            mock_env, pRNNtype="Masked", hidden_size=100, trainBias=True, **base_architecture_kwargs
+        )
 
-#         net = PredictiveNet(
-#             mock_env,
-#             pRNNtype="Masked",
-#             hidden_size=100,
-#             cell="DivNormRNNCell",
-#             trainBias=False,
-#             **kwargs,
-#         )
+        param_group_names = [g["name"] for g in net.optimizer.param_groups]
+        assert "biases" in param_group_names, (
+            "biases should be in optimizer parameter groups when trainBias=True"
+        )
 
-#         # Check optimizer has k_div and sigma groups
-#         param_group_names = [g["name"] for g in net.optimizer.param_groups]
-#         assert "k_divnorm" in param_group_names, "k_divnorm should be in optimizer parameter groups"
-#         assert "sigma_divnorm" in param_group_names, (
-#             "sigma_divnorm should be in optimizer parameter groups"
-#         )
+    def test_eg_parameter_groups_configured(self, mock_env, base_architecture_kwargs):
+        """Test that EG is correctly configured for parameter groups"""
+        kwargs = {
+            **base_architecture_kwargs,
+        }
 
-#     def test_divnorm_not_in_optimizer_when_fixed(self, mock_env, base_architecture_kwargs):
-#         """Test that k_div and sigma are NOT in optimizer when train_divnorm=False"""
-#         kwargs = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "train_divnorm": False,
-#         }
+        net = PredictiveNet(
+            mock_env,
+            pRNNtype="Masked",
+            hidden_size=100,
+            cell=LayerNormRNNCell,
+            init="log_normal",
+            eg_lr=1e-3,
+            eg_weight_decay=1e-6,
+            **kwargs,
+        )
 
-#         net = PredictiveNet(
-#             mock_env,
-#             pRNNtype="Masked",
-#             hidden_size=100,
-#             cell="DivNormRNNCell",
-#             trainBias=False,
-#             **kwargs,
-#         )
+        # Check that positive parameter groups have update_alg="eg"
+        for group in net.optimizer.param_groups:
+            if group["name"] in ["RecurrentWeights", "InputWeights"]:
+                # These should have EG (assuming they're all positive)
+                assert group.get("update_alg") == "eg", (
+                    f"{group['name']} should use EG update algorithm"
+                )
+                assert group["lr"] == 1e-3, f"{group['name']} should have eg_lr=1e-3"
+                # Check weight decay scaling
+                expected_wd = 1e-6 * 1e-3  # eg_weight_decay * eg_lr
+                assert abs(group["weight_decay"] - expected_wd) < 1e-12, (
+                    f"{group['name']} weight_decay should be {expected_wd}"
+                )
 
-#         # Check optimizer does NOT have k_div and sigma groups
-#         param_group_names = [g["name"] for g in net.optimizer.param_groups]
-#         assert "k_divnorm" not in param_group_names, (
-#             "k_divnorm should NOT be in optimizer when train_divnorm=False"
-#         )
-#         assert "sigma_divnorm" not in param_group_names, (
-#             "sigma_divnorm should NOT be in optimizer when train_divnorm=False"
-#         )
-
-#     def test_bias_in_optimizer_when_trainable(self, mock_env, base_architecture_kwargs):
-#         """Test that bias is in optimizer when trainBias=True"""
-#         net = PredictiveNet(
-#             mock_env, pRNNtype="Masked", hidden_size=100, trainBias=True, **base_architecture_kwargs
-#         )
-
-#         param_group_names = [g["name"] for g in net.optimizer.param_groups]
-#         assert "biases" in param_group_names, (
-#             "biases should be in optimizer parameter groups when trainBias=True"
-#         )
-
-#     def test_eg_parameter_groups_configured(self, mock_env, base_architecture_kwargs):
-#         """Test that EG is correctly configured for parameter groups"""
-#         kwargs = {
-#             **base_architecture_kwargs,
-#             "target_mean": 0.7,
-#             "train_divnorm": True,
-#         }
-
-#         net = PredictiveNet(
-#             mock_env,
-#             pRNNtype="Masked",
-#             hidden_size=100,
-#             cell="DivNormRNNCell",
-#             eg_lr=1e-3,
-#             eg_weight_decay=1e-6,
-#             **kwargs,
-#         )
-
-#         # Check that positive parameter groups have update_alg="eg"
-#         for group in net.optimizer.param_groups:
-#             if group["name"] in ["RecurrentWeights", "k_divnorm", "sigma_divnorm"]:
-#                 # These should have EG (assuming they're all positive)
-#                 assert group.get("update_alg") == "eg", (
-#                     f"{group['name']} should use EG update algorithm"
-#                 )
-#                 assert group["lr"] == 1e-3, f"{group['name']} should have eg_lr=1e-3"
-#                 # Check weight decay scaling
-#                 expected_wd = 1e-6 * 1e-3  # eg_weight_decay * eg_lr
-#                 assert abs(group["weight_decay"] - expected_wd) < 1e-12, (
-#                     f"{group['name']} weight_decay should be {expected_wd}"
-#                 )
 
 # ============================================================================
 # RUN TESTS

@@ -327,133 +327,6 @@ class TestCLIOverrides:
 
 
 # ============================================================================
-# TEST DIVNORM PARAMETERS
-# ============================================================================
-
-
-# class TestDivNormViaCLI:
-#     """Test that DivNorm parameters flow through CLI correctly"""
-
-#     def test_divnorm_parameters_trainable(self, run_trainnet):
-#         """Test --train_divnorm makes parameters trainable"""
-#         net = run_trainnet(
-#             "Masked",
-#             cell="DivNormRNNCell",
-#             target_mean=0.8,
-#             k_div=2.0,
-#             sigma=1.5,
-#             train_divnorm=True,
-#         )
-
-#         cell = net.pRNN.rnn.cell
-
-#         # Check values reached the cell
-#         # assert cell.target_mean == 0.8, f"Expected target_mean=0.8, got {cell.target_mean}"
-#         assert cell.divnorm.k_div.item() == 2.0, (
-#             f"Expected k_div=2.0, got {cell.divnorm.k_div.item()}"
-#         )
-#         assert cell.divnorm.sigma.item() == 1.5, (
-#             f"Expected sigma=1.5, got {cell.divnorm.sigma.item()}"
-#         )
-
-#         # Check they're trainable
-#         import torch.nn as nn
-
-#         assert isinstance(cell.divnorm.k_div, nn.Parameter), (
-#             "k_div should be a Parameter when train_divnorm=True"
-#         )
-#         assert isinstance(cell.divnorm.sigma, nn.Parameter), (
-#             "sigma should be a Parameter when train_divnorm=True"
-#         )
-
-#     def test_divnorm_parameters_fixed(self, run_trainnet):
-#         """Test that without --train_divnorm, parameters are fixed"""
-#         net = run_trainnet(
-#             "Masked",
-#             cell="DivNormRNNCell",
-#             target_mean=0.7,
-#             k_div=1.0,
-#             sigma=1.0,
-#             # train_divnorm=False is default
-#         )
-
-#         cell = net.pRNN.rnn.cell
-
-#         # Check they're NOT trainable (buffers, not Parameters)
-#         import torch.nn as nn
-
-#         assert not isinstance(cell.divnorm.k_div, nn.Parameter), (
-#             "k_div should be a buffer when train_divnorm=False"
-#         )
-#         assert not isinstance(cell.divnorm.sigma, nn.Parameter), (
-#             "sigma should be a buffer when train_divnorm=False"
-#         )
-
-
-# ============================================================================
-# TEST DIVNORM PARAMETERS
-# ============================================================================
-
-
-# class TestDivNormViaCLI:
-#     """Test that DivNorm parameters flow through CLI correctly"""
-
-#     def test_divnorm_parameters_trainable(self, run_trainnet):
-#         """Test --train_divnorm makes parameters trainable"""
-#         net = run_trainnet(
-#             "Masked",
-#             cell="DivNormRNNCell",
-#             target_mean=0.8,
-#             k_div=2.0,
-#             sigma=1.5,
-#             train_divnorm=True,
-#         )
-
-#         cell = net.pRNN.rnn.cell
-
-#         # Check values reached the cell
-#         # assert cell.target_mean == 0.8, f"Expected target_mean=0.8, got {cell.target_mean}"
-#         assert cell.divnorm.k_div.item() == 2.0, (
-#             f"Expected k_div=2.0, got {cell.divnorm.k_div.item()}"
-#         )
-#         assert cell.divnorm.sigma.item() == 1.5, (
-#             f"Expected sigma=1.5, got {cell.divnorm.sigma.item()}"
-#         )
-
-#         # Check they're trainable
-#         import torch.nn as nn
-
-#         assert isinstance(cell.divnorm.k_div, nn.Parameter), (
-#             "k_div should be a Parameter when train_divnorm=True"
-#         )
-#         assert isinstance(cell.divnorm.sigma, nn.Parameter), (
-#             "sigma should be a Parameter when train_divnorm=True"
-#         )
-
-#     def test_divnorm_parameters_fixed(self, run_trainnet):
-#         """Test that without --train_divnorm, parameters are fixed"""
-#         net = run_trainnet(
-#             "Masked",
-#             cell="DivNormRNNCell",
-#             target_mean=0.7,
-#             k_div=1.0,
-#             sigma=1.0,
-#             # train_divnorm=False is default
-#         )
-
-#         cell = net.pRNN.rnn.cell
-
-#         # Check they're NOT trainable (buffers, not Parameters)
-#         import torch.nn as nn
-
-#         assert not isinstance(cell.divnorm.k_div, nn.Parameter), (
-#             "k_div should be a buffer when train_divnorm=False"
-#         )
-#         assert not isinstance(cell.divnorm.sigma, nn.Parameter), (
-#             "sigma should be a buffer when train_divnorm=False"
-#         )
-
-# ============================================================================
 # TEST LR OPTIMIZER CONFIGURATION
 # ============================================================================
 
@@ -468,14 +341,11 @@ class TestLRCLI:
         # Check that EG parameter groups exist
         has_eg = False
         W_group = None
-        # W_out = None
         W_in = None
         for group in net.optimizer.param_groups:
             if group.get("update_alg") == "eg":
                 if group["name"] == "RecurrentWeights":
                     W_group = group
-                # if group["name"] == "OutputWeights":
-                #     W_out = group
                 if group["name"] == "InputWeights":
                     W_in = group
                 has_eg = True
@@ -489,7 +359,6 @@ class TestLRCLI:
 
         assert W_group is not None, "Recurring weights not properly updated to EG"
         assert W_in is not None, "Input weights not properly updated to EG"
-        # assert W_out is not None, "Output weights not properly updated to EG"
         assert has_eg, "No parameter groups configured for EG"
 
     def test_bias_lr_uses_gd_not_eg(self, run_trainnet):

@@ -71,6 +71,7 @@ netOptions = {
     "thRNN_8win": thRNN_8win,
     "thRNN_9win": thRNN_9win,
     "thRNN_10win": thRNN_10win,
+    "thRNN_0win_noLN": thRNN_0win_noLN,
     "thRNN_0win_prevAct": thRNN_0win_prevAct,
     "thRNN_1win_prevAct": thRNN_1win_prevAct,
     "thRNN_2win_prevAct": thRNN_2win_prevAct,
@@ -174,7 +175,6 @@ class PredictiveNet:
         # get all constructor arguments and save them separately in trainArgs for later access...
 
         self.trainArgs = trainArgs
-
         input_args = locals()
         input_args.pop("self")
         input_args.pop("trainArgs")
@@ -700,7 +700,7 @@ class PredictiveNet:
                 if update_alg == "eg":
                     group["update_alg"] = update_alg
                     group["lr"] = eg_lr
-                    group["weight_decay"] = eg_weight_decay
+                    group["weight_decay"] = eg_weight_decay * eg_lr
 
     # TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self, savename, savefolder="", cpu=False):

@@ -80,7 +80,6 @@ class pRNN(nn.Module):
                 output_size (int): Specially defined output size. Default: obs_size
         """
         super(pRNN, self).__init__()
-
         # pRNN architecture parameters
         self.predOffset = predOffset
         self.actOffset = actOffset

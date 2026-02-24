@@ -1,0 +1,143 @@
+defaults:
+    - _self_  
+    - override hydra/hydra_logging: disabled  
+    - override hydra/job_logging: disabled
+
+hydra:  
+  output_subdir: null
+  sweep:
+    dir: .
+    subdir: .
+  run:  
+    dir: .
+
+# pRNN parameters
+prnn:
+  pRNNtype: thRNN_5win
+  hiddensize: 500 # Number of hidden units
+  ntimescale: 2.0 # Neural timescale
+  trainBias: True # Whether to train bias
+  identityInit: False # Whether to initialize weights with identity matrix
+  mean_std_ratio: 1.0 # Ratio for lognormal weight initialization
+  sparsity: 0.1 # Recurrent weight sparsity for lognormal pRNNs
+  latent_dim: 32 # Dimension of the latent space in pRNN-AE; if 0, uses hidden layer of the RNN
+  adaptation: False # Whether to use adaptive RNN
+
+## Environment and agent parameters
+env_agent:
+  env_key: MiniGrid-LRoom-18x18-v0 # Name of the environment
+  env_package: gym-minigrid # Environment package
+  seqdur: 500 # Duration of each behavioral sequence
+  agent_key: RandomActionAgent # [RandomActionAgent, RatInABoxAgent, MiniworldRandomAgent]
+  agent_name: 'agent_0' # Name of the agent for dataset purposes
+  actenc: SpeedHD # Action encoding method [SpeedHD, ContSpeedOnehotHDRiaB, ContSpeedOnehotHDMiniworld]
+  repeats: [1]  # Number of repeats for each observation modality
+  multiply: False # If True, the modality is multiplied by the number of repeats; if False, it's repeated
+
+## Dataset parameters
+data:
+  datasetSize: 10000 # Size of the dataset to pre-compute
+  batch_size: 8 # Number of trials in a minibatch
+  numepochs: 40 # Number of training epochs
+  numtrials: 1000 # Number of trials in an epoch
+  num_workers: 0 # Number of workers for data loading
+  save_raw: False # Whether to save raw data
+
+## File Management
+fm:
+  datasetfolder: '/network/scratch/a/aleksei.efremov/Data' # Folder to save the dataset
+  netsfolder: '' # Parent folder to save the net
+  savefolder: '' # Subfolder to save the net
+  loadfolder: '' # Where to load the net from
+  namext: '' # Extension to the savename
+  contin: False # Continue previous training
+  load_env: -1 # Load Environment for continued Training. Specify unique env id
+  saveTrainData: True # Whether to save training data
+  use_dataloader: True # Use DataLoader for training
+  encoder_path: '/network/scratch/a/aleksei.efremov/Data/Miniworld-LRoom-v1/test/checkpoints/concoder-epoch=38-train_loss=2.294049.ckpt' # Path to load the encoder model
+  encoder_folder: '' # Folder to save the encoder model
+  pretraining_data: '/home/mila/a/aleksei.efremov/scratch/Data/MiniWorld-LRoom-v1-agent_0' # Path to pretraining data for the encoder
+
+## Hyperparameters
+hparams:
+  seed: 3042 # Random seed
+  lr: 2e-3 # Learning rate (Relative to init sqrt(1/k) for each layer)
+  bias_lr: 0.2 # Bias learning rate (relative to lr)
+  eg_lr: None # Exp Gradient Desc learning rate (turns on EG for all same-sign parameters and sets EG learning rate)
+  ae_lr: 1 # Autoencoder learning rate  in pRNN-AE (relative to lr)
+  weight_decay: 3e-3 # Weight decay (relative to learning rate)
+  eg_weight_decay: 1e-8 # EG weight decay (absolute)
+  bptttrunc: 1e8 # BPTT truncation window
+  dropout: 0.15 # Dropout probability
+  noisemean: 0 # Mean offset for internal noise
+  noisestd: 0.05 # Std of internal noise
+  f: 0.5 # Activation sparsity (via layer norm, irrelevant for non-LN networks)
+  b: 0.3 # Adaptation strength for adaptive RNNs
+  tau_a: 8.0 # Adaptation timescale for adaptive RNNs
+
+## Logging
+logging:
+  project: 'test' # WandB project name
+    
+# Encoder parameters
+encoder:
+  encode: False # Whether to actively use the encoder during pRNN training (otherwise the dataloader provides the encoded data)
+  do_train: False
+  pass_grad: False # Whether to pass pRNN gradients through the encoder
+  loss_weight: 1.0 # Gain for the encoder loss
+  loss_power: 1.0 # Encoder loss is raised to this power
+  train_batch_size: 64
+  eval_batch_size: 64
+  max_epochs: 10
+  max_steps: -1
+  in_channels: 3
+  latent_dim: 32  # Dimension of the output vector of the encoder
+  learning_rate: 3e-4
+  weight_decay: 1e-5  # Weight decay for encoder optimizer
+  net_config:
+    {
+      "output_channels": [16, 16, 32, 32],
+      "kernel_sizes": [5, 5, 3, 3],
+      "strides": [2, 2, 1, 1],
+      "paddings": [2, 2, 1, 1],
+      "output_paddings": [0, 0, 1, 1]  # for deconvolution
+    }
+  save_top_k: 3  # Save the top 3 models from the training process
+  # VAE
+  kld_weight: 0.0001
+  # ConCoder
+  seqdur: 1000
+  context_steps: 7
+  pred_steps: 3
+  n_targets: 32
+
+
+# RiaB parameters
+riab:
+  speed: 0.2 # Speed of the agent
+  thigmotaxis: 0.2 # Thigmotaxis parameter
+  sigmaD: 0.02 # Standard deviation for distance in RiaB agent
+  sigmaA: 2.0 # Standard deviation for angle in RiaB agent
+  FoV_params:
+    {
+      "spatial_resolution": 0.01,
+      "angle_range": [0, 45],
+      "distance_range": [0.0, 0.33]
+    }
+  Grid_params:
+    {
+      "n": 150,
+        "gridscale_distribution": "modules",
+        "gridscale": [0.1, 0.2, 0.3, 0.4, 0.5,
+                        0.6, 0.7, 0.8, 0.9, 1.0],
+        "orientation_distribution": "modules",
+        "orientation": [1.2566370614359172, 5.026548245743669, 2.5132741228718345,
+                        1.8849555921538759, 3.141592653589793, 4.39822971502571,
+                        0.6283185307179586, 3.7699111843077517, 5.654866776461628, 0],
+        "phase_offset_distribution": "uniform",
+        "phase_offset": [0, 6.283185307179586]
+    }
+
+# Debugging
+debug:
+    full_out: True  # Whether to output full errors in debugging

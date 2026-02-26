@@ -193,6 +193,36 @@ class TestPartialPresets:
                 f"Expected ~{expected_sparsity}% zeros (sparsity=0.05), but got {sparsity:.2f}% zeros"
             )
 
+    def test_default_sparsity(self, mock_env, base_architecture_kwargs):
+        """Test that default sparsity is 0 for non-lognRNN architectures"""
+        test_cases = [
+            ("thRNN_0win"),
+            ("thRNN_5win"),
+        ]
+        for pRNNtype in test_cases:
+            net = PredictiveNet(
+                mock_env, pRNNtype=pRNNtype, hidden_size=100, **base_architecture_kwargs
+            )
+            sparsity = (net.pRNN.W == 0).float().mean().item() * 100
+            expected_sparsity = 0.0
+            tolerance = 2.0
+
+            assert abs(sparsity - expected_sparsity) < tolerance, (
+                f"Expected ~{expected_sparsity}% zeros (sparsity=1), but got {sparsity:.2f}% zeros"
+            )
+
+        for pRNNtype in test_cases:
+            net = PredictiveNet(
+                mock_env, pRNNtype=pRNNtype, hidden_size=100, **base_architecture_kwargs
+            )
+            sparsity = (net.pRNN.W == 0).float().mean().item() * 100
+            expected_sparsity = 0.0
+            tolerance = 1.0
+
+            assert abs(sparsity - expected_sparsity) < tolerance, (
+                f"{pRNNtype}: Expected ~{expected_sparsity}% zeros (default sparsity), but got {sparsity:.2f}% zeros"
+            )
+
     def test_autoencoder_use_FF(self, mock_env, base_architecture_kwargs):
         """Test that Autoencoder variants have correct use_FF setting"""
         test_cases = [

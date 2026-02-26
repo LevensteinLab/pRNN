@@ -289,6 +289,18 @@ class TestPartialPresetsViaCLI:
         )
         assert net.pRNN.actionTheta, f"Expected actionTheta=True, got {net.pRNN.actionTheta}"
 
+    def test_default_sparsity(self, run_trainnet):
+        """Test that default sparsity is 0 for non-lognRNN architectures"""
+
+        net = run_trainnet("thRNN_3win")
+        sparsity = (net.pRNN.W == 0).float().mean().item() * 100
+        expected_sparsity = 0.0
+        tolerance = 2.0
+
+        assert abs(sparsity - expected_sparsity) < tolerance, (
+            f"Expected ~{expected_sparsity}% zeros (sparsity=1), but got {sparsity:.2f}% zeros"
+        )
+
 
 # ============================================================================
 # TEST CLI OVERRIDES WORK

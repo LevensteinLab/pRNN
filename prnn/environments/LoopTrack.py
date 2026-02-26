@@ -42,6 +42,7 @@ class Loop_Track(MiniGridEnv):
 
         self.corridor_width = 3
         self.block_width = width-2-2*self.corridor_width #15
+        self.block_height = height-2-2*self.corridor_width #15
 
         # iterate over rows and draw a horizontal wall
         for row in range(self.corridor_width+1,height-self.corridor_width-1): #4,19 -> 4,18
@@ -49,8 +50,8 @@ class Loop_Track(MiniGridEnv):
 
         #Place the shapes
         triloc  =   (1,1)
-        plusloc =   (width-self.corridor_width-1,height/2)
-        xloc = (np.floor(width/2),height-self.corridor_width-1)
+        plusloc =   (width-self.corridor_width-1,height//2)
+        xloc = (width//2,height-self.corridor_width-1)
         self.place_shape('triangle',triloc,'blue')
         self.place_shape('plus',plusloc,'red')
         self.place_shape('x',xloc,'yellow')

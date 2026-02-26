@@ -26,6 +26,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
     if package=='gym-minigrid':
         import gym
         import gym_minigrid
+        import prnn.environments.LoopTrack
         from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
         if wrap:
             env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)

@@ -6,11 +6,11 @@ from prnn.utils.general import saveFig, savePkl, loadPkl
 from copy import deepcopy
 
 class SpatialTuningAnalysis:
-    def __init__(self,predictiveNet,timesteps_wake = 5000, 
+    def __init__(self,predictiveNet,timesteps_wake = 5000,
                  inputControl=False, untrainedControl=False,
                  reliabilityMetric='EVspace', compareNoRec=False,
                  ratenorm=True, activeTimeThreshold = 250,
-                 agent=False, theta='expand',
+                 agent=False, env=None, theta='expand',
                  fig_type='png'):
         
         self.pN = predictiveNet
@@ -20,7 +20,7 @@ class SpatialTuningAnalysis:
         self.reliabilityMetric = reliabilityMetric
         self.fig_type = fig_type
         
-        self.env = predictiveNet.EnvLibrary[0]
+        self.env = env if env is not None else predictiveNet.EnvLibrary[0]
         self.start_pos = self.env.start_pos # the numbering of occupiable locations starts from this
         self.n_obs = self.env.n_obs
         

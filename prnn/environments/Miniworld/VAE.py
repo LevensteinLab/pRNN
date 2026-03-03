@@ -12,6 +12,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, Sampler
 from torchvision.datasets import ImageFolder
+from torchvision.models import resnet18
 from torchvision.transforms import ToTensor
 from PIL import Image
 from tqdm import tqdm
@@ -247,6 +248,112 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         recons_loss = F.mse_loss(x_hat, x)
         kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
         loss = recons_loss + self.kld_weight*kld_loss
+        self.log("train_loss", loss)
+        self.log("reconstruction_loss", recons_loss)
+        self.log("kl_divergence", kld_loss)
+        return loss
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self._learning_rate)
+
+
+class ResNetVAE(pl.LightningModule):
+    """VAE with ResNet18 encoder backbone and the same configurable transposed-CNN decoder.
+
+    ResNet18 (without its FC head) always produces 512-dim features via adaptive
+    average pooling, regardless of input resolution.  The decoder mirrors the
+    VarAutoEncoder design and is configured via net_config.
+
+    Args:
+        decoder_spatial: spatial side-length of the feature map at the decoder
+            bottleneck.  Use 16 for 64×64 images, 8 for 32×32 images.
+    """
+
+    def __init__(self, learning_rate: float, net_config: tuple,
+                 in_channels: int, latent_dim: int, kld_weight: float = 0.005,
+                 decoder_spatial: int = 16):
+        super().__init__()
+        self._learning_rate = learning_rate
+        self.activation = nn.ReLU()
+        self.in_channels = in_channels
+        self.latent_dim = latent_dim
+        self.kld_weight = kld_weight
+        self.decoder_spatial = decoder_spatial
+
+        n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
+
+        # --- Encoder: ResNet18 backbone (adaptive avgpool kept, fc removed) ---
+        backbone = resnet18(weights=None)
+        if in_channels != 3:
+            backbone.conv1 = nn.Conv2d(
+                in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
+        # children: conv1, bn1, relu, maxpool, layer1-4, avgpool, fc
+        self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
+        resnet_out_dim = 512
+
+        self.fc_mu = nn.Linear(resnet_out_dim, latent_dim)
+        self.fc_log_var = nn.Linear(resnet_out_dim, latent_dim)
+
+        # --- Decoder: same transposed-CNN as VarAutoEncoder ---
+        # Copy lists so reversing them doesn't mutate the caller's config
+        self._build_decoder(
+            list(n_channels), list(kernel_sizes), list(strides),
+            list(paddings), list(output_paddings),
+        )
+
+        self.save_hyperparameters(ignore=["net_config"])
+
+    def _build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+        n_channels.reverse()
+        kernel_sizes.reverse()
+        strides.reverse()
+        paddings.reverse()
+        n_channels.append(self.in_channels)
+
+        self.decoder_input = nn.Sequential(
+            nn.Linear(self.latent_dim, n_channels[0] * self.decoder_spatial ** 2),
+            nn.Unflatten(1, (n_channels[0], self.decoder_spatial, self.decoder_spatial)),
+            self.activation,
+        )
+
+        modules = []
+        for i in range(len(n_channels) - 1):
+            modules.append(
+                nn.ConvTranspose2d(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    output_padding=output_paddings[i],
+                )
+            )
+            modules.append(self.activation)
+        self.decoder = nn.Sequential(*modules)
+
+    def encode(self, x):
+        h = self.encoder(x)
+        return self.fc_mu(h), self.fc_log_var(h)
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        return mu + std * torch.randn_like(std)
+
+    def decode(self, z):
+        return self.decoder(self.decoder_input(z))
+
+    def forward(self, x):
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
+        return self.decode(z), mu, log_var
+
+    def training_step(self, batch, batch_idx):
+        x, _ = batch
+        x_hat, mu, log_var = self.forward(x)
+        recons_loss = F.mse_loss(x_hat, x)
+        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        loss = recons_loss + self.kld_weight * kld_loss
         self.log("train_loss", loss)
         self.log("reconstruction_loss", recons_loss)
         self.log("kl_divergence", kld_loss)

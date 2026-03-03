@@ -127,9 +127,6 @@ class pRNN(nn.Module):
             self.W_hs = self.rnn.cell.weight_hs
 
         self.neuralTimescale = neuralTimescale
-        self.sparsity = (
-            cell_kwargs["sparsity"] if "sparsity" in cell_kwargs else f
-        )  # backwards compatibility
 
         with torch.no_grad():
             self.W.add_(torch.eye(hidden_size).mul_(1 - 1 / self.neuralTimescale).to_sparse())

@@ -377,6 +377,10 @@ class MiniworldShell(Shell):
 
         self.continuous = True
         self.start_pos = 0
+    
+    @property
+    def action_space(self): #adding from gymmingrid shell
+        return self.env.action_space
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
@@ -478,6 +482,12 @@ class MiniworldShell(Shell):
     
     def post_save(self, env):
         self.env = env
+
+    # testing from gym minigrid world
+    def render(self, highlight=True, mode=None):
+        #return self.env.render(mode=mode, highlight=highlight)
+        return self.env.render()
+
     
     def reset(self, seed=False):
         if seed:

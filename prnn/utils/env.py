@@ -76,16 +76,21 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
                                   Grid_params=OmegaConf.to_container(riab_cfg['Grid_params']),)
         
     elif package=='miniworld_vae':
+        import os
+        os.environ.setdefault('PYOPENGL_PLATFORM', 'egl')
+        import pyglet
+        pyglet.options['headless'] = True #for misha
         import gymnasium as gym
         import miniworld
+        import prnn.environments.Miniworld.env
         env = gym.make(
                     env_key,
                     view="agent",
-                    render_mode="rgb_array",
-                    obs_width=64,
-                    obs_height=64,
-                    window_width=64,
-                    window_height=64,
+                    render_mode="rgb_array", #get just array instead of graphics option. specified here instead of render 
+                    obs_width=224, #64 #specifically noting observation size
+                    obs_height=224, #64
+                    window_width=224, #64
+                    window_height=224, #64
                     max_episode_steps=math.inf,
         )
         env.reset(seed=seed)

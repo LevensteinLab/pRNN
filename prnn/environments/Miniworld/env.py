@@ -282,3 +282,11 @@ class LRoom(MiniWorldEnv):
         obs = self.render_obs()
 
         return obs, reward, termination, truncation, {}
+
+
+from gymnasium.envs.registration import register
+
+register(
+    id='MiniWorld-LRoom-v0',
+    entry_point='prnn.environments.Miniworld.env:LRoom',
+)

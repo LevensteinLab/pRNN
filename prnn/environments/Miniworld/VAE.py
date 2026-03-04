@@ -286,7 +286,7 @@ class ResNetVAE(pl.LightningModule):
         backbone = resnet18(weights=None)
         if in_channels != 3:
             backbone.conv1 = nn.Conv2d(
-                in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+                in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False # need to double check how many inchannels for miniworld images
             )
         # children: conv1, bn1, relu, maxpool, layer1-4, avgpool, fc
         self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
@@ -346,11 +346,17 @@ class ResNetVAE(pl.LightningModule):
     def forward(self, x):
         mu, log_var = self.encode(x)
         z = self.reparameterize(mu, log_var)
-        return self.decode(z), mu, log_var
+        return self.decode(z), mu, log_var, z
+
+    def compute_loss(self, x, x_hat, mu, log_var):
+        recons_loss = F.mse_loss(x_hat, x)
+        kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
+        loss = recons_loss + self.kld_weight * kld_loss
+        return {"loss": loss, "reconstruction loss": recons_loss, "kld loss": kld_loss}
 
     def training_step(self, batch, batch_idx):
         x, _ = batch
-        x_hat, mu, log_var = self.forward(x)
+        x_hat, mu, log_var, z = self.forward(x)
         recons_loss = F.mse_loss(x_hat, x)
         kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
         loss = recons_loss + self.kld_weight * kld_loss

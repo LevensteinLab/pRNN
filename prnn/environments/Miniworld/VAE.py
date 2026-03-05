@@ -383,23 +383,32 @@ class ResNetAE(pl.LightningModule):
 
     def __init__(self, learning_rate: float, net_config: tuple,
                  in_channels: int, latent_dim: int,
-                 decoder_spatial: int = 16):
+                 decoder_spatial: int = 16, pretrained: bool = True, projection: bool = False):
         super().__init__()
         self._learning_rate = learning_rate
         self.activation = nn.ReLU()
         self.in_channels = in_channels
-        self.latent_dim = 512  # fixed: direct ResNet18 output, no projection
         self.decoder_spatial = decoder_spatial
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
         # --- Encoder: ResNet18 backbone (adaptive avgpool kept, fc removed) ---
-        backbone = resnet18(weights='DEFAULT')
+        
+        backbone = resnet18(weights='DEFAULT') if pretrained else resnet18(weights=None) #use pretrained ResNet weights? 
+
         if in_channels != 3:
             backbone.conv1 = nn.Conv2d(
                 in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
             )
         self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
+
+        # Optional FC projection: 512 -> latent_dim (trained from scratch)
+        if projection:
+            self.fc_proj = nn.Linear(512, latent_dim)
+            self.latent_dim = latent_dim
+        else:
+            self.fc_proj = None
+            self.latent_dim = 512  # raw ResNet18 output
 
         # --- Decoder: same transposed-CNN as ResNetVAE ---
         self._build_decoder(
@@ -442,7 +451,10 @@ class ResNetAE(pl.LightningModule):
 
     def encode(self, x):
         """Returns (z, None) to match the VAE (mu, log_var) unpacking in Shell.py."""
-        return self.encoder(x), None
+        z = self.encoder(x)
+        if self.fc_proj is not None:
+            z = self.fc_proj(z)
+        return z, None
 
     def reparameterize(self, mu, log_var):
         """Identity — no stochastic sampling in a plain AE."""

@@ -392,6 +392,8 @@ class ResNetAE(pl.LightningModule):
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
+        if pretrained and projection:
+            print("Note: Using pretrained ResNet encoder with a randomly initialized projection layer. Pretrained weights may be modified during training of the projection layer...")
         # --- Encoder: ResNet18 backbone (adaptive avgpool kept, fc removed) ---
         
         backbone = resnet18(weights='DEFAULT') if pretrained else resnet18(weights=None) #use pretrained ResNet weights? 
@@ -401,6 +403,8 @@ class ResNetAE(pl.LightningModule):
                 in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
             )
         self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
+        if pretrained:
+            self.encoder.requires_grad_(False)  # freeze backbone; only fc_proj/decoder train
 
         # Optional FC projection: 512 -> latent_dim (trained from scratch)
         if projection:
@@ -418,8 +422,9 @@ class ResNetAE(pl.LightningModule):
 
         self.save_hyperparameters(ignore=["net_config"])
 
-        # Exposed so Shell.py can call encoder.optimizer.zero_grad() / .step()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self._learning_rate)
+        # Only optimize trainable params (excludes frozen backbone)
+        trainable = [p for p in self.parameters() if p.requires_grad]
+        self.optimizer = torch.optim.Adam(trainable, lr=self._learning_rate)
 
     def _build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
         n_channels.reverse()

@@ -388,19 +388,18 @@ class ResNetAE(pl.LightningModule):
         self._learning_rate = learning_rate
         self.activation = nn.ReLU()
         self.in_channels = in_channels
-        self.latent_dim = latent_dim
+        self.latent_dim = 512  # fixed: direct ResNet18 output, no projection
         self.decoder_spatial = decoder_spatial
 
         n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
 
         # --- Encoder: ResNet18 backbone (adaptive avgpool kept, fc removed) ---
-        backbone = resnet18(weights=None)
+        backbone = resnet18(weights='DEFAULT')
         if in_channels != 3:
             backbone.conv1 = nn.Conv2d(
                 in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
             )
         self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
-        self.fc_embed = nn.Linear(512, latent_dim)
 
         # --- Decoder: same transposed-CNN as ResNetVAE ---
         self._build_decoder(
@@ -443,8 +442,7 @@ class ResNetAE(pl.LightningModule):
 
     def encode(self, x):
         """Returns (z, None) to match the VAE (mu, log_var) unpacking in Shell.py."""
-        z = self.fc_embed(self.encoder(x))
-        return z, None
+        return self.encoder(x), None
 
     def reparameterize(self, mu, log_var):
         """Identity — no stochastic sampling in a plain AE."""

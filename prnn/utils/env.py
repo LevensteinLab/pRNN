@@ -87,10 +87,10 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
                     env_key,
                     view="agent",
                     render_mode="rgb_array", #get just array instead of graphics option. specified here instead of render 
-                    obs_width=224, #64 #specifically noting observation size
-                    obs_height=224, #64
-                    window_width=224, #64
-                    window_height=224, #64
+                    obs_width=64, #64 #specifically noting observation size
+                    obs_height=64, #64
+                    window_width=64, #64
+                    window_height=64, #64
                     max_episode_steps=math.inf,
         )
         env.reset(seed=seed)

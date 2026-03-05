@@ -494,6 +494,10 @@ class pRNN_th(pRNN):
 
         obs_target = obs_in[:, self.predOffset :, :]
 
+        #encountered this error when using low seqdur and num_trials for mini training runs
+        #not a problem for larger1iasdfasdfasdfafasd
+        assert obs_target.size(1) > self.k, f"Need minimum {self.k + 1} observations to do a rollout of {self.k} steps!" 
+
         # Apply the theta prediction for target observation
         theta_idx = np.flip(toeplitz(np.arange(self.k + 1), np.arange(obs_target.size(1))), 0)
         theta_idx = theta_idx[

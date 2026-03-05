@@ -369,6 +369,112 @@ class ResNetVAE(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self._learning_rate)
 
 
+class ResNetAE(pl.LightningModule):
+    """Deterministic autoencoder with a ResNet18 encoder and transposed-CNN decoder.
+
+    Drops the variational bottleneck entirely: the encoder produces a single
+    embedding vector (no mu/log_var split, no reparameterization, no KL term).
+    The loss is pure MSE reconstruction.
+
+    Args:
+        decoder_spatial: spatial side-length at the decoder bottleneck
+            (16 for 64×64 images, 8 for 32×32 images).
+    """
+
+    def __init__(self, learning_rate: float, net_config: tuple,
+                 in_channels: int, latent_dim: int,
+                 decoder_spatial: int = 16):
+        super().__init__()
+        self._learning_rate = learning_rate
+        self.activation = nn.ReLU()
+        self.in_channels = in_channels
+        self.latent_dim = latent_dim
+        self.decoder_spatial = decoder_spatial
+
+        n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
+
+        # --- Encoder: ResNet18 backbone (adaptive avgpool kept, fc removed) ---
+        backbone = resnet18(weights=None)
+        if in_channels != 3:
+            backbone.conv1 = nn.Conv2d(
+                in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
+        self.encoder = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
+        self.fc_embed = nn.Linear(512, latent_dim)
+
+        # --- Decoder: same transposed-CNN as ResNetVAE ---
+        self._build_decoder(
+            list(n_channels), list(kernel_sizes), list(strides),
+            list(paddings), list(output_paddings),
+        )
+
+        self.save_hyperparameters(ignore=["net_config"])
+
+        # Exposed so Shell.py can call encoder.optimizer.zero_grad() / .step()
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self._learning_rate)
+
+    def _build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
+        n_channels.reverse()
+        kernel_sizes.reverse()
+        strides.reverse()
+        paddings.reverse()
+        n_channels.append(self.in_channels)
+
+        self.decoder_input = nn.Sequential(
+            nn.Linear(self.latent_dim, n_channels[0] * self.decoder_spatial ** 2),
+            nn.Unflatten(1, (n_channels[0], self.decoder_spatial, self.decoder_spatial)),
+            self.activation,
+        )
+
+        modules = []
+        for i in range(len(n_channels) - 1):
+            modules.append(
+                nn.ConvTranspose2d(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    output_padding=output_paddings[i],
+                )
+            )
+            modules.append(self.activation)
+        self.decoder = nn.Sequential(*modules)
+
+    def encode(self, x):
+        """Returns (z, None) to match the VAE (mu, log_var) unpacking in Shell.py."""
+        z = self.fc_embed(self.encoder(x))
+        return z, None
+
+    def reparameterize(self, mu, log_var):
+        """Identity — no stochastic sampling in a plain AE."""
+        return mu
+
+    def decode(self, z):
+        return self.decoder(self.decoder_input(z))
+
+    def forward(self, x):
+        """Returns (x_hat, z, None, z) to match the ResNetVAE 4-tuple in Shell.py."""
+        z, _ = self.encode(x)
+        x_hat = self.decode(z)
+        return x_hat, z, None, z
+
+    def compute_loss(self, x, x_hat, mu, log_var):
+        """Pure reconstruction loss — mu/log_var args kept for API compatibility."""
+        loss = F.mse_loss(x_hat, x)
+        return {"loss": loss, "reconstruction loss": loss, "kld loss": torch.tensor(0.0)}
+
+    def training_step(self, batch, batch_idx):
+        x, _ = batch
+        x_hat, z, _, _ = self.forward(x)
+        loss = F.mse_loss(x_hat, x)
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self):
+        return self.optimizer
+
+
 class RatDataModule(pl.LightningDataModule):
     def __init__(
         self, data_dir: str, config: DictConfig, batch_size: int = 50, num_workers: int = 0, img_size: int = 64

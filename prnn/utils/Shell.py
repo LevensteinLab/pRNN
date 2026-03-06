@@ -709,7 +709,7 @@ class GimblShell(Shell):
         env: gymnasium.Env created from UnityToGymWrapper
         act_enc: action encoding string (e.g. 'Continuous')
         env_key: environment identifier string
-        encoder: FrozenResNetEncoder instance
+        encoder: FrozenResNet18 instance (see prnn.environments.Unity.resnet)
         HDbins: number of head direction bins (0 if not used)
     """
 

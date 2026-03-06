@@ -698,6 +698,128 @@ class UnityShell(Shell):
             plt.imshow(render[end])
 
 
+class GimblResNetShell(Shell):
+    """Shell for Gimbl Unity corridor with a frozen ResNet18 encoder.
+
+    Connects to a running Gimbl Unity environment via ML-Agents,
+    receives egocentric camera frames, encodes them through a frozen
+    ResNet18, and outputs latent vectors for the pRNN.
+
+    Args:
+        env: gymnasium.Env created from UnityToGymWrapper
+        act_enc: action encoding string (e.g. 'Continuous')
+        env_key: environment identifier string
+        encoder: FrozenResNetEncoder instance
+        HDbins: number of head direction bins (0 if not used)
+    """
+
+    def __init__(self, env, act_enc, env_key, encoder, HDbins=0, **kwargs):
+        super().__init__(env, act_enc, env_key)
+        self.encoder = encoder.to('cpu')
+        self.encoder.eval()
+        self.continuous = True
+        self.numHDs = HDbins
+        self.max_dist = False
+        self.start_pos = 0
+
+        obs_space = env.observation_space
+        if hasattr(obs_space, 'shape'):
+            self.obs_shape = obs_space.shape
+        else:
+            self.obs_shape = obs_space['visual'].shape
+
+    def getObsSize(self):
+        return self.encoder.latent_dim
+
+    def getActSize(self):
+        return 1  # single continuous forward speed
+
+    def getActType(self):
+        return torch.float32
+
+    def get_visual(self, obs):
+        """Convert a raw observation (H, W, C) uint8 image to (1, C, H, W) float tensor."""
+        if isinstance(obs, dict):
+            obs = obs['visual']
+        if isinstance(obs, np.ndarray):
+            obs = ToTensor()(obs)
+        return torch.unsqueeze(obs, dim=0)  # (1, C, H, W)
+
+    def env2pred(self, obs, act=None, state=None, device='cpu',
+                 compute_loss=False, **kwargs):
+        if act is not None:
+            act = self.encodeAction(act=act, nbins=self.numHDs)
+        frames = torch.cat([self.get_visual(o) for o in obs], dim=0)  # (T, C, H, W)
+        frames = frames.to(device)
+        z = self.encoder(frames)  # (T, latent_dim)
+        z = torch.unsqueeze(z, dim=0)  # (1, T, latent_dim)
+        return z, act
+
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
+        if act is not None:
+            act = np.array(self.encodeAction(act=act, nbins=self.numHDs))
+        frames = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        frames = frames.to(device)
+        z = self.encoder(frames)
+        z = torch.unsqueeze(z, dim=0).cpu().detach().numpy()
+        if save_env:
+            obs_env = np.array([np.array(o) for o in obs])
+            return z, act, obs_env
+        return z, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:, timesteps, ...]
+        return obs[whichPhase]
+
+    def step(self, action):
+        return self.env.step(action)
+
+    def render(self, **kwargs):
+        return self.env.render()
+
+    def reset(self, seed=False):
+        kw = {'seed': seed} if seed else {}
+        obs, info = self.env.reset(**kw)
+        return obs
+
+    def get_agent_pos(self):
+        return np.array([0, 0])
+
+    def get_agent_dir(self):
+        return 0
+
+    def get_hd(self, obs=None):
+        return 0
+
+    def get_map_bins(self):
+        return 1, 1, (0, 1, 0, 1)
+
+    def get_viewpoint(self, agent_pos, agent_dir):
+        raise NotImplementedError('get_viewpoint not available for Gimbl')
+
+    def pre_save(self):
+        out = self.env
+        self.env = None
+        return out
+
+    def post_save(self, env):
+        self.env = env
+
+    def show_state(self, render, t, **kwargs):
+        import matplotlib.pyplot as plt
+        plt.imshow(render[t])
+
+    def show_state_traj(self, start, end, state, render, **kwargs):
+        import matplotlib.pyplot as plt
+        if render is not None:
+            plt.imshow(render[end])
+
+    def close(self):
+        self.env.close()
+
+
 class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):
         super().__init__(env, act_enc, env_key)

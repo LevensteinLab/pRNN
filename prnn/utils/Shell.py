@@ -698,7 +698,7 @@ class UnityShell(Shell):
             plt.imshow(render[end])
 
 
-class GimblResNetShell(Shell):
+class GimblShell(Shell):
     """Shell for Gimbl Unity corridor with a frozen ResNet18 encoder.
 
     Connects to a running Gimbl Unity environment via ML-Agents,

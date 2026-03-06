@@ -112,7 +112,7 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
             no_graphics=False,
         )
         raw_env = UnityToGymWrapper(unity_env)
-        env = GimblResNetShell(raw_env, act_enc, env_key,
+        env = GimblShell(raw_env, act_enc, env_key,
                                encoder=encoder, HDbins=HDbins)
 
     else:

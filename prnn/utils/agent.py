@@ -160,6 +160,7 @@ class MiniworldRandomAgent(Agent):
     def __init__(self, riab_env, name='', params={
                                     "dt": 0.1,
                                     "speed_mean": 0.2,
+                                    "speed_std": 0.2,
                                     "thigmotaxis": 0.2,
                                     "wall_repel_distance": 0.2,
                                     }):

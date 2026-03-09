@@ -199,7 +199,7 @@ class RNNCell(BaseCell):
         """
         Apply weight matricies to input and previous state.
         """
-
+        #errors here are usually because you're using a dataset incompatible with the input size of the pRNN you're training
         i_input = torch.mm(input, self.weight_ih.t())
         h_input = torch.mm(hx, self.weight_hh.t())
         x = i_input + h_input

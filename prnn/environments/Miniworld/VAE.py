@@ -33,7 +33,7 @@ class VAE(nn.Module):
 
         self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
 
-        self.build_decoder(n_channels, kernel_sizes, strides, paddings, output_paddings)
+        self.build_decoder(list(n_channels), list(kernel_sizes), list(strides), list(paddings), list(output_paddings))
 
         self.initialize_weights()
 
@@ -148,7 +148,7 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
 
         self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
 
-        self.build_decoder(n_channels, kernel_sizes, strides, paddings, output_paddings)
+        self.build_decoder(list(n_channels), list(kernel_sizes), list(strides), list(paddings), list(output_paddings))
 
         self.initialize_weights()
 

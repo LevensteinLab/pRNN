@@ -6,14 +6,14 @@ import lightning.pytorch as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import loggers as pl_loggers
 
-from prnn.environments.Miniworld.VAE import RatDataModule, VarAutoEncoder, ResNetVAE
+from prnn.environments.Miniworld.VAE import RatDataModule, VarAutoEncoder, ResNetVAE, ResNetAE
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
 def main(config):
     folder_path = os.path.join(os.path.expandvars('${SLURM_TMPDIR}'), config['fm']['encoder_folder'])
     print(f"Folder path: {folder_path}")
     rat_data_module = RatDataModule(
-        data_dir="mnist64", #data_dir=os.path.join(os.path.expandvars('${SLURM_TMPDIR}'), 'Miniworld-LRoom-v1', 'data')
+        data_dir="miniworld_data", #data_dir=os.path.join(os.path.expandvars('${SLURM_TMPDIR}'), 'Miniworld-LRoom-v1', 'data')
         config=config,
         batch_size=config["encoder"]["train_batch_size"],
         num_workers=2,
@@ -33,6 +33,16 @@ def main(config):
         ae = ResNetVAE(
             **common_kwargs,
             decoder_spatial=config["encoder"].get("decoder_spatial", 16),
+        )
+    elif model_type == "resnetae":
+        ae = ResNetAE(
+            learning_rate=config["encoder"]["learning_rate"],
+            net_config=config["encoder"]["net_config"].values(),
+            in_channels=config["encoder"]["in_channels"],
+            latent_dim=config["encoder"]["latent_dim"],
+            decoder_spatial=config["encoder"].get("decoder_spatial", 16),
+            pretrained=config["encoder"].get("pretrained", True),
+            projection=config["encoder"].get("projection", True),
         )
     else:
         ae = VarAutoEncoder(**common_kwargs)

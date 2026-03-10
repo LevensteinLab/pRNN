@@ -561,6 +561,10 @@ class MiniworldVAEShell(MiniworldShell):
         obs_env = np.array(obs)
         obs = obs.to(device)
         mu, log_var = self.encoder.encode(obs)
+        if torch.isnan(mu).any() or torch.isinf(mu).any():
+            raise ValueError(f"Encoder produced NaN/Inf in mu. mu stats: min={mu.min()}, max={mu.max()}")
+        if log_var is not None and (torch.isnan(log_var).any() or torch.isinf(log_var).any()):
+            raise ValueError(f"Encoder produced NaN/Inf in log_var. log_var stats: min={log_var.min()}, max={log_var.max()}")
         obs = self.encoder.reparameterize(mu, log_var)
         obs = torch.unsqueeze(obs, dim=0).cpu().detach().numpy()
 

@@ -529,8 +529,9 @@ class MiniworldVAEShell(MiniworldShell):
                 x_hat, mu, log_var, z = self.encoder(obs)
                 self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
             else:
-                mu, log_var = self.encoder.encode(obs)
-                z = self.encoder.reparameterize(mu, log_var)
+                with torch.no_grad():
+                    mu, log_var = self.encoder.encode(obs)
+                    z = self.encoder.reparameterize(mu, log_var)
             z = z.view((-1, 1, shape[1], *z.shape[1:]))
 
         else:
@@ -541,8 +542,9 @@ class MiniworldVAEShell(MiniworldShell):
                 x_hat, mu, log_var, z = self.encoder(obs)
                 self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
             else:
-                mu, log_var = self.encoder.encode(obs)
-                z = self.encoder.reparameterize(mu, log_var)
+                with torch.no_grad():
+                    mu, log_var = self.encoder.encode(obs)
+                    z = self.encoder.reparameterize(mu, log_var)
                 z = torch.unsqueeze(z, dim=0)
 
         if hd_from=='state':
@@ -560,12 +562,13 @@ class MiniworldVAEShell(MiniworldShell):
         obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
         obs_env = np.array(obs)
         obs = obs.to(device)
-        mu, log_var = self.encoder.encode(obs)
-        if torch.isnan(mu).any() or torch.isinf(mu).any():
-            raise ValueError(f"Encoder produced NaN/Inf in mu. mu stats: min={mu.min()}, max={mu.max()}")
-        if log_var is not None and (torch.isnan(log_var).any() or torch.isinf(log_var).any()):
-            raise ValueError(f"Encoder produced NaN/Inf in log_var. log_var stats: min={log_var.min()}, max={log_var.max()}")
-        obs = self.encoder.reparameterize(mu, log_var)
+        with torch.no_grad():
+            mu, log_var = self.encoder.encode(obs)
+            if torch.isnan(mu).any() or torch.isinf(mu).any():
+                raise ValueError(f"Encoder produced NaN/Inf in mu. mu stats: min={mu.min()}, max={mu.max()}")
+            if log_var is not None and (torch.isnan(log_var).any() or torch.isinf(log_var).any()):
+                raise ValueError(f"Encoder produced NaN/Inf in log_var. log_var stats: min={log_var.min()}, max={log_var.max()}")
+            obs = self.encoder.reparameterize(mu, log_var)
         obs = torch.unsqueeze(obs, dim=0).cpu().detach().numpy()
 
         if save_env:

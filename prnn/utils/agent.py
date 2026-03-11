@@ -434,7 +434,7 @@ def create_agent(envname, env, agentkey, agentname = ""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
-        if 'Alternation' in envname:
+        elif 'Alternation' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0]) 
         else:
             action_probability = np.array([0.15,0.15,0.6,0.1])
@@ -448,7 +448,7 @@ def create_agent(envname, env, agentkey, agentname = ""):
         riab_env = make_rat_env(envname)
         agent = MiniworldRandomAgent(riab_env, name=agentname)
 
-    if agentkey == 'LoopAgent':
+    elif agentkey == 'LoopAgent':
         agent = LoopAgent(env.action_space, p_stop=0.2)
 
     return agent

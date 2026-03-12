@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 #Make a gridworld environment
-env_package = 'gym-minigrid' 
-env_key = 'MiniGrid-LRoom-18x18-v0'
+env_package = 'farama-minigrid' 
+env_key = 'LRoom-18x18-v0'
 act_enc = 'SpeedHD' #actions will be encoded as speed and one hot-encoded head direction
 
 env = make_env(env_key=env_key, package=env_package, act_enc=act_enc)
@@ -22,7 +22,7 @@ env = make_env(env_key=env_key, package=env_package, act_enc=act_enc)
 env.reset()
 
 #Make a pRNN
-num_neurons = 500
+num_neurons = 50
 pRNNtype = ARCHITECTURE_NAME
 
 predictiveNet = PredictiveNet(env, hidden_size=num_neurons, pRNNtype=pRNNtype, k = 5, use_LN = True)

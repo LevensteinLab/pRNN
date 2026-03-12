@@ -423,9 +423,9 @@ def makeUntrainedNet(pN, env, agent, ratenorm=True, decodeError=False, calculate
     pNControl = pN.copy()
     pNControl.pRNN.__init__(pNControl.obs_size, pNControl.act_size,
                            pNControl.hidden_size,
-                           neuralTimescale=pNControl.trainArgs.ntimescale,
-                           dropp=pNControl.trainArgs.dropout,
-                           f=pNControl.trainArgs.sparsity)
+                           neuralTimescale=pNControl.pRNN.neuralTimescale,
+                           dropp=pNControl.pRNN.dropout,
+                           f=pNControl.pRNN.sparsity)
     _,_,decoder = pNControl.calculateSpatialRepresentation(env,agent,
                                                     saveTrainingData=True,
                                                            trainDecoder=decodeError,

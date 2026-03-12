@@ -27,17 +27,16 @@ dependencies = [
     "pyparsing",
     "importlib_metadata",
     "ruamel.yaml",
-    #"gym==0.21.0 --no-binary :all:", TODO: Need to fix this
     "gymnasium==0.29.1",
-    "ratinabox==1.7.1"
+    "pytest==8.4.2",
 ]
 
 setup(
     author="Daniel Levenstein",
-    author_email='daniel.levenstein@mila.quebec',
-    python_requires='>=3.9',
-    name='prnn',
-    version='v0.1',
+    author_email="daniel.levenstein@mila.quebec",
+    python_requires=">=3.9",
+    name="prnn",
+    version="v0.1",
     packages=find_packages(),
     install_requires=dependencies,
     description="Python Library for Predictive RNNs Modeling Hippocampal Representation and Replay",

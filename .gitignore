@@ -7,14 +7,16 @@ __pycache__/
 *.ipynb_checkpoints/
 *.sh
 *.vscode
+*.npy
+*.png
 
 slurm*
 
 Data/*
 nets/*
 Figures/*
+${SLURM_TMPDIR}/*
 
-prnn/analysis/TuningCurveAnalysis.py
 trainNet_prnn.py
 
 # sphinx stuff

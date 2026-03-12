@@ -38,7 +38,12 @@ HDmap = {0: 270,
 class Shell:
     def __init__(self, env, act_enc, env_key):
         self.env = env
-        self.name = env_key
+        self.name = self.get_name(env_key)
+
+        if act_enc not in actionOptions:
+            raise ValueError(f"Unknown action encoding '{act_enc}'. Check spelling!")
+        self.act_enc = act_enc #saving string version for use in dataloader functions
+        
         self.encodeAction = actionOptions[act_enc]
         self.dataLoader = None
         self.DL_iterator = None
@@ -53,6 +58,8 @@ class Shell:
         self.DL_iterator = None
         return iterator
 
+    def get_name(self, env_key):
+        return env_key
 
     def collectObservationSequence(self, agent, tsteps, obs_format='pred',
                                    includeRender=False, discretize=False,
@@ -210,9 +217,9 @@ class GymMinigridShell(Shell):
                 raise KeyError('hd_from should be either "obs" or "act"')
             act = self.encodeAction(act=act,
                                     obs=hd,
-                                    numSuppObs=self.numHDs,
+                                    numSuppObs=self.numHDs, 
                                     numActs=self.action_space.n)
-
+        
         obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
         obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
         obs = torch.unsqueeze(obs, dim=0)
@@ -604,14 +611,18 @@ class RatInABoxShell(Shell):
     def getActType(self):
         return torch.float32
     
+    def get_HD_bins(self):
+        minmax = (0, 2*np.pi)
+        return self.numHDs, minmax
+    
     def get_map_bins(self):
         minmax=(0, self.width,
                 0, self.height)
         return self.width, self.height, minmax
     
-    def get_HD_bins(self):
-        minmax = (0, 2*np.pi)
-        return self.numHDs, minmax
+    def get_name(self, env_key):
+        # to have different dataset folders for different RiaB observation types
+        return env_key + self.__class__.__name__
     
     def load_state(self, state):
         self.set_agent_pos(state[:2])

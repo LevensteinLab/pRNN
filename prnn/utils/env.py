@@ -9,8 +9,6 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 
-from omegaconf import OmegaConf
-
 from gymnasium import spaces
 from gymnasium.core import ObservationWrapper
 
@@ -51,29 +49,29 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         env = RiaBVisionShell(env, act_enc, env_key, HDbins=HDbins,
                               speed=riab_cfg['speed'],
                               thigmotaxis=riab_cfg['thigmotaxis'],
-                              FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),)
+                              FoV_params=riab_cfg['FoV_params'],)
 
     elif package=='ratinabox_remix':        
         env = make_rat_env(env_key)
         env = RiaBRemixColorsShell(env, act_enc, env_key, HDbins=HDbins,
                                    speed=riab_cfg['speed'],
                                    thigmotaxis=riab_cfg['thigmotaxis'],
-                                   FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),)
+                                   FoV_params=riab_cfg['FoV_params'],)
 
     elif package=='ratinabox_grid':        
         env = make_rat_env(env_key)
         env = RiaBGridShell(env, act_enc, env_key, HDbins=HDbins,
                             speed=riab_cfg['speed'],
                             thigmotaxis=riab_cfg['thigmotaxis'],
-                            Grid_params=OmegaConf.to_container(riab_cfg['Grid_params']),)
+                            Grid_params=riab_cfg['Grid_params'],)
 
     elif package=='ratinabox_colors_grid':        
         env = make_rat_env(env_key)
         env = RiaBColorsGridShell(env, act_enc, env_key, HDbins=HDbins,
                                   speed=riab_cfg['speed'],
                                   thigmotaxis=riab_cfg['thigmotaxis'],
-                                  FoV_params=OmegaConf.to_container(riab_cfg['FoV_params']),
-                                  Grid_params=OmegaConf.to_container(riab_cfg['Grid_params']),)
+                                  FoV_params=riab_cfg['FoV_params'],
+                                  Grid_params=riab_cfg['Grid_params'],)
         
     elif package=='miniworld_vae':
         import gymnasium as gym

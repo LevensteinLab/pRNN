@@ -809,10 +809,11 @@ class PredictiveNet:
             env, agent, timesteps, discretize=True
         )
 
-        if hasattr(self, "current_state"):  # easy way to check if it's CANN
-            obs_pred, obs_next, h = self.predict(obs, act, state, fullRNNstate=fullRNNstate)
-        else:
-            obs_pred, obs_next, h = self.predict(obs, act, fullRNNstate=fullRNNstate)
+        with torch.no_grad():
+            if hasattr(self, "current_state"):  # easy way to check if it's CANN
+                obs_pred, obs_next, h = self.predict(obs, act, state, fullRNNstate=fullRNNstate)
+            else:
+                obs_pred, obs_next, h = self.predict(obs, act, fullRNNstate=fullRNNstate)
 
         # for now: take only the 0th theta window...
         # Try: mean
@@ -898,7 +899,8 @@ class PredictiveNet:
             noisemag = 0
             noisestd = sleepstd
             timesteps_sleep = 500
-            _, h_t, _ = self.spontaneous(timesteps_sleep, noisemag, noisestd)
+            with torch.no_grad():
+                _, h_t, _ = self.spontaneous(timesteps_sleep, noisemag, noisestd)
             SLEEPactivity = {"h": np.squeeze(h_t.detach().numpy())}
             SWdist, _, _ = RGA.calculateSleepWakeDist(
                 WAKEactivity["h"], SLEEPactivity["h"], metric="cosine"

@@ -838,16 +838,17 @@ class PredictiveNet:
         height = env.height
         nb_bins_x, nb_bins_y, minmax = env.get_map_bins()
 
-        place_fields, xy = nap.compute_2d_tuning_curves_continuous(
-            rates, position, ep=rates.time_support, nb_bins=(nb_bins_x, nb_bins_y), minmax=minmax
-        )
-        SI = nap.compute_2d_mutual_info(
-            place_fields, position, position.time_support, bitssec=bitsec
-        )
-        # Remove units that aren't active in enough timepoints
-        numactiveT = np.sum((h > 0).numpy(), axis=1)
-        inactive_cells = numactiveT < activeTimeThreshold
-        SI.iloc[inactive_cells.flatten()] = 0
+        place_fields,xy = nap.compute_2d_tuning_curves_continuous(rates,position,
+                                                                  ep=rates.time_support,
+                                                                  nb_bins=(nb_bins_x, nb_bins_y),
+                                                                  minmax=minmax
+                                                                  )
+        SI = nap.compute_2d_mutual_info(place_fields, position, position.time_support,
+                                        minmax=minmax, bitssec=bitsec)
+        #Remove units that aren't active in enough timepoints
+        numactiveT = np.sum((h>0).numpy(),axis=1)
+        inactive_cells = numactiveT<activeTimeThreshold
+        SI.iloc[inactive_cells.flatten()]=0
 
         if HDinfo:
             # Get HD Tuning
@@ -858,35 +859,32 @@ class PredictiveNet:
                 time_units="s",
             )
             nb_bins, minmax = env.get_HD_bins()
-            HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(
-                rates, HD, ep=rates.time_support, nb_bins=nb_bins, minmax=minmax
-            )
-            HD_info = nap.compute_1d_mutual_info(
-                HD_tuningcurves, HD, HD.time_support, bitssec=bitsec
-            )
-            SI["HDinfo"] = HD_info["SI"]
+            HD_tuningcurves = nap.compute_1d_tuning_curves_continuous(rates,HD,
+                                                                    ep=rates.time_support,
+                                                                    nb_bins=nb_bins,
+                                                                    minmax=minmax)
+            HD_info = nap.compute_1d_mutual_info(HD_tuningcurves, HD, HD.time_support,
+                                            minmax=minmax, bitssec=bitsec)
+            SI['HDinfo'] = HD_info['SI']
+
 
         if inputControl:
             if self.env_shell.n_obs == 1:
                 d = obs.squeeze().detach().numpy()[onsetTransient:-1, :]
             else:
-                d = np.concatenate(
-                    [o.squeeze().detach().numpy()[onsetTransient:-1, :] for o in obs], axis=-1
-                )
-            rates_input = nap.TsdFrame(t=np.arange(onsetTransient, timesteps), d=d, time_units="s")
-            pf_input, xy = nap.compute_2d_tuning_curves_continuous(
-                rates_input,
-                position,
-                ep=rates.time_support,
-                nb_bins=(nb_bins_x, nb_bins_y),
-                minmax=minmax,
-            )
-            SI_input = nap.compute_2d_mutual_info(
-                pf_input, position, position.time_support, bitssec=bitsec
-            )
-            SI_input["pfs"] = pf_input.values()
-            SI["inputCtrl"] = SI_input["SI"]
-            SI["inputFields"] = SI_input["pfs"]  # pd.DataFrame.from_dict(pf_input)
+                d = np.concatenate([o.squeeze().detach().numpy()[onsetTransient:-1,:] for o in obs], axis=-1)
+            rates_input = nap.TsdFrame(t = np.arange(onsetTransient,timesteps),
+                                 d = d, time_units = 's')
+            pf_input,xy = nap.compute_2d_tuning_curves_continuous(rates_input,position,
+                                                                  ep=rates.time_support,
+                                                                  nb_bins=(nb_bins_x, nb_bins_y),
+                                                                  minmax=minmax
+                                                                  )
+            SI_input = nap.compute_2d_mutual_info(pf_input, position, position.time_support,
+                                            minmax=minmax, bitssec=bitsec)
+            SI_input['pfs'] = pf_input.values()
+            SI['inputCtrl'] = SI_input['SI']
+            SI['inputFields'] = SI_input['pfs']#pd.DataFrame.from_dict(pf_input)
 
         if calculatesRSA:
             WAKEactivity = {"state": state, "h": np.squeeze(h.detach().numpy())}

@@ -152,6 +152,8 @@ class PredictiveNet:
         target_rate=None,
         target_sparsity=None,
         decorrelate=False,
+        reg_lambda_h=0.0,
+        reg_p=1,
         trainBias=True,
         identityInit=False,
         dataloader=False,
@@ -229,6 +231,8 @@ class PredictiveNet:
         self.target_rate = target_rate
         self.target_sparsity = target_sparsity
         self.decorrelate = decorrelate
+        self.reg_lambda_h = reg_lambda_h
+        self.reg_p = reg_p
 
         # For single-step prediction
         self.state = torch.tensor([])
@@ -324,7 +328,6 @@ class PredictiveNet:
         if type(obs_pred) == tuple:
             obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
-
         if with_homeostat:
             target_sparsity = self.target_sparsity
             target_rate = self.target_rate
@@ -428,7 +431,10 @@ class PredictiveNet:
             target_rate = torch.Tensor(target_rate)
             normrate = meanrate / target_rate
             rateloss = self.loss_fn(normrate, torch.ones_like(target_rate))
-            # rateloss.backward() #Add gradient w.r.t. rate loss
+            if self.reg_lambda_h > 0:
+                rateloss = rateloss + self.reg_lambda_h * torch.mean(h.abs() ** self.reg_p)
+        elif self.reg_lambda_h > 0:
+            rateloss = self.reg_lambda_h * torch.mean(h.abs() ** self.reg_p)
         else:
             rateloss = 0
 

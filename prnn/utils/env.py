@@ -107,6 +107,19 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         )
         env = UnityShell(env, act_enc, env_key)
 
+    elif package=='gimbl':
+        from mlagents_envs.environment import UnityEnvironment
+        from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
+        unity_env = UnityEnvironment(
+            file_name=env_key if env_key else None,
+            worker_id=0,
+            base_port=5004,
+            no_graphics=False,
+        )
+        raw_env = UnityToGymWrapper(unity_env)
+        env = GimblShell(raw_env, act_enc, env_key,
+                         encoder=encoder, HDbins=HDbins)
+
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')
 

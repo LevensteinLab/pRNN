@@ -357,11 +357,15 @@ class PredictiveNet:
         if learningRate is not None:
             self.optimizer.param_groups[0]["lr"] = oldlr
 
-        steploss = predloss.item()
+        predloss_val = predloss.item()
+        homeoloss_val = homeoloss.item() if isinstance(homeoloss, torch.Tensor) else homeoloss
+        steploss = loss.item()
         if self.train_encoder:
             self.recordTrainingTrial(steploss, enc_loss)
         else:
             self.recordTrainingTrial(steploss)
+        self.addTrainingData('predloss', predloss_val)
+        self.addTrainingData('homeoloss', homeoloss_val)
 
         return steploss, sparsity, meanrate
 

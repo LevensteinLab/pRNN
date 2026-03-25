@@ -265,6 +265,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--reg_lambda_h",
+    default=0.0,
+    type=float,
+    help="Activity regularization strength: loss += reg_lambda_h * mean(|h|^reg_p) (Default: 0.0)",
+)
+
+parser.add_argument(
     "--eg_lr",
     default=None,
     type=float,

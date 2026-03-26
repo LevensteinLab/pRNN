@@ -496,14 +496,12 @@ class ResNetAE(pl.LightningModule):
 
 class RatDataModule(pl.LightningDataModule):
     def __init__(
-        self, data_dir: str, config: DictConfig, batch_size: int = 50, num_workers: int = 0, img_size: int = 64
+        self, data_dir: str, config: DictConfig = None, batch_size: int = 50, num_workers: int = 0
     ):
         super().__init__()
         self._data_dir = data_dir
-        self._config = config
         self._batch_size = batch_size
         self._num_workers = num_workers
-        self._img_size = img_size
         self._img_dataset = None
 
     def setup(self, stage: str):

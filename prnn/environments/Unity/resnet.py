@@ -35,5 +35,16 @@ class FrozenResNet18(nn.Module):
             z = self.proj(z)
         return z
 
+    def encode(self, x):
+        """Returns (z, None) — MiniworldVAEShell compatibility (no variational bottleneck)."""
+        return self.encode_latent(x), None
+
+    def reparameterize(self, mu, log_var):
+        """Identity — deterministic encoder, no sampling."""
+        return mu
+
+    def decode(self, z):
+        raise NotImplementedError("FrozenResNet18 has no decoder.")
+
     def forward(self, x):
         return self.encode_latent(x)

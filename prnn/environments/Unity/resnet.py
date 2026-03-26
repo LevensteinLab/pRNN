@@ -29,8 +29,11 @@ class FrozenResNet18(nn.Module):
         for p in self.parameters():
             p.requires_grad = False
 
-    def forward(self, x):
+    def encode_latent(self, x):
         z = self.features(x)
         if self.proj is not None:
             z = self.proj(z)
         return z
+
+    def forward(self, x):
+        return self.encode_latent(x)

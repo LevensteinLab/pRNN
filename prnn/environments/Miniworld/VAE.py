@@ -454,12 +454,16 @@ class ResNetAE(pl.LightningModule):
             modules.append(self.activation)
         self.decoder = nn.Sequential(*modules)
 
-    def encode(self, x):
-        """Returns (z, None) to match the VAE (mu, log_var) unpacking in Shell.py."""
+    def encode_latent(self, x):
+        """Returns just z — shared encoder interface used by GimblShell."""
         z = self.encoder(x)
         if self.fc_proj is not None:
             z = self.fc_proj(z)
-        return z, None
+        return z
+
+    def encode(self, x):
+        """Returns (z, None) to match the VAE (mu, log_var) unpacking in Shell.py."""
+        return self.encode_latent(x), None
 
     def reparameterize(self, mu, log_var):
         """Identity — no stochastic sampling in a plain AE."""

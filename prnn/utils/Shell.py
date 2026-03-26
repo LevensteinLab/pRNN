@@ -768,7 +768,7 @@ class GimblShell(Shell):
             act = self.encodeAction(act=act, nbins=self.numHDs)
         frames = torch.cat([self.get_visual(o) for o in obs], dim=0)  # (T, C, H, W)
         frames = frames.to(device)
-        z = self.encoder(frames)  # (T, latent_dim)
+        z = self.encoder.encode_latent(frames)  # (T, latent_dim)
         z = torch.unsqueeze(z, dim=0)  # (1, T, latent_dim)
         return z, act
 
@@ -777,7 +777,7 @@ class GimblShell(Shell):
             act = np.array(self.encodeAction(act=act, nbins=self.numHDs))
         frames = torch.cat([self.get_visual(o) for o in obs], dim=0)
         frames = frames.to(device)
-        z = self.encoder(frames)
+        z = self.encoder.encode_latent(frames)
         z = torch.unsqueeze(z, dim=0).cpu().detach().numpy()
         if save_env:
             obs_env = np.array([np.array(o) for o in obs])

@@ -20,7 +20,7 @@ from prnn.environments.RatEnvironment import make_rat_env, config_default
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              riab_cfg=config_default, HDbins=12, wrap=True,
-             seed=42, encoder=None):
+             seed=42, encoder=None, app_path=None, no_graphics=False):
 
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
@@ -108,15 +108,8 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         env = UnityShell(env, act_enc, env_key)
 
     elif package=='gimbl':
-        from mlagents_envs.environment import UnityEnvironment
-        from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
-        unity_env = UnityEnvironment(
-            file_name=env_key if env_key else None,
-            worker_id=0,
-            base_port=5004,
-            no_graphics=False,
-        )
-        raw_env = UnityToGymWrapper(unity_env)
+        from prnn.environments.Unity.UnityEnvironment import UnityEnv
+        raw_env = UnityEnv(app_path=app_path, no_graphics=no_graphics)
         env = GimblShell(raw_env, act_enc, env_key,
                          encoder=encoder, HDbins=HDbins)
 

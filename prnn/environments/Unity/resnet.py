@@ -30,6 +30,9 @@ class FrozenResNet18(nn.Module):
             p.requires_grad = False
 
     def encode_latent(self, x):
+        # Defensive: if input is BHWC convert to BCHW
+        if x.ndim == 4 and x.shape[1] == x.shape[2] and x.shape[3] in (1, 3, 4):
+            x = x.permute(0, 3, 1, 2).contiguous()
         z = self.features(x)
         if self.proj is not None:
             z = self.proj(z)

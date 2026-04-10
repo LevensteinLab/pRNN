@@ -759,13 +759,16 @@ class GimblShell(Shell):
         if isinstance(obs, dict):
             obs = obs['visual']
         if isinstance(obs, np.ndarray):
-            obs = ToTensor()(obs)
+            # explicit HWC -> CHW, uint8 [0,255] -> float [0,1]
+            obs = torch.from_numpy(
+                np.transpose(obs, (2, 0, 1)).astype(np.float32) / 255.0
+            )
         return torch.unsqueeze(obs, dim=0)  # (1, C, H, W)
 
     def env2pred(self, obs, act=None, state=None, device='cpu',
                  compute_loss=False, **kwargs):
         if act is not None:
-            act = self.encodeAction(act=act, nbins=self.numHDs)
+            act = self.encodeAction(act=act)
         frames = torch.cat([self.get_visual(o) for o in obs], dim=0)  # (T, C, H, W)
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)  # (T, latent_dim)
@@ -774,7 +777,7 @@ class GimblShell(Shell):
 
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
         if act is not None:
-            act = np.array(self.encodeAction(act=act, nbins=self.numHDs))
+            act = np.array(self.encodeAction(act=act))
         frames = torch.cat([self.get_visual(o) for o in obs], dim=0)
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)
@@ -832,6 +835,14 @@ class GimblShell(Shell):
         import matplotlib.pyplot as plt
         if render is not None:
             plt.imshow(render[end])
+
+    def save_state(self, state):
+        """Unity state cannot be serialized — return a dummy value."""
+        return np.array([0])
+
+    def load_state(self, state):
+        """Unity state cannot be restored — reset the environment instead."""
+        self.reset()
 
     def close(self):
         self.env.close()

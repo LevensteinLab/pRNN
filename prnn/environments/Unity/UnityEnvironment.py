@@ -16,6 +16,11 @@ Usage:
 from __future__ import annotations
 
 import numpy as np
+
+# mlagents_envs 0.27.x uses the removed np.bool alias — patch before import
+if not hasattr(np, 'bool'):
+    np.bool = bool
+
 import gymnasium
 from gymnasium import spaces
 

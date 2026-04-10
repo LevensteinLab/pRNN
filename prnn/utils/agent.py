@@ -334,6 +334,54 @@ class UnityRandomAgent:
         return obs, act, state, render
 
 
+class GimblAgentConstant:
+    """Constant-speed agent for the Gimbl Unity corridor.
+
+    Sends a fixed forward speed at every timestep. Intended as a
+    simple baseline; will be replaced with real/simulated mouse
+    trajectories in future versions.
+
+    Args:
+        speed: forward speed value sent to Unity at each step
+    """
+
+    def __init__(self, speed=0.5):
+        self.speed = speed
+        self.name = 'GimblAgentConstant'
+
+    def generateActionSequence(self, tsteps):
+        return [np.array([self.speed], dtype=np.float32) for _ in range(tsteps)]
+
+    def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):
+        act = self.generateActionSequence(tsteps)
+        obs = [None] * (tsteps + 1)
+        render = False
+
+        obs[0] = env.reset() if reset else env.render()
+
+        state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 2)),
+                 'agent_dir': env.get_agent_dir()}
+
+        if includeRender:
+            render = [None] * (tsteps + 1)
+            render[0] = env.render()
+
+        for t in range(tsteps):
+            step_result = env.step(act[t])
+            obs[t + 1] = step_result[0]
+            terminated, truncated = step_result[2], step_result[3]
+            if terminated or truncated:
+                obs[t + 1] = env.reset()
+            state['agent_pos'] = np.append(
+                state['agent_pos'],
+                np.resize(env.get_agent_pos(), (1, 2)), axis=0)
+            state['agent_dir'] = np.append(state['agent_dir'], env.get_agent_dir())
+            if includeRender:
+                render[t + 1] = env.render()
+
+        return obs, act, state, render
+
+
 def create_agent(envname, env, agentkey, agentname = ""):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
@@ -354,5 +402,8 @@ def create_agent(envname, env, agentkey, agentname = ""):
 
     elif agentkey == 'UnityRandomAgent':
         agent = UnityRandomAgent(env.action_space)
+
+    elif agentkey == 'GimblAgentConstant':
+        agent = GimblAgentConstant()
 
     return agent

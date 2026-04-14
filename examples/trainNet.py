@@ -273,7 +273,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--bias_lr",
-    default=0.1,
+    default=0.01,
     type=float,
     help="Learning Rate for Biases",
 )

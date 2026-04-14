@@ -105,7 +105,7 @@ In addition to specifying various arguments for the architectures, you can also 
                                 sparsity = 0.05, #95% connectivity or 5% of connections are zero
                                 eg_weight_decay=1e-8,
                                 eg_lr=2e-3,
-                                bias_lr=0.1)
+                                bias_lr=0.01)
 
 This will initialize weights with values sampled from a log-normal distribution. Note that, if we would like to use log-normal initialization, we should specify a few extra parameters relating to the exponentiated gradient (EG) descent algorithm. It's a learning algorithm that preserves skewed (positive) log-normal weight distributions, sparse connectivity, and Dale's Law. See the `related paper <https://www.biorxiv.org/content/10.1101/2024.10.25.620272v1>`__ for more details. The ``sparsity`` parameter handles the degree of this sparse connectivity. 
 

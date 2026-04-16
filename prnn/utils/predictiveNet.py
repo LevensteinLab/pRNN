@@ -143,7 +143,7 @@ class PredictiveNet:
         pRNNtype="AutoencoderPred",
         hidden_size=500,
         learningRate=2e-3,
-        bias_lr=0.1,
+        bias_lr=1e-2,
         eg_lr=None,
         weight_decay=3e-3,
         eg_weight_decay=1e-6,

@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 import random
 
+from gymnasium import spaces
 from matplotlib.collections import EllipseCollection
 
 from torchvision.transforms import ToTensor
@@ -376,6 +377,10 @@ class MiniworldShell(Shell):
 
         self.continuous = True
         self.start_pos = 0
+    
+    @property
+    def action_space(self): #adding from gymmingrid shell
+        return self.env.action_space
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
@@ -477,6 +482,12 @@ class MiniworldShell(Shell):
     
     def post_save(self, env):
         self.env = env
+
+    # testing from gym minigrid world
+    def render(self, highlight=True, mode=None):
+        #return self.env.render(mode=mode, highlight=highlight)
+        return self.env.render()
+
     
     def reset(self, seed=False):
         if seed:
@@ -518,8 +529,9 @@ class MiniworldVAEShell(MiniworldShell):
                 x_hat, mu, log_var, z = self.encoder(obs)
                 self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
             else:
-                mu, log_var = self.encoder.encode(obs)
-                z = self.encoder.reparameterize(mu, log_var)
+                with torch.no_grad():
+                    mu, log_var = self.encoder.encode(obs)
+                    z = self.encoder.reparameterize(mu, log_var)
             z = z.view((-1, 1, shape[1], *z.shape[1:]))
 
         else:
@@ -530,8 +542,9 @@ class MiniworldVAEShell(MiniworldShell):
                 x_hat, mu, log_var, z = self.encoder(obs)
                 self.loss = self.encoder.compute_loss(obs, x_hat, mu, log_var)
             else:
-                mu, log_var = self.encoder.encode(obs)
-                z = self.encoder.reparameterize(mu, log_var)
+                with torch.no_grad():
+                    mu, log_var = self.encoder.encode(obs)
+                    z = self.encoder.reparameterize(mu, log_var)
                 z = torch.unsqueeze(z, dim=0)
 
         if hd_from=='state':
@@ -549,8 +562,13 @@ class MiniworldVAEShell(MiniworldShell):
         obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
         obs_env = np.array(obs)
         obs = obs.to(device)
-        mu, log_var = self.encoder.encode(obs)
-        obs = self.encoder.reparameterize(mu, log_var)
+        with torch.no_grad():
+            mu, log_var = self.encoder.encode(obs)
+            if torch.isnan(mu).any() or torch.isinf(mu).any():
+                raise ValueError(f"Encoder produced NaN/Inf in mu. mu stats: min={mu.min()}, max={mu.max()}")
+            if log_var is not None and (torch.isnan(log_var).any() or torch.isinf(log_var).any()):
+                raise ValueError(f"Encoder produced NaN/Inf in log_var. log_var stats: min={log_var.min()}, max={log_var.max()}")
+            obs = self.encoder.reparameterize(mu, log_var)
         obs = torch.unsqueeze(obs, dim=0).cpu().detach().numpy()
 
         if save_env:
@@ -567,6 +585,268 @@ class MiniworldVAEShell(MiniworldShell):
         obs = np.transpose(obs, (0,2,3,1))
         return obs
         
+
+class UnityShell(Shell):
+    """Shell for Unity ML-Agents environments (e.g. GridWorld).
+
+    Handles discrete-action, visual-observation Unity environments.
+    Observations are flattened HWC uint8 images normalised to [0,1].
+    No head-direction signal is available, so action encoding defaults
+    to plain OneHot.
+    """
+
+    def __init__(self, env, act_enc, env_key, **kwargs):
+        super().__init__(env, act_enc, env_key)
+        # env is a UnityEnv (gymnasium.Env)
+        obs_space = env.observation_space
+        if isinstance(obs_space, spaces.Dict):
+            self.obs_shape = obs_space['visual'].shape
+            self._obs_mode = 'dict'
+        elif len(obs_space.shape) == 3:
+            self.obs_shape = obs_space.shape
+            self._obs_mode = 'visual'
+        else:
+            self.obs_shape = obs_space.shape
+            self._obs_mode = 'vector'
+
+        self.continuous = False
+        self.max_dist = False
+        self.numHDs = 0
+
+    @property
+    def action_space(self):
+        return self.env.action_space
+
+    def dir2deg(self, dir):
+        return 0  # Unity GridWorld has no directional heading
+
+    def get_hd(self, obs):
+        return 0
+
+    def get_visual(self, obs):
+        if isinstance(obs, dict):
+            return np.reshape(obs['visual'], (-1,))
+        return np.reshape(obs, (-1,))
+
+    def env2pred(self, obs, act=None, **kwargs):
+        if act is not None:
+            act = self.encodeAction(act=act,
+                                    obs=np.zeros(len(obs)),
+                                    numActs=self.action_space.n)
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])
+        obs = torch.tensor(obs, dtype=torch.float, requires_grad=False)
+        obs = torch.unsqueeze(obs, dim=0)
+        obs = obs / 255
+
+        return obs, act
+
+    def env2np(self, obs, act=None, **kwargs):
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=np.zeros(len(obs)),
+                                             numActs=self.action_space.n))
+
+        obs = np.array([self.get_visual(obs[t]) for t in range(len(obs))])[None]
+        obs = obs / 255
+        return obs, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:, timesteps, ...]
+        obs = np.reshape(obs[whichPhase, :, :], (-1,) + self.obs_shape)
+        return obs
+
+    def getActSize(self):
+        action = self.encodeAction(act=np.ones(1),
+                                   obs=np.ones(2),
+                                   numActs=self.action_space.n)
+        return action.size(2)
+
+    def getActType(self):
+        return torch.int64
+
+    def getObsSize(self):
+        return int(np.prod(self.obs_shape))
+
+    def get_map_bins(self):
+        # No spatial map for generic Unity env; return dummy
+        return 1, 1, (0, 1, 0, 1)
+
+    def get_viewpoint(self, agent_pos, agent_dir):
+        raise NotImplementedError(
+            'get_viewpoint is not available for Unity environments')
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return obs, reward, terminated, truncated, info
+
+    def render(self, **kwargs):
+        return self.env.render()
+
+    def reset(self, seed=False):
+        kw = {'seed': seed} if seed else {}
+        obs, info = self.env.reset(**kw)
+        return obs
+
+    def close(self):
+        self.env.close()
+
+    def get_agent_pos(self):
+        return np.array([0, 0])  # not available from Unity side
+
+    def get_agent_dir(self):
+        return 0
+
+    def pre_save(self):
+        out = self.env
+        self.env = None  # Unity env can't be pickled
+        return out
+
+    def post_save(self, env):
+        self.env = env
+
+    def show_state(self, render, t, **kwargs):
+        plt.imshow(render[t])
+
+    def show_state_traj(self, start, end, state, render, **kwargs):
+        if render is not None:
+            plt.imshow(render[end])
+
+
+class GimblShell(Shell):
+    """Shell for Gimbl Unity corridor with a frozen ResNet18 encoder.
+
+    Connects to a running Gimbl Unity environment via ML-Agents,
+    receives egocentric camera frames, encodes them through a frozen
+    ResNet18, and outputs latent vectors for the pRNN.
+
+    Args:
+        env: gymnasium.Env created from UnityToGymWrapper
+        act_enc: action encoding string (e.g. 'Continuous')
+        env_key: environment identifier string
+        encoder: FrozenResNet18 instance (see prnn.environments.Unity.resnet)
+        HDbins: number of head direction bins (0 if not used)
+    """
+
+    def __init__(self, env, act_enc, env_key, encoder, HDbins=0, **kwargs):
+        super().__init__(env, act_enc, env_key)
+        self.encoder = encoder.to('cpu')
+        self.encoder.eval()
+        self.continuous = True
+        self.numHDs = HDbins
+        self.max_dist = False
+        self.start_pos = 0
+
+        obs_space = env.observation_space
+        if hasattr(obs_space, 'shape'):
+            self.obs_shape = obs_space.shape
+        else:
+            self.obs_shape = obs_space['visual'].shape
+
+    def getObsSize(self):
+        return self.encoder.latent_dim
+
+    def getActSize(self):
+        return 1  # single continuous forward speed
+
+    def getActType(self):
+        return torch.float32
+
+    def get_visual(self, obs):
+        """Convert a raw observation (H, W, C) uint8 image to (1, C, H, W) float tensor."""
+        if isinstance(obs, dict):
+            obs = obs['visual']
+        if isinstance(obs, np.ndarray):
+            # explicit HWC -> CHW, uint8 [0,255] -> float [0,1]
+            obs = torch.from_numpy(
+                np.transpose(obs, (2, 0, 1)).astype(np.float32) / 255.0
+            )
+        return torch.unsqueeze(obs, dim=0)  # (1, C, H, W)
+
+    def env2pred(self, obs, act=None, state=None, device='cpu',
+                 compute_loss=False, **kwargs):
+        if act is not None:
+            act = self.encodeAction(act=act)
+        frames = torch.cat([self.get_visual(o) for o in obs], dim=0)  # (T, C, H, W)
+        frames = frames.to(device)
+        z = self.encoder.encode_latent(frames)  # (T, latent_dim)
+        z = torch.unsqueeze(z, dim=0)  # (1, T, latent_dim)
+        return z, act
+
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
+        if act is not None:
+            act = np.array(self.encodeAction(act=act))
+        frames = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        frames = frames.to(device)
+        z = self.encoder.encode_latent(frames)
+        z = torch.unsqueeze(z, dim=0).cpu().detach().numpy()
+        if save_env:
+            obs_env = np.array([np.array(o) for o in obs])
+            return z, act, obs_env
+        return z, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs.detach().numpy()
+        if timesteps:
+            obs = obs[:, timesteps, ...]
+        return obs[whichPhase]
+
+    def step(self, action):
+        return self.env.step(action)
+
+    def render(self, **kwargs):
+        return self.env.render()
+
+    def reset(self, seed=False):
+        kw = {'seed': seed} if seed else {}
+        obs, info = self.env.reset(**kw)
+        return obs
+
+    def get_agent_pos(self):
+        return np.array([0, 0])
+
+    def get_agent_dir(self):
+        return 0
+
+    def get_hd(self, obs=None):
+        return 0
+
+    def get_map_bins(self):
+        return 1, 1, (0, 1, 0, 1)
+
+    def get_viewpoint(self, agent_pos, agent_dir):
+        raise NotImplementedError('get_viewpoint not available for Gimbl')
+
+    def pre_save(self):
+        out = self.env
+        self.env = None
+        return out
+
+    def post_save(self, env):
+        self.env = env
+
+    def show_state(self, render, t, **kwargs):
+        import matplotlib.pyplot as plt
+        plt.imshow(render[t])
+
+    def show_state_traj(self, start, end, state, render, **kwargs):
+        import matplotlib.pyplot as plt
+        if render is not None:
+            plt.imshow(render[end])
+
+    def save_state(self, state):
+        """Unity state cannot be serialized — return a dummy value."""
+        return np.array([0])
+
+    def load_state(self, state):
+        """Unity state cannot be restored — reset the environment instead."""
+        self.reset()
+
+    def close(self):
+        self.env.close()
+
 
 class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):

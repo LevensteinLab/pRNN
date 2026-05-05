@@ -61,7 +61,10 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
     if top_dir.exists():
         print("Found existing data, will generate more data if needed")
         for child in top_dir.iterdir():
-            n_generated += 1
+            if child.is_dir() and (child / "act.npy").exists():
+                n_generated += 1
+            elif child.is_dir():
+                shutil.rmtree(child)  # Clean up empty/incomplete dirs
         try:
             length_generated = len(np.load(str(top_dir / "1/act.npy"))[0])
         except:

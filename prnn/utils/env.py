@@ -20,7 +20,7 @@ from prnn.environments.RatEnvironment import make_rat_env, config_default
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              riab_cfg=config_default, HDbins=12, wrap=True,
-             seed=42, encoder=None):
+             seed=42, encoder=None, app_path=None, no_graphics=False):
 
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
@@ -77,25 +77,46 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
                                   Grid_params=OmegaConf.to_container(riab_cfg['Grid_params']),)
         
     elif package=='miniworld_vae':
+        import os
+        os.environ.setdefault('PYOPENGL_PLATFORM', 'egl')
+        import pyglet
+        pyglet.options['headless'] = True #for misha
         import gymnasium as gym
         import miniworld
+        import prnn.environments.Miniworld.env
         env = gym.make(
                     env_key,
                     view="agent",
-                    render_mode="rgb_array",
-                    obs_width=64,
-                    obs_height=64,
-                    window_width=64,
-                    window_height=64,
+                    render_mode="rgb_array", #get just array instead of graphics option. specified here instead of render 
+                    obs_width=64, #64 #specifically noting observation size
+                    obs_height=64, #64
+                    window_width=64, #64
+                    window_height=64, #64
                     max_episode_steps=math.inf,
         )
         env.reset(seed=seed)
         env = MiniworldVAEShell(env, act_enc, env_key,
                                 encoder, HDbins)
 
+    elif package=='unity':
+        from prnn.environments.Unity.UnityEnvironment import UnityEnv
+        env = UnityEnv(
+            app_path=env_key,
+            no_graphics=False,
+            time_scale=20.0,
+            seed=seed,
+        )
+        env = UnityShell(env, act_enc, env_key)
+
+    elif package=='gimbl':
+        from prnn.environments.Unity.UnityEnvironment import UnityEnv
+        raw_env = UnityEnv(app_path=app_path, no_graphics=no_graphics)
+        env = GimblShell(raw_env, act_enc, env_key,
+                         encoder=encoder, HDbins=HDbins)
+
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')
-    
+
     return env
 
 

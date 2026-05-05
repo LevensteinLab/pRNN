@@ -17,13 +17,15 @@ class TuningCurveAnalysis:
         theta="expand",
         start_pos=1,
         EV_thresh=0.5,
+        agent=None,
     ):
         self.start_pos = start_pos  # the numbering of occupiable locations starts from this
         self.metrics = {}
 
         env = predictiveNet.EnvLibrary[0]
-        action_probability = np.array([0.15, 0.15, 0.6, 0.1, 0, 0, 0])
-        agent = RandomActionAgent(env.action_space, action_probability)
+        if agent is None:
+            action_probability = np.array([0.15, 0.15, 0.6, 0.1, 0, 0, 0])
+            agent = RandomActionAgent(env.action_space, action_probability)
 
         # Calculate Tuning Curves, Spatial Info
         self.tuning_curves, SI, decoder = predictiveNet.calculateSpatialRepresentation(
@@ -43,14 +45,18 @@ class TuningCurveAnalysis:
         self.metrics["SI"] = SI["SI"].values
         self.metrics["HD_info"] = SI["HDinfo"].values
 
-        # Calculate Border Scores
-        wallgroups, not_near_walls = LRoomWallGroups(env)
-        print("Warning: border score only works with L room currently.")
-        border_scores = [
-            calculateBorderScore(tc, wallgroups, not_near_walls)
-            for tc in self.tuning_curves.values()
-        ]
-        self.metrics["border_score"] = np.array(border_scores)
+        # Calculate Border Scores (only works with grid-based environments)
+        if hasattr(env.env, 'grid'):
+            print("Warning: border score only works with L room currently.")
+            wallgroups, not_near_walls = LRoomWallGroups(env)
+            border_scores = [
+                calculateBorderScore(tc, wallgroups, not_near_walls)
+                for tc in self.tuning_curves.values()
+            ]
+            self.metrics["border_score"] = np.array(border_scores)
+        else:
+            print("Skipping border score (no grid-based environment detected).")
+            self.metrics["border_score"] = np.full(len(self.tuning_curves), np.nan)
 
         # Calculate autocorrelation-based metrics: peaks, field size, field asymmetry
         self.tc_autocorrs = pf_autocorr(self.tuning_curves, peakNorm=True)

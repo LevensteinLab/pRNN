@@ -716,17 +716,17 @@ class UnityShell(Shell):
 
 
 class GimblShell(Shell):
-    """Shell for Gimbl Unity corridor with a frozen ResNet18 encoder.
+    """Shell for Gimbl Unity corridor with input compressed by an encoder.
 
     Connects to a running Gimbl Unity environment via ML-Agents,
-    receives egocentric camera frames, encodes them through a frozen
-    ResNet18, and outputs latent vectors for the pRNN.
+    receives egocentric camera frames, encodes them through an
+    encoder, and outputs latent vectors for the pRNN.
 
     Args:
         env: gymnasium.Env created from UnityToGymWrapper
         act_enc: action encoding string (e.g. 'Continuous')
         env_key: environment identifier string
-        encoder: FrozenResNet18 instance (see prnn.environments.Unity.resnet)
+        encoder: FrozenResNet18 instance (see prnn.utils.encoder)
         HDbins: number of head direction bins (0 if not used)
     """
 
@@ -738,12 +738,6 @@ class GimblShell(Shell):
         self.numHDs = HDbins
         self.max_dist = False
         self.start_pos = 0
-
-        obs_space = env.observation_space
-        if hasattr(obs_space, 'shape'):
-            self.obs_shape = obs_space.shape
-        else:
-            self.obs_shape = obs_space['visual'].shape
 
     def getObsSize(self):
         return self.encoder.latent_dim

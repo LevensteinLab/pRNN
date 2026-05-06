@@ -137,7 +137,9 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
 def create_dataloader(env, agent, n_trajs, seq_length, folder,
                       generate=True, tmp_folder=None, batch_size=32,
                       num_workers=0, save_raw=False, load_raw=False):
-    folder = folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc 
+    folder = folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc
+    if hasattr(env, 'encoder'):
+        folder += f'-{env.encoder.name}-{env.encoder.latent_dim}d' 
     if generate:
         generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=save_raw)
     if not tmp_folder:

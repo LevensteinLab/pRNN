@@ -16,7 +16,6 @@ class FrozenResNet18(nn.Module):
     def __init__(self, latent_dim=None):
         super().__init__()
         backbone = resnet18(weights=ResNet18_Weights.DEFAULT)
-        # Drop the FC head; keep everything up to and including avgpool
         self.features = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
 
         if latent_dim is not None:
@@ -26,11 +25,12 @@ class FrozenResNet18(nn.Module):
             self.proj = None
             self.latent_dim = 512
 
+        self.name = 'res'
+
         for p in self.parameters():
             p.requires_grad = False
 
     def encode_latent(self, x):
-        # Defensive: if input is BHWC convert to BCHW
         if x.ndim == 4 and x.shape[1] == x.shape[2] and x.shape[3] in (1, 3, 4):
             x = x.permute(0, 3, 1, 2).contiguous()
         z = self.features(x)
@@ -39,7 +39,7 @@ class FrozenResNet18(nn.Module):
         return z
 
     def encode(self, x):
-        """Returns (z, None) — MiniworldVAEShell compatibility (no variational bottleneck)."""
+        """Returns (z, None) — no variational bottleneck."""
         return self.encode_latent(x), None
 
     def reparameterize(self, mu, log_var):

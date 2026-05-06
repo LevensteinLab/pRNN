@@ -18,8 +18,11 @@ from prnn.environments.RatEnvironment import make_rat_env, config_default
 
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              riab_cfg=config_default, HDbins=12, wrap=True,
-             seed=42, encoder=None, app_path=None, no_graphics=False):
-
+             seed=42, encoder=None, app_path=None, no_graphics=False,
+             offline=False):
+# Note: the offline flag allows for env creation to happen without connecting to Unity
+# if trajectories have been generated offline. This is necessary while Unity doesn't
+# run headlessly on Misha. TODO: remove later?
 
     # For different types/names of the env, creates the env, makes necessary adjustments, then wraps it in a corresponding shell
     if package=='gym-minigrid':
@@ -107,10 +110,13 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         env = UnityShell(env, act_enc, env_key)
 
     elif package=='gimbl':
-        from prnn.environments.Unity.UnityEnvironment import UnityEnv
-        raw_env = UnityEnv(app_path=app_path, no_graphics=no_graphics)
-        env = GimblShell(raw_env, act_enc, env_key,
-                         encoder=encoder, HDbins=HDbins)
+        if offline:
+            env = GimblShell(None, act_enc, env_key, encoder=encoder, HDbins=HDbins)
+        else:
+            from prnn.environments.Unity.UnityEnvironment import UnityEnv
+            raw_env = UnityEnv(app_path=app_path, no_graphics=no_graphics)
+            env = GimblShell(raw_env, act_enc, env_key,
+                             encoder=encoder, HDbins=HDbins)
 
     else:
         raise NotImplementedError('Package is not supported yet or its name is incorrect')

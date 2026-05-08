@@ -19,7 +19,7 @@ from prnn.environments.RatEnvironment import make_rat_env, config_default
 def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
              riab_cfg=config_default, HDbins=12, wrap=True,
              seed=42, encoder=None, app_path=None, no_graphics=False,
-             offline=False):
+             offline=False, agent_view_size=None):
 # Note: the offline flag allows for env creation to happen without connecting to Unity
 # if trajectories have been generated offline. This is necessary while Unity doesn't
 # run headlessly on Misha. TODO: remove later?
@@ -29,10 +29,11 @@ def make_env(env_key, package='gym-minigrid', act_enc='OneHotHD',
         import gym
         import gym_minigrid
         from gym_minigrid.wrappers import RGBImgPartialObsWrapper_HD
+        env_kwargs = {} if agent_view_size is None else {'agent_view_size': agent_view_size}
         if wrap:
-            env = RGBImgPartialObsWrapper_HD(gym.make(env_key),tile_size=1)
+            env = RGBImgPartialObsWrapper_HD(gym.make(env_key, **env_kwargs),tile_size=1)
         else:
-            env = gym.make(env_key)
+            env = gym.make(env_key, **env_kwargs)
         env.reset()
         env = GymMinigridShell(env, act_enc, env_key)
 

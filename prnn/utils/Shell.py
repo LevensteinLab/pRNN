@@ -15,7 +15,6 @@ from prnn.utils.ActionEncodings import *
 from prnn.utils.general import saveFig
 
 actionOptions = {'OneHotHD' : OneHotHD ,
-                 'OneHotHDPrevAct' : OneHotHDPrevAct,
                  'SpeedHD' : SpeedHD ,
                  'SpeedNextHD' : SpeedNextHD,
                  'OneHot' : OneHot,
@@ -94,7 +93,8 @@ class Shell:
             obs = [*data[:self.n_obs]]
             if len(obs) == 1:
                 obs = obs[0]
-            if self.dataLoader.dataset.raw:
+            if self.dataLoader.dataset.raw and not self.raw_default:
+                # If the encoder is in the Shell, we need to process raw images
                 obs, act = self.env2pred(obs, act, state=state,
                                          device=device,
                                          compute_loss=compute_loss,
@@ -107,17 +107,20 @@ class Shell:
                                                     inv_x=inv_x,
                                                     inv_y=inv_y,
                                                     reset=reset)
+            if save_env: # used for the analysis
+                obs_env = obs
 
             if obs_format == 'pred': # to train right away
                 obs, act = self.env2pred(obs, act, state=state,
                                             device=device,
                                             compute_loss=compute_loss)
+
             elif obs_format == 'npgrid': # to save as numpy array
                 nps = self.env2np(obs, act, state=state,
                                     device=device, save_env=save_env)
                 obs, act = nps[0], nps[1]
 
-                if save_env:
+                if save_env: # used for saving raw images in dataloader
                     obs_env = nps[2]
         if save_env:
             return obs, act, state, render, obs_env
@@ -362,13 +365,18 @@ class FaramaMinigridShell(GymMinigridShell):
     
 
 class MiniworldShell(Shell):
+    """
+    Shell for Miniworld environments
+    By default, it can be used only with pRNN-autoencoder.
+    Otherwise, child classes need to be used depending on the encoder.
+    """
     def __init__(self, env, act_enc, env_key, HDbins, dx=5/8, **kwargs):
         super().__init__(env, act_enc, env_key)
         self.numHDs = HDbins
 
         self.dx = dx
-        self.height = int((env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2)/dx)
-        self.width = int((env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2)/dx)
+        self.height = round((env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2)/dx)
+        self.width = round((env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2)/dx)
 
         self.true_height = env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2
         self.true_width = env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2
@@ -376,9 +384,54 @@ class MiniworldShell(Shell):
 
         self.continuous = True
         self.start_pos = 0
+        self.raw_default = True # by default, the observations are raw images for Miniworld
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
+
+    def env2pred(self, obs, act=None, state=None, hd_from='state',
+                 actoffset=0, device='cpu', **kwargs):    
+        if act is not None:
+            if hd_from=='state':
+                hd = state['agent_dir']
+            elif hd_from=='act':
+                hd = self.act2hd(obs[actoffset], act, actoffset)
+            else:
+                raise KeyError('hd_from should be either "state" or "act"')
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    nbins=self.numHDs)
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)[None]
+        obs = obs.to(device)
+
+        if hd_from=='state':
+            return obs, act
+        else:
+            return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
+    
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
+        hd = state['agent_dir']
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             nbins=self.numHDs))
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        obs = np.array(obs)
+        obs_env = obs.copy()
+
+        if save_env:
+            obs = np.array([]) # placeholder, to reduce memory usage
+            return obs, act, obs_env
+        else:
+            return obs, act
+
+    def pred2np(self, obs, whichPhase=0, timesteps=None):
+        obs = obs[whichPhase].detach().numpy()
+        if timesteps:
+            obs = obs[timesteps,...]
+        
+        obs = np.transpose(obs, (0,2,3,1))
+        return obs
     
     def act2hd(self, obs, act, act_offset=0, **kwargs):
         #TODO: adapt for theta with At-1
@@ -416,6 +469,9 @@ class MiniworldShell(Shell):
     
     def getActType(self):
         return torch.float32
+
+    def getObsSize(self):
+        return None # obs size is determined by
     
     def get_map_bins(self):
         minmax=(0, self.width,
@@ -446,7 +502,7 @@ class MiniworldShell(Shell):
         return np.append(state['agent_pos'][-1], state['agent_dir'][-1])
     
     def set_agent_pos(self, pos):
-        self.env.unwrapped.agent_pos = np.insert(pos, 1, 0)
+        self.env.unwrapped.agent.pos = np.insert(pos, 1, 0)
     
     def set_agent_dir(self, hd):
         self.env.unwrapped.agent_dir = hd
@@ -462,8 +518,9 @@ class MiniworldShell(Shell):
             pos = state['pos_continuous']
         else:
             pos = state['agent_pos']
-        plt.scatter(pos[trajectory_ts,0]*54/(self.env.size+self.env.padding*2)+4.5,
-                    pos[trajectory_ts,1]*54/(self.env.size+self.env.padding*2)+4.5,
+        # the render is 64x64 and there are ~3 pixels surrounding the environment
+        plt.scatter(pos[trajectory_ts,0]*57/(self.env.size[0]+self.env.padding*2)+3,
+                    pos[trajectory_ts,1]*57/(self.env.size[1]+self.env.padding*2)+3,
                     s=1,
                     color='r')
         
@@ -478,7 +535,7 @@ class MiniworldShell(Shell):
     def post_save(self, env):
         self.env = env
     
-    def reset(self, seed=False):
+    def reset(self, seed=None):
         if seed:
             return self.env.reset(seed=seed)[0]
         else:
@@ -491,6 +548,7 @@ class MiniworldVAEShell(MiniworldShell):
         super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
         self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda in the training loop
         self.encoder.eval() # If needs to be trained, it will be set to train mode in the training loop
+        self.raw_default = False
 
     def getObsSize(self):
         obs_size = self.encoder.latent_dim
@@ -547,7 +605,7 @@ class MiniworldVAEShell(MiniworldShell):
                                              nbins=self.numHDs))
 
         obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
-        obs_env = np.array(obs)
+        obs_env = np.array(obs) # raw observations don't need a singleton first dimension
         obs = obs.to(device)
         mu, log_var = self.encoder.encode(obs)
         obs = self.encoder.reparameterize(mu, log_var)
@@ -566,6 +624,78 @@ class MiniworldVAEShell(MiniworldShell):
         
         obs = np.transpose(obs, (0,2,3,1))
         return obs
+
+
+class MiniworldContrastiveShell(MiniworldShell):
+    def __init__(self, env, act_enc, env_key, encoder, HDbins,
+                 dx=5/8, **kwargs):
+        super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
+        self.encoder = encoder.to('cpu') # default is CPU, it's moved to cuda in the training loop
+        self.encoder.eval() # If needs to be trained, it will be set to train mode in the training loop
+        self.raw_default = False
+
+    def getObsSize(self):
+        obs_size = self.encoder.latent_dim
+        return obs_size
+
+    def env2pred(self, obs, act=None, state=None, hd_from='state',
+                 actoffset=0, device='cpu', compute_loss=False,
+                 from_raw=False):    
+        if act is not None and not from_raw:
+            if hd_from=='state':
+                hd = state['agent_dir']
+            elif hd_from=='act':
+                hd = self.act2hd(obs[actoffset], act, actoffset)
+            else:
+                raise KeyError('hd_from should be either "state" or "act"')
+            act = self.encodeAction(act=act,
+                                    obs=hd,
+                                    nbins=self.numHDs)
+
+        if from_raw:
+            obs = obs.to(device)
+        else:
+            obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+            obs = obs.unsqueeze(dim=0)
+            obs = obs.to(device)
+
+        if compute_loss:
+            z = self.encoder.encode(obs)
+            preds, targets = self.encoder.predict_latents(z)
+            self.loss = self.encoder.contrastive_loss_from_preds(preds, targets)
+        else:
+            z = self.encoder.encode(obs)
+        if from_raw:
+            z = z.unsqueeze(1)
+
+        if hd_from=='state':
+            return z, act
+        else:
+            return z, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
+    
+    def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
+        hd = state['agent_dir']
+        if act is not None:
+            act = np.array(self.encodeAction(act=act,
+                                             obs=hd,
+                                             nbins=self.numHDs))
+
+        obs = torch.cat([self.get_visual(o) for o in obs], dim=0)
+        obs_env = np.array(obs) # raw observations don't need a singleton first dimension
+        obs = obs.to(device)
+        obs = self.encoder.encode(obs)
+        obs = torch.unsqueeze(obs, dim=0).cpu().detach().numpy()
+
+        if save_env:
+            return obs, act, obs_env
+        else:
+            return obs, act
+    
+    def pred2np(self, obs, whichPhase=0, timesteps=None):        
+        # No images without a decoder, placeholder for compatibility
+        if timesteps:
+            obs = obs[:,timesteps,...]
+        return np.ones([obs.shape[1],1,1,3])
         
 
 class RatInABoxShell(Shell):

@@ -15,3 +15,7 @@ gym.register(
             "sheep": True},
 )
 
+gym.register(
+    id="MiniWorld-Mazest-v0",
+    entry_point="prnn.environments.Miniworld.env:Mazest",
+)

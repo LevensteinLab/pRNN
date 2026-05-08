@@ -114,6 +114,9 @@ netOptions = {
     "multRNN_5win_i1_o0": multRNN_5win_i1_o0,
     "multRNN_5win_i01_o0": multRNN_5win_i01_o0,
     "multRNN_5win_i0_o1": multRNN_5win_i0_o1,
+    "thRNN_0win_AE": thRNN_0win_AE,
+    "thRNN_1win_AE": thRNN_1win_AE,
+    "thRNN_5win_AE": thRNN_5win_AE
 }
 
 lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss}
@@ -160,6 +163,7 @@ class PredictiveNet:
         encoder_grad=False,
         enc_loss_weight=1.0,
         enc_loss_power=1.0,
+        ae_lr=1,
         wandb_log=False,
         trainArgs=SimpleNamespace(),
         **architecture_kwargs,
@@ -175,6 +179,7 @@ class PredictiveNet:
         # get all constructor arguments and save them separately in trainArgs for later access...
 
         self.trainArgs = trainArgs
+
         input_args = locals()
         input_args.pop("self")
         input_args.pop("trainArgs")
@@ -210,6 +215,7 @@ class PredictiveNet:
             bias_lr=bias_lr,
             eg_lr=eg_lr,
             eg_weight_decay=eg_weight_decay,
+            ae_lr=ae_lr
         )
 
         self.loss_fn_spont = LPLLoss(lambda_decorr=0, lambda_hebb=0.02)
@@ -262,6 +268,7 @@ class PredictiveNet:
             shape = (1, 1, self.hidden_size)
 
         if randInit and len(state) == 0:
+            shape = (act.size(0), 1, self.hidden_size)
             state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
             state = self.pRNN.rnn.cell.actfun(state)
 
@@ -618,7 +625,7 @@ class PredictiveNet:
         bias_lr=1,
         eg_lr=None,
         eg_weight_decay=1e-6,
-    ):
+        ae_lr=1):
         self.learningRate = learningRate
         self.weight_decay = weight_decay
         rootk_h = np.sqrt(1.0 / self.pRNN.rnn.cell.hidden_size)
@@ -629,12 +636,6 @@ class PredictiveNet:
                 {
                     "params": self.pRNN.W,
                     "name": "RecurrentWeights",
-                    "lr": learningRate * rootk_h,
-                    "weight_decay": weight_decay * learningRate * rootk_h,
-                },
-                {
-                    "params": self.pRNN.W_out,
-                    "name": "OutputWeights",
                     "lr": learningRate * rootk_h,
                     "weight_decay": weight_decay * learningRate * rootk_h,
                 },
@@ -650,6 +651,38 @@ class PredictiveNet:
         )
         # Parms from Recanatesi
         # lr=1e-4, alpha=0.95, eps=1e-7
+        if hasattr(self.pRNN,'W_out'):
+            outparamgroup = {
+                    "params": self.pRNN.W_out,
+                    "name": "OutputWeights",
+                    "lr": learningRate * rootk_h,
+                    "weight_decay": weight_decay * learningRate * rootk_h,
+                }
+            self.optimizer.add_param_group(outparamgroup)
+
+        if hasattr(self.pRNN,'encoder'):
+            self.ae_lr = ae_lr
+            encoderparamgroup = {
+                    "params": self.pRNN.encoder.parameters(),
+                    "name": "encoder",
+                    "lr": learningRate*ae_lr,
+                    "weight_decay": weight_decay*learningRate*ae_lr
+                }
+            decoderparamgroup = {
+                    "params": self.pRNN.decoder.parameters(),
+                    "name": "decoder",
+                    "lr": learningRate*ae_lr,
+                    "weight_decay": weight_decay*learningRate*ae_lr
+                }
+            decoderinputparamgroup = {
+                    "params": self.pRNN.decoder_input.parameters(),
+                    "name": "decoder_input",
+                    "lr": learningRate*ae_lr,
+                    "weight_decay": weight_decay*learningRate*ae_lr
+                }
+            self.optimizer.add_param_group(encoderparamgroup)
+            self.optimizer.add_param_group(decoderparamgroup)
+            self.optimizer.add_param_group(decoderinputparamgroup)
 
         if trainBias:
             self.bias_lr = bias_lr

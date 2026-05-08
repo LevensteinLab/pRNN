@@ -12,6 +12,9 @@ from numpy.random import choice
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
 
+from prnn.environments.RatEnvironment import make_rat_env
+from prnn.utils.general import saveFig
+
 def randActionSequence(tsteps,action_space,action_probability):
     
     action_space = np.arange(action_space.n) #convert gym to np
@@ -212,8 +215,9 @@ class MiniworldRandomAgent(Agent):
             obs[0] = env.env.render_obs()
             
         if act is None:
-            pos = env.env.unwrapped.agent.pos
-            pos = np.array([pos[0] - env.env.padding, env.env.size - pos[2] + env.env.padding]) / env.env.size
+            pos = env.get_agent_pos()
+            # pos = np.array([pos[0] - env.env.padding, env.env.size[1] - pos[2] + env.env.padding]) / env.env.size
+            pos = np.array([pos[0], env.env.size[1] - pos[1]]) / 10
             direction = env.env.unwrapped.agent.dir
             act = self.generateActionSequence(pos, direction, tsteps)
         else:
@@ -234,7 +238,17 @@ class MiniworldRandomAgent(Agent):
             render[0] = env.env.render_top_view()
             
         for aa in range(tsteps):
-            obs[aa+1] = env.step(act[:,aa])[0]
+            obs[aa+1], _, _, _, info = env.step(act[:,aa])
+            # check for the discrepancies in the position
+            if info['moved']:
+                pos = env.get_agent_pos()
+                pos = np.array([pos[0], env.env.size[1] - pos[1]]) / 10
+                pos_riab = np.array(self.history["pos"][aa+1])
+                if any(np.abs(pos - pos_riab) > 1e-4):
+                    new_pos = pos_riab * 10
+                    new_pos[1] = env.env.size[1] - new_pos[1]
+                    env.set_agent_pos(new_pos)
+
             state['agent_pos'] = np.append(state['agent_pos'],
                                            np.resize(env.get_agent_pos(),(1,2)),axis=0) # probably resize not needed
             state['agent_dir'] = np.append(state['agent_dir'],
@@ -266,7 +280,7 @@ class MiniworldRandomAgent(Agent):
         self.history["angle"] = [get_angle(self.velocity)]
     
 
-def create_agent(envname, env, agentkey, agentname = ""):
+def create_agent(envname, env, agentkey, agentname = "", savefolder=None):
     if agentkey == 'RandomActionAgent':
         if 'LRoom' in envname:
             action_probability = np.array([0.15,0.15,0.6,0.1,0,0,0])
@@ -280,8 +294,24 @@ def create_agent(envname, env, agentkey, agentname = ""):
         agent = RatInABoxAgent(name=type(env).__name__)
 
     elif agentkey == 'MiniworldRandomAgent':
-        from prnn.environments.RatEnvironment import make_rat_env
-        riab_env = make_rat_env(envname)
-        agent = MiniworldRandomAgent(riab_env, name=agentname)
+        riab_env = make_rat_env(miniworld=env.env)
+        agent = MiniworldRandomAgent(
+                riab_env,
+                name=agentname,
+                params={
+                    # "dt": 0.1,
+                    "speed_mean": 0.2,
+                    "dt": 0.125,
+                    # "speed_mean": 0.25,
+                    "thigmotaxis": 0,
+                    # "wall_repel_distance": 0.2,
+                    "rotational_velocity_std": (90 * (np.pi / 180)),
+                    # "rotational_velocity_std": (60 * (np.pi / 180)),
+                    "wall_repel_strength": 1.5,
+                    "head_direction_smoothing_timescale" : 0.25,
+                }
+            )
+        fig, ax = riab_env.plot_environment()
+        saveFig(fig, savename='riab-env', savepath=savefolder)
 
     return agent

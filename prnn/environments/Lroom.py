@@ -19,6 +19,7 @@ class L_Env(MiniGridEnv):
         agent_start_pos=(1,1),
         agent_start_dir=0,
         agent_view_size=7,
+        max_steps_coeff=10,
         **kwargs
     ):
         self.agent_start_pos = agent_start_pos
@@ -32,10 +33,11 @@ class L_Env(MiniGridEnv):
         super().__init__(
             mission_space=mission_space,
             grid_size=size,
-            max_steps=10*size*size,
+            max_steps=max_steps_coeff*size*size,
             # Set this to True for maximum speed
             see_through_walls=True,
             agent_view_size=agent_view_size,
+            **kwargs
         )
 
     @staticmethod
@@ -140,6 +142,12 @@ register(
 register(
     id='LRoom-18x18-v0',
     entry_point='prnn.environments.Lroom:LEnv_18'
+)
+
+register(
+    id='LRoom-18x18-v1',
+    entry_point='prnn.environments.Lroom:LEnv_18',
+    kwargs={'max_steps_coeff': 1}
 )
 
 register(

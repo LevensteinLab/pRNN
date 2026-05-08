@@ -26,7 +26,7 @@ class TrajDataset(Dataset):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         act = torch.tensor(act, dtype=self.act_type)
         if self.n_obs > 1: # for multimodal observations
-            obs = [np.load(self._data_dir + '/' + str(index+1) + "/obs%d.npy" % i) for i in range(self.n_obs)]
+            obs = [np.load(self._data_dir + '/' + str(index+1) + "/obs%d.npy" % i)[:,:self.seq_length+1] for i in range(self.n_obs)]
             obs = [torch.tensor(obs[i], dtype=torch.float32) for i in range(self.n_obs)]
             return *obs, act
         else:
@@ -43,12 +43,21 @@ class TrajRawDataset(TrajDataset):
     def __getitem__(self, index):
         act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
         act = torch.tensor(act, dtype=self.act_type)
-        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:,:self.seq_length+1]
+        raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:self.seq_length+1]
         raw = torch.tensor(raw, dtype=torch.float32)
         return raw, act
 
 
-def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=False):
+def generate_trajectories(
+            env,
+            agent,
+            n_trajs,
+            seq_length,
+            folder,
+            save_raw = False,
+            continuous_trajectories = False
+        ):
+    
     top_dir = Path(folder)
     n_generated = 0
     length_generated = 0
@@ -78,12 +87,14 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
                 state = np.load(str(child / "state.npy"))
                 env.load_state(state)
                 act = np.load(str(child / "act.npy"))
-                new_data = env.collectObservationSequence(agent,
-                                                          seq_length - length_generated,
-                                                          obs_format='npgrid',
-                                                          reset=False,
-                                                          save_env=save_raw,
-                                                          device=device)
+                new_data = env.collectObservationSequence(
+                        agent,
+                        seq_length - length_generated,
+                        obs_format = 'npgrid',
+                        reset = not continuous_trajectories,
+                        save_env = save_raw,
+                        device = device
+                    )
                 new_obs, new_act, new_state = new_data[0], new_data[1], new_data[2]
                 if save_raw:
                     raw = np.load(str(child / "raw.npy"))
@@ -239,4 +250,3 @@ class GroupedBatchRandomSampler(Sampler):
     def __len__(self) -> int:
         numbatches = [len(i) // self.batch_size for i in self.indices]
         return sum(numbatches)
-

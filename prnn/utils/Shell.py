@@ -788,7 +788,9 @@ class GimblShell(Shell):
         return obs[whichPhase]
 
     def step(self, action):
-        return self.env.step(action)
+        result = self.env.step(action)
+        self._last_obs = result[0]
+        return result
 
     def render(self, **kwargs):
         return self.env.render()
@@ -796,10 +798,13 @@ class GimblShell(Shell):
     def reset(self, seed=False):
         kw = {'seed': seed} if seed else {}
         obs, info = self.env.reset(**kw)
+        self._last_obs = obs
         return obs
 
     def get_agent_pos(self):
-        return np.array([0, 0])
+        if self._last_obs is None:
+            return np.array([0.0, 0.0, 0.0])
+        return np.asarray(self._last_obs['vector'], dtype=np.float64)
 
     def get_agent_dir(self):
         return 0

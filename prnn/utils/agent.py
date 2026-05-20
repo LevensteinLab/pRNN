@@ -523,7 +523,7 @@ class GimblAgentConstant:
 
         obs[0] = env.reset() if reset else env.render()
 
-        state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 2)),
+        state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 3)),
                  'agent_dir': env.get_agent_dir()}
 
         if includeRender:
@@ -538,7 +538,7 @@ class GimblAgentConstant:
                 obs[t + 1] = env.reset()
             state['agent_pos'] = np.append(
                 state['agent_pos'],
-                np.resize(env.get_agent_pos(), (1, 2)), axis=0)
+                np.resize(env.get_agent_pos(), (1, 3)), axis=0)
             state['agent_dir'] = np.append(state['agent_dir'], env.get_agent_dir())
             if includeRender:
                 render[t + 1] = env.render()

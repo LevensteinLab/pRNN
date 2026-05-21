@@ -509,7 +509,7 @@ class GimblAgentConstant:
         speed: forward speed value sent to Unity at each step
     """
 
-    def __init__(self, speed=0.5):
+    def __init__(self, speed=0.15):
         self.speed = speed
         self.name = 'GimblAgentConstant'
 

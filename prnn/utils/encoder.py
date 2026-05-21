@@ -13,13 +13,13 @@ class FrozenResNet18(nn.Module):
                     Otherwise a linear projection is added.
     """
 
-    def __init__(self, latent_dim=None):
+    def __init__(self, latent_dim=None, bias=True):
         super().__init__()
         backbone = resnet18(weights=ResNet18_Weights.DEFAULT)
         self.features = nn.Sequential(*list(backbone.children())[:-1], nn.Flatten())
 
         if latent_dim is not None:
-            self.proj = nn.Linear(512, latent_dim)
+            self.proj = nn.Linear(512, latent_dim, bias=bias)
             self.latent_dim = latent_dim
         else:
             self.proj = None
@@ -51,3 +51,19 @@ class FrozenResNet18(nn.Module):
 
     def forward(self, x):
         return self.encode_latent(x)
+
+class FrozenResNet18Random(FrozenResNet18):
+    """ResNet18 + frozen random linear projection to a lower-dim latent.
+
+    Used as a baseline encoder: the 512-dim ResNet features are reduced to
+    latent_dim via an untrained linear projection. The projection has no bias
+    (pure Wx, no random offset). Weight init is PyTorch default (Kaiming
+    uniform); other choices (Gaussian JL, orthogonal) may be worth exploring.
+
+    Args:
+        latent_dim: output dimension. Required.
+    """
+
+    def __init__(self, latent_dim):
+        super().__init__(latent_dim=latent_dim, bias=False)
+        self.name = 'res_random'

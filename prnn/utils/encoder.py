@@ -2,7 +2,7 @@ import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 
 
-class FrozenResNet18(nn.Module):
+class Res18(nn.Module):
     """ResNet18 pretrained on ImageNet, frozen, used as a visual encoder.
 
     The FC head is removed; features are taken from the adaptive average pool
@@ -52,7 +52,7 @@ class FrozenResNet18(nn.Module):
     def forward(self, x):
         return self.encode_latent(x)
 
-class FrozenResNet18Random(FrozenResNet18):
+class Res18Random(Res18):
     """ResNet18 + frozen random linear projection to a lower-dim latent.
 
     Used as a baseline encoder: the 512-dim ResNet features are reduced to
@@ -66,4 +66,5 @@ class FrozenResNet18Random(FrozenResNet18):
 
     def __init__(self, latent_dim):
         super().__init__(latent_dim=latent_dim, bias=False)
+        # need to add line with self.proj.weight to test JL, orthogonal projections
         self.name = 'res_random'

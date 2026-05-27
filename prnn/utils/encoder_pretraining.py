@@ -40,17 +40,22 @@ IMG_EXTS = {'.jpg', '.jpeg', '.png', '.bmp'}
 class ImageDirDataset(Dataset):
     """Recursively finds all images under root. Returns (image_tensor, 0)."""
     def __init__(self, root, transform=None):
-        self.paths = sorted(
-            p for p in Path(root).rglob('*')
-            if p.suffix.lower() in IMG_EXTS
-        )
-        if len(self.paths)==0:
+        root = Path(root)
+        cache = root/'.image_paths_cache.txt'
+        if cache.exists():
+            self.paths = [Path(line.strip()) for line in cache.read_text().splitlines()]
+        else:
+            self.paths = sorted(
+                p for p in root.rglob('*')
+                if p.suffix.lower() in IMG_EXTS
+            )
+            cache.write_text('\n'.join(str(p) for p in self.paths))
+        if len(self.paths) == 0:
             raise RuntimeError(f'No images found under {root}.')
         self.transform = transform
-
     def __len__(self):
         return len(self.paths)
-    
+
     def __getitem__(self, i):
         img = Image.open(self.paths[i]).convert('RGB')
         if self.transform:

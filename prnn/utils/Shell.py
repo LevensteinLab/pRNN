@@ -755,7 +755,7 @@ class GimblShell(Shell):
         if isinstance(obs, np.ndarray):
             # explicit HWC -> CHW, uint8 [0,255] -> float [0,1]
             obs = torch.from_numpy(
-                np.transpose(obs, (2, 0, 1)).astype(np.float32) / 255.0
+                np.transpose(obs, (1, 0, 2)).astype(np.float32) / 255.0
             )
         return torch.unsqueeze(obs, dim=0)  # (1, C, H, W)
 

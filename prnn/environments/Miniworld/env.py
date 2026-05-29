@@ -66,7 +66,6 @@ class LRoom(MiniWorldEnv):
                  floors=("asphalt","asphalt","asphalt"),
                  sheep=False, **kwargs):
         self.size = np.array([size, size])
-        self.padding = 0.5 # TODO: remove padding from everywhere
         self.continuous = continuous
         self.target=False
         self.walls = walls
@@ -82,31 +81,31 @@ class LRoom(MiniWorldEnv):
             self.action_space = spaces.Discrete(self.actions.move_forward + 1)
 
     def _gen_world(self):
-        x_crest = self.size*0.625
-        y_crest = self.size*0.5
+        x_crest = self.size[0]*0.625
+        y_crest = self.size[1]*0.5
         room1 = self.add_rect_room(
             min_x=0,
-            max_x=x_crest+1,
+            max_x=x_crest,
             min_z=0,
-            max_z=y_crest+1,
+            max_z=y_crest,
             wall_tex=self.walls[0],
             floor_tex=self.floors[0],
             no_ceiling=True,
         )
         room2 = self.add_rect_room(
-            min_x=x_crest+1,
-            max_x=self.size+1,
+            min_x=x_crest,
+            max_x=self.size[0],
             min_z=0,
-            max_z=y_crest+1,
+            max_z=y_crest,
             wall_tex=self.walls[1],
             floor_tex=self.floors[1],
             no_ceiling=True,
         )
         room3 = self.add_rect_room(
             min_x=0,
-            max_x=x_crest+1,
-            min_z=y_crest+1,
-            max_z=self.size+1,
+            max_x=x_crest,
+            min_z=y_crest,
+            max_z=self.size[1],
             wall_tex=self.walls[2],
             floor_tex=self.floors[2],
             no_ceiling=True,
@@ -205,7 +204,7 @@ class LRoom(MiniWorldEnv):
         self.step_count = 0
 
         # Create the agent
-        self.agent = Rat()
+        self.agent = Rat(radius=0.1)
 
         # List of entities contained
         self.entities = []
@@ -261,7 +260,7 @@ class LRoom(MiniWorldEnv):
 
         if self.continuous:
             self.turn_agent_cont(action[1])
-            self.move_agent_cont(action[0])
+            moved = self.move_agent_cont(action[0])
         else:
             rand = self.np_random if self.domain_rand else None
             fwd_step = self.params.sample(rand, "forward_step")
@@ -287,7 +286,7 @@ class LRoom(MiniWorldEnv):
         # Generate the current camera image
         obs = self.render_obs()
 
-        return obs, reward, termination, truncation, {}
+        return obs, reward, termination, truncation, {"moved": moved if self.continuous else None}
     
 
 class Mazest(MiniWorldEnv, utils.EzPickle):
@@ -328,7 +327,6 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
         self.num_cols = num_cols
         self.room_size = room_size
         self.gap_size = 0.25
-        self.padding = 0
         self.size = np.array([num_cols * (room_size + self.gap_size) - self.gap_size,
                               num_rows * (room_size + self.gap_size) - self.gap_size])
         self.continuous = continuous
@@ -668,6 +666,10 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
         # Generate the first camera image
         obs = self.render_obs()
 
+        # Compute colormap values for the maze layout (for potential use in observations or rewards)
+        if self.regenerate:
+            self._compute_colormap_traversal()
+
         # Set regenerate to False so that layout is not changed on next resets
         self.regenerate = False
 
@@ -685,3 +687,158 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
 
         dist = np.linalg.norm(ent0.pos - ent1.pos)
         return dist < ent0.radius + ent1.radius + 0.5
+
+    def colormap(self, x, y):
+        """
+        Convert position(s) to scalar value(s) representing linearized maze traversal.
+        
+        The scalar follows a deterministic DFS room ordering:
+        - First room maps to 0.0
+        - Last room maps to 1.0
+        - At branching points, branch subtrees occupy contiguous intervals in DFS order
+        
+        Args:
+            x: X coordinate(s) - scalar or array-like
+            y: Y coordinate(s) (z in miniworld) - scalar or array-like
+        
+        Returns:
+            float or ndarray: Scalar value(s) between 0.0 and 1.0
+        """
+        # Compute colormap values if not already done
+        if not hasattr(self, '_colormap_values'):
+            self._compute_colormap_traversal()
+        
+        # Check if inputs are scalars
+        is_scalar = np.isscalar(x) and np.isscalar(y)
+        
+        # Convert to numpy arrays for vectorization
+        x = np.atleast_1d(np.asarray(x, dtype=float))
+        y = np.atleast_1d(np.asarray(y, dtype=float))
+        
+        # Ensure same shape
+        if x.shape != y.shape:
+            raise ValueError(f"x and y must have the same shape, got {x.shape} and {y.shape}")
+        
+        # Vectorized operation
+        result = np.zeros(x.shape, dtype=float)
+        for idx in np.ndindex(x.shape):
+            room_coords = self._find_room_at_position(x[idx], y[idx])
+            if room_coords is not None:
+                result[idx] = self._colormap_values.get(room_coords, 0.0)
+        
+        # Return scalar if input was scalar
+        if is_scalar:
+            return float(result.item())
+        return result
+
+    def _find_room_at_position(self, x, y):
+        """
+        Find the (i, j) grid coordinates of the room containing position (x, y).
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate (z in miniworld)
+        
+        Returns:
+            tuple: (i, j) room coordinates, or None if outside maze bounds
+        """
+        for j in range(self.num_rows):
+            for i in range(self.num_cols):
+                min_x = i * (self.room_size + self.gap_size)
+                max_x = min_x + self.room_size + self.gap_size
+                min_z = j * (self.room_size + self.gap_size)
+                max_z = min_z + self.room_size + self.gap_size
+                
+                if min_x <= x <= max_x and min_z <= y <= max_z:
+                    return (i, j)
+        return None
+
+    def _compute_colormap_traversal(self):
+        """
+        Compute scalar colormapping values for each room using DFS linearization.
+
+        The root room is assigned 0.0 and the final room visited by DFS is assigned 1.0.
+        At branch points, child subtrees are visited in deterministic order, so each branch
+        occupies a contiguous interval immediately after the parent interval.
+        """
+        if self.room_connections is None or len(self.room_connections) == 0:
+            self._colormap_values = {}
+            return
+        
+        # Build adjacency list from connections
+        adjacency = {}
+        for i1, j1, i2, j2, direction in self.room_connections:
+            if (i1, j1) not in adjacency:
+                adjacency[(i1, j1)] = []
+            if (i2, j2) not in adjacency:
+                adjacency[(i2, j2)] = []
+            adjacency[(i1, j1)].append((i2, j2))
+            adjacency[(i2, j2)].append((i1, j1))
+
+        visited = set()
+        preorder = []
+
+        def subtree_size(start, banned, base_visited):
+            """Count number of nodes reachable from `start` excluding `banned` and any in `base_visited`.
+
+            This is used to order branches so that shorter subtrees are visited first.
+            """
+            seen = set(base_visited)
+            if banned is not None:
+                seen.add(banned)
+            stack = [start]
+            cnt = 0
+            while stack:
+                node = stack.pop()
+                if node in seen:
+                    continue
+                seen.add(node)
+                cnt += 1
+                for nb in adjacency.get(node, []):
+                    if nb not in seen:
+                        stack.append(nb)
+            return cnt
+
+        def dfs(room, parent=None):
+            """Depth-first traversal producing a linear room ordering.
+
+            Neighbors are visited in ascending order of their subtree size so
+            that shorter branches come before longer ones.
+            """
+            visited.add(room)
+            preorder.append(room)
+
+            nbrs = adjacency.get(room, [])
+            # Determine ordering: sort by subtree size (ascending), tie-break by coord
+            ordered = sorted(
+                nbrs,
+                key=lambda n: (subtree_size(n, room, visited), n),
+            )
+            for nbr in ordered:
+                if nbr == parent or nbr in visited:
+                    continue
+                dfs(nbr, room)
+
+        # Start DFS traversal from room (0, 0) when available.
+        if (0, 0) in adjacency:
+            dfs((0, 0))
+        elif len(adjacency) > 0:
+            dfs(sorted(adjacency.keys())[0])
+
+        # Handle disconnected components defensively.
+        for room in sorted(adjacency.keys()):
+            if room not in visited:
+                dfs(room)
+
+        self._colormap_values = {}
+        num_rooms = len(preorder)
+        if num_rooms == 0:
+            return
+        if num_rooms == 1:
+            self._colormap_values[preorder[0]] = 0.0
+            return
+
+        # Normalize DFS order to [0, 1] so first room is 0 and last room is 1.
+        denom = float(num_rooms - 1)
+        for idx, room in enumerate(preorder):
+            self._colormap_values[room] = idx / denom

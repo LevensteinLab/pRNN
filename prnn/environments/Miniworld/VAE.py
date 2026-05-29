@@ -261,8 +261,8 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         x_hat = self.decode(z)
         return x_hat, mu, log_var
 
-    def training_step(self, batch, batch_idx):
-        x, _ = batch
+    def training_step(self, x):
+        # x, _ = batch
         x_hat, mu, log_var = self.forward(x)
         recons_loss = F.mse_loss(x_hat, x)
         kld_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp(), dim=1).mean()
@@ -279,7 +279,7 @@ class VarAutoEncoder(pl.LightningModule): # This is for VAE pretraining
         other_params = [p for p in self.parameters() if id(p) not in encoder_param_ids]
         return torch.optim.Adam(
             [
-                {"params": encoder_params, "weight_decay": self.encoder_weight_decay},
+                {"params": encoder_params, "weight_decay": self.encoder_decay},
                 {"params": other_params, "weight_decay": 0.0},
             ],
             lr=self._learning_rate,

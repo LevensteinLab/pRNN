@@ -375,11 +375,11 @@ class MiniworldShell(Shell):
         self.numHDs = HDbins
 
         self.dx = dx
-        self.height = round((env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2)/dx)
-        self.width = round((env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2)/dx)
+        self.height = round((env.unwrapped.max_z - env.unwrapped.min_z)/dx)
+        self.width = round((env.unwrapped.max_x - env.unwrapped.min_x)/dx)
 
-        self.true_height = env.unwrapped.max_z - env.unwrapped.min_z - env.padding*2
-        self.true_width = env.unwrapped.max_x - env.unwrapped.min_x - env.padding*2
+        self.true_height = env.unwrapped.max_z - env.unwrapped.min_z
+        self.true_width = env.unwrapped.max_x - env.unwrapped.min_x
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
         self.continuous = True
@@ -454,7 +454,7 @@ class MiniworldShell(Shell):
     
     def get_agent_pos(self):
         pos = self.env.unwrapped.agent.pos
-        return np.array([pos[0], pos[2]]) # not correcting for the padding for now
+        return np.array([pos[0], pos[2]])
     
     def get_agent_dir(self):
         dir = self.env.unwrapped.agent.dir
@@ -471,7 +471,7 @@ class MiniworldShell(Shell):
         return torch.float32
 
     def getObsSize(self):
-        return None # obs size is determined by
+        return None # obs size is determined by pRNN
     
     def get_map_bins(self):
         minmax=(0, self.width,
@@ -519,8 +519,8 @@ class MiniworldShell(Shell):
         else:
             pos = state['agent_pos']
         # the render is 64x64 and there are ~3 pixels surrounding the environment
-        plt.scatter(pos[trajectory_ts,0]*57/(self.env.size[0]+self.env.padding*2)+3,
-                    pos[trajectory_ts,1]*57/(self.env.size[1]+self.env.padding*2)+3,
+        plt.scatter(pos[trajectory_ts,0]*57/(self.env.size[0])+3,
+                    pos[trajectory_ts,1]*57/(self.env.size[1])+3,
                     s=1,
                     color='r')
         
@@ -546,7 +546,7 @@ class MiniworldVAEShell(MiniworldShell):
     def __init__(self, env, act_enc, env_key, vae, HDbins,
                  dx=5/8, **kwargs):
         super().__init__(env, act_enc, env_key, HDbins, dx, **kwargs)
-        self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda in the training loop
+        self.encoder = vae.to('cpu') # default is CPU, it's moved to cuda if needed
         self.encoder.eval() # If needs to be trained, it will be set to train mode in the training loop
         self.raw_default = False
 
@@ -569,6 +569,7 @@ class MiniworldVAEShell(MiniworldShell):
                                     nbins=self.numHDs)
 
         if from_raw:
+            self.encoder.to(device)
             obs = obs.to(device)
             shape = obs.shape
             obs = obs.view(-1, *shape[2:])

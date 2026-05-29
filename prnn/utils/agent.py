@@ -216,7 +216,6 @@ class MiniworldRandomAgent(Agent):
             
         if act is None:
             pos = env.get_agent_pos()
-            # pos = np.array([pos[0] - env.env.padding, env.env.size[1] - pos[2] + env.env.padding]) / env.env.size
             pos = np.array([pos[0], env.env.size[1] - pos[1]]) / 10
             direction = env.env.unwrapped.agent.dir
             act = self.generateActionSequence(pos, direction, tsteps)

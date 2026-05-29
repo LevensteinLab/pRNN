@@ -36,17 +36,69 @@ class TrajDataset(Dataset):
 
 class TrajRawDataset(TrajDataset):
     def __init__(self, folder: str, seq_length: int, n_trajs: int,
-                 act_datatype=None, n_obs=1):
+                 act_datatype=None, n_obs=1, act=True):
         super().__init__(folder, seq_length, n_trajs, act_datatype, n_obs)
         self.raw = True
+        self.act = act
 
     def __getitem__(self, index):
-        act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
-        act = torch.tensor(act, dtype=self.act_type)
         raw = np.load(self._data_dir + '/' + str(index+1) + "/raw.npy")[:self.seq_length+1]
         raw = torch.tensor(raw, dtype=torch.float32)
+        if not self.act:
+            return raw
+        act = np.load(self._data_dir + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
+        act = torch.tensor(act, dtype=self.act_type)
         return raw, act
 
+
+class RandomRawDataset(TrajDataset):
+    def __init__(self, folders: str or list, seq_length: int, n_trajs: int,
+                 act_datatype=None, n_obs=0):
+        super().__init__(folders, seq_length, n_trajs, act_datatype, n_obs)
+        self.raw = True
+        self._raw_files = []
+
+        if isinstance(folders, str):
+            folders = [folders]
+        traj_dirs = []
+        for folder in folders:
+            for child in Path(folder).iterdir():
+                if child.is_dir():
+                    traj_dirs.append(child)
+        traj_dirs.sort(key=lambda path: (0, int(path.name)) if path.name.isdigit() else (1, path.name))
+
+        raw_length = None
+        for traj_dir in traj_dirs:
+            raw_path = traj_dir / "raw.npy"
+            if raw_path.exists():
+                raw = np.load(str(raw_path), mmap_mode='r')
+                if raw_length is None:
+                    raw_length = raw.shape[0]
+                elif raw.shape[0] != raw_length:
+                    raise ValueError(
+                        f"All raw.npy files must have the same length, but {raw_path} has length {raw.shape[0]} "
+                        f"while the expected length is {raw_length}."
+                    )
+                self._raw_files.append(raw_path)
+
+        if not self._raw_files:
+            raise FileNotFoundError(f"No raw.npy files found in {folders}")
+
+        self._raw_length = raw_length
+
+    def __len__(self):
+        return len(self._raw_files) * self._raw_length
+
+    def __getitem__(self, index):
+        if index < 0 or index >= len(self):
+            raise IndexError(index)
+
+        traj_idx = index // self._raw_length
+        raw_idx = index % self._raw_length
+
+        raw = np.load(str(self._raw_files[traj_idx]), mmap_mode='r')[raw_idx]
+        raw = torch.tensor(raw, dtype=torch.float32)
+        return raw
 
 def generate_trajectories(
             env,
@@ -144,21 +196,30 @@ def generate_trajectories(
 
 def create_dataloader(env, agent, n_trajs, seq_length, folder,
                       generate=True, tmp_folder=None, batch_size=32,
-                      num_workers=0, save_raw=False, load_raw=False):
+                      num_workers=0, save_raw=False, load_raw=False,
+                      random_raw=False, load_act=True):
     folder = folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc 
     if generate:
         generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=save_raw)
     if not tmp_folder:
         tmp_folder = folder
-    elif not load_raw:
-        tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc  
-        copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("raw.npy", "state.npy"))
     else:
         tmp_folder = tmp_folder + '/' + env.name + '-' + agent.name + '-' + env.act_enc 
-        copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("obs*", "state.npy"))
-    if not load_raw:
+        if random_raw:
+            copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("obs*", "act.npy", "state.npy"))
+        elif not load_raw:
+            copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("raw.npy", "state.npy"))
+        else:
+            copytree(folder, tmp_folder, dirs_exist_ok=True, ignore=ignore_patterns("obs*", "state.npy"))
+    if random_raw: # raw images for training the encoder, drawn randomly
+        dataset = RandomRawDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    elif not load_raw:
         dataset = TrajDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
-    else: # will need for simultaneous training of the encoder
+    elif not load_act: # raw images for training the encoder, drawn in sequences
+        dataset = TrajRawDataset(tmp_folder, seq_length, n_trajs, act=False)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    else:
         dataset = TrajRawDataset(tmp_folder, seq_length, n_trajs, env.getActType(), env.n_obs)
     env.addDataLoader(DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers))
     print(f"Dataloader created with {n_trajs} trajectories, sequence length {seq_length}")
@@ -168,6 +229,10 @@ def create_dataloader(env, agent, n_trajs, seq_length, folder,
     
     
 class MergedTrajDataset(TrajDataset):
+    def __init__(self, folders: list, seq_length: int, n_trajs: list,
+                 act_datatype=None, n_obs=1, raw=False):
+        super().__init__(folders, seq_length, n_trajs, act_datatype)
+        self.raw = raw
     def __len__(self):
         return sum(self.n_trajs)
     def __getitem__(self, index):
@@ -175,7 +240,10 @@ class MergedTrajDataset(TrajDataset):
         for i, n in enumerate(self.n_trajs):
             try:
                 act = np.load(self._data_dir[i] + '/' + str(index+1) + "/act.npy")[:,:self.seq_length]
-                obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
+                if not self.raw:
+                    obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/obs.npy")[:,:self.seq_length+1]
+                else:
+                    obs = np.load(self._data_dir[i] + '/' + str(index+1) + "/raw.npy")[:self.seq_length+1]
                 act = torch.tensor(act, dtype=self.act_type)
                 obs = torch.tensor(obs, dtype=torch.float32)
                 break
@@ -183,14 +251,14 @@ class MergedTrajDataset(TrajDataset):
                 index-=n
         return obs, act
 
-def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, mixed_batch=True):
+def mergeDatasets(envs, batch_size=1, shuffle=True, num_workers=0, mixed_batch=True, raw=False):
     datafolders = [env.dataLoader.dataset._data_dir for env in envs]
     seq_length = [env.dataLoader.dataset.seq_length for env in envs]
     n_trajs = [env.dataLoader.dataset.n_trajs for env in envs]
     env_act_datatype = envs[0].getActType()
     for env in envs:
         assert env.getActType() == env_act_datatype
-    datasetMerged = MergedTrajDataset(datafolders, min(seq_length), n_trajs, env_act_datatype)
+    datasetMerged = MergedTrajDataset(datafolders, min(seq_length), n_trajs, env_act_datatype, raw=raw)
 
     iterators = [env.killIterator() for env in envs]
     envMerged = copy.deepcopy(envs[0])

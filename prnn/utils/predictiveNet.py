@@ -114,9 +114,17 @@ netOptions = {
     "multRNN_5win_i1_o0": multRNN_5win_i1_o0,
     "multRNN_5win_i01_o0": multRNN_5win_i01_o0,
     "multRNN_5win_i0_o1": multRNN_5win_i0_o1,
-    "thRNN_0win_AE": thRNN_0win_AE,
-    "thRNN_1win_AE": thRNN_1win_AE,
-    "thRNN_5win_AE": thRNN_5win_AE
+    "thRNN_AE_0win": thRNN_AE_0win,
+    "thRNN_AE_1win": thRNN_AE_1win,
+    "thRNN_AE_2win": thRNN_AE_2win,
+    "thRNN_AE_3win": thRNN_AE_3win,
+    "thRNN_AE_4win": thRNN_AE_4win,
+    "thRNN_AE_5win": thRNN_AE_5win,
+    "thRNN_AE_6win": thRNN_AE_6win,
+    "thRNN_AE_7win": thRNN_AE_7win,
+    "thRNN_AE_8win": thRNN_AE_8win,
+    "thRNN_AE_9win": thRNN_AE_9win,
+    "thRNN_AE_10win": thRNN_AE_10win,
 }
 
 lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss}
@@ -259,7 +267,7 @@ class PredictiveNet:
         if batched:
             if type(obs) == list:
                 obs = [o.permute(*[i for i in range(1, len(o.size()))], 0) for o in obs]
-            else:
+            elif not "AE" in str(type(self.pRNN)): # for autoencoders, observation processing is done inside the network
                 obs = obs.permute(*[i for i in range(1, len(obs.size()))], 0)
             act = act.permute(*[i for i in range(1, len(act.size()))], 0)
             shape = (act.size(-1), 1, self.hidden_size)
@@ -581,10 +589,12 @@ class PredictiveNet:
             # Encoder loss is logged only in W&B
             if enc_loss is not None:
                 wandb.log(
-                    {"trial": self.numTrainingTrials, "pRNN loss": loss, "encoder loss": enc_loss}
+                    {"pRNN loss": loss, "encoder loss": enc_loss},
+                    step=self.numTrainingTrials,
                 )
             else:
-                wandb.log({"trial": self.numTrainingTrials, "pRNN loss": loss})
+                wandb.log({"pRNN loss": loss},
+                          step=self.numTrainingTrials)
         return
 
     def addTrainingData(self, key, data):
@@ -761,7 +771,7 @@ class PredictiveNet:
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Collect everything else that cannot be pickled
         if hasattr(self.env_shell, "pre_save"):
-            tmp = self.env_shell.pre_save()
+            tmp = [env.pre_save() for env in self.EnvLibrary]
         # Save the net
         filename = savefolder + "nets/" + savename + ".pkl"
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
@@ -771,7 +781,7 @@ class PredictiveNet:
         for i, env in enumerate(self.EnvLibrary):
             env.DL_iterator = iterators[i]
         if hasattr(self.env_shell, "post_save"):
-            self.env_shell.post_save(tmp)
+            [env.post_save(t) for env, t in zip(self.EnvLibrary, tmp)]
         print("Net Saved to pathname")
 
     def copy(self):
@@ -1018,9 +1028,10 @@ class PredictiveNet:
             keys_unmodified = ["mean SI", "sRSA", "SWdist"]
             log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
-                wandb.log({log_keys[0]: SI["SI"].mean(), log_keys[1]: sRSA, log_keys[2]: SWdist})
+                wandb.log({log_keys[0]: SI["SI"].mean(), log_keys[1]: sRSA, log_keys[2]: SWdist},
+                          step=self.numTrainingTrials)
             else:
-                wandb.log({log_keys[0]: SI["SI"].mean()})
+                wandb.log({log_keys[0]: SI["SI"].mean()}, step=self.numTrainingTrials)
         return place_fields, SI, decoder
 
     def decode(self, h, decoder, withHD=False):
@@ -1442,7 +1453,8 @@ class PredictiveNet:
                 plt.gcf(), savename + "_ObservationSequence", savefolder, filetype=self.fig_type
             )
         if self.wandb_log:
-            wandb.log({"Observation Sequence": wandb.Image(plt.gcf())})
+            fig = plt.gcf()
+            wandb.log({"Observation Sequence": wandb.Image(fig)}, step=self.numTrainingTrials)
         plt.show()
 
         return
@@ -1594,6 +1606,9 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig, savename + "_TuningCurves", savefolder, filetype=self.fig_type)
+        if self.wandb_log:
+            fig = plt.gcf()
+            wandb.log({"Tuning Curves": wandb.Image(fig)}, step=self.numTrainingTrials)
 
         if nofig:
             plt.show()

@@ -5,6 +5,7 @@ import random
 
 from gymnasium import spaces
 from matplotlib.collections import EllipseCollection
+import matplotlib.pyplot as plt
 
 from torchvision.transforms import ToTensor
 
@@ -726,7 +727,7 @@ class GimblShell(Shell):
         env: gymnasium.Env created from UnityToGymWrapper
         act_enc: action encoding string (e.g. 'Continuous')
         env_key: environment identifier string
-        encoder: FrozenResNet18 instance (see prnn.utils.encoder)
+        encoder: encoder type (see prnn.utils.encoder)
         HDbins: number of head direction bins (0 if not used)
     """
 
@@ -749,11 +750,11 @@ class GimblShell(Shell):
         return torch.float32
 
     def get_visual(self, obs):
-        """Convert a raw observation (H, W, C) uint8 image to (1, C, H, W) float tensor."""
+        """Convert a raw observation (H, C, W) uint8 image to (1, C, H, W) float tensor."""
         if isinstance(obs, dict):
             obs = obs['visual']
         if isinstance(obs, np.ndarray):
-            # explicit HWC -> CHW, uint8 [0,255] -> float [0,1]
+            # explicit HCW -> CHW, uint8 [0,255] -> float [0,1]
             obs = torch.from_numpy(
                 np.transpose(obs, (1, 0, 2)).astype(np.float32) / 255.0
             )

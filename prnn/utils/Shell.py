@@ -750,14 +750,11 @@ class GimblShell(Shell):
         return torch.float32
 
     def get_visual(self, obs):
-        """Convert a raw observation (H, C, W) uint8 image to (1, C, H, W) float tensor."""
+        """Convert (H, W, C) float32 [0,1] to (1, C, H, W) float tensor."""
         if isinstance(obs, dict):
             obs = obs['visual']
         if isinstance(obs, np.ndarray):
-            # explicit HCW -> CHW, uint8 [0,255] -> float [0,1]
-            obs = torch.from_numpy(
-                np.transpose(obs, (1, 0, 2)).astype(np.float32) / 255.0
-            )
+            obs = torch.from_numpy(np.transpose(obs, (2, 0, 1)).astype(np.float32) / 255.0)
         return torch.unsqueeze(obs, dim=0)  # (1, C, H, W)
 
     def env2pred(self, obs, act=None, state=None, device='cpu',
@@ -768,6 +765,11 @@ class GimblShell(Shell):
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)  # (T, latent_dim)
         z = torch.unsqueeze(z, dim=0)  # (1, T, latent_dim)
+        # save animal position
+        if state is not None:
+            state['agent_pos'] = np.array(
+                [np.asarray(o['vector'], dtype=np.float64) for o in obs]
+            )
         return z, act
 
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
@@ -777,8 +779,13 @@ class GimblShell(Shell):
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)
         z = torch.unsqueeze(z, dim=0).cpu().detach().numpy()
+        # save animal position
+        if state is not None:
+            state['agent_pos'] = np.array(
+                [np.asarray(o['vector'], dtype=np.float64) for o in obs]
+            )
         if save_env:
-            obs_env = np.array([np.array(o) for o in obs])
+            obs_env = np.array([np.asarray(o['visual']) for o in obs])
             return z, act, obs_env
         return z, act
 

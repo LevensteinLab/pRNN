@@ -516,15 +516,15 @@ class GimblAgentConstant:
     def generateActionSequence(self, tsteps):
         return [np.array([self.speed], dtype=np.float32) for _ in range(tsteps)]
 
-    def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):
-        act = self.generateActionSequence(tsteps)
-        obs = [None] * (tsteps + 1)
-        render = False
+        def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):
+            act = self.generateActionSequence(tsteps)
+            obs = [None] * (tsteps + 1)
+            render = False
 
-        obs[0] = env.reset() if reset else env.render()
+            obs[0] = env.reset() if reset else env.render()
 
-        state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 3)),
-                 'agent_dir': env.get_agent_dir()}
+            state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 3)),
+                    'agent_dir': env.get_agent_dir()}
 
         if includeRender:
             render = [None] * (tsteps + 1)

@@ -186,18 +186,18 @@ class UnityEnv(gymnasium.Env):
         and are converted to HWC uint8 [0,255] for gymnasium.
         """
         if self._obs_mode == "visual":
-            raw = all_obs[self._visual_indices[0]][agent_idx]  # (C, H, W)
+            raw = all_obs[self._visual_indices[0]][agent_idx]  # (H, W, C)
+            print(f'_extract_obs raw: shape={raw.shape}, dtype={raw.dtype}, min={raw.min()}, max={raw.max()}')
             img = (np.clip(raw, 0.0, 1.0) * 255).astype(np.uint8)
-            img = np.transpose(img, (1, 2, 0))  # CHW -> HWC
             self._last_visual_obs = img
             return img
         elif self._obs_mode == "vector":
             parts = [all_obs[i][agent_idx] for i in self._vector_indices]
             return np.concatenate(parts).astype(np.float32)
         else:
-            raw = all_obs[self._visual_indices[0]][agent_idx]  # (C, H, W)
+            raw = all_obs[self._visual_indices[0]][agent_idx]  # (H, W, C)
+            print(f'_extract_obs raw: shape={raw.shape}, dtype={raw.dtype}, min={raw.min()}, max={raw.max()}')
             img = (np.clip(raw, 0.0, 1.0) * 255).astype(np.uint8)
-            img = np.transpose(img, (1, 2, 0))  # CHW -> HWC
             self._last_visual_obs = img
             parts = [all_obs[i][agent_idx] for i in self._vector_indices]
             return {

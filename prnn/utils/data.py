@@ -127,6 +127,8 @@ def generate_trajectories(env, agent, n_trajs, seq_length, folder, save_raw=Fals
             else:
                 np.save(str(traj_dir / "obs.npy"), obs)
             np.save(str(traj_dir / "act.npy"), act)
+            if isinstance(state, dict) and 'agent_pos' in state:
+                np.save(str(traj_dir/"pos.npy"), np.asarray(state['agent_pos']))
             np.save(str(traj_dir / "state.npy"), last_state)
 
     

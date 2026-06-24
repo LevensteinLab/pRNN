@@ -765,11 +765,6 @@ class GimblShell(Shell):
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)  # (T, latent_dim)
         z = torch.unsqueeze(z, dim=0)  # (1, T, latent_dim)
-        # save animal position
-        if state is not None:
-            state['agent_pos'] = np.array(
-                [np.asarray(o['vector'], dtype=np.float64) for o in obs]
-            )
         return z, act
 
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
@@ -779,11 +774,6 @@ class GimblShell(Shell):
         frames = frames.to(device)
         z = self.encoder.encode_latent(frames)
         z = torch.unsqueeze(z, dim=0).cpu().detach().numpy()
-        # save animal position
-        if state is not None:
-            state['agent_pos'] = np.array(
-                [np.asarray(o['vector'], dtype=np.float64) for o in obs]
-            )
         if save_env:
             obs_env = np.array([np.asarray(o['visual']) for o in obs])
             return z, act, obs_env

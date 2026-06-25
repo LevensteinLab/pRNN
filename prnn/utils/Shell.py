@@ -793,9 +793,16 @@ class GimblShell(Shell):
     def render(self, **kwargs):
         return self.env.render()
 
-    def reset(self, seed=False):
+    def reset(self, seed=False, warmup=2):
         kw = {'seed': seed} if seed else {}
         obs, info = self.env.reset(**kw)
+        # Discard the first few frames after reset: right after OnEpisodeBegin
+        # teleports the avatar (to a random start), Unity's camera/scene needs a
+        # couple of renders to settle, so the initial frame(s) look wrong and
+        # would be bad input to the pRNN. Step with zero forward speed (position
+        # unchanged) to flush them, returning a properly-rendered start frame.
+        for _ in range(warmup):
+            obs = self.step(np.array([0.0], dtype=np.float32))[0]
         self._last_obs = obs
         return obs
 

@@ -60,10 +60,10 @@ class Res18Random(Res18):
     uniform); other choices (Gaussian JL, orthogonal) may be implemented later
 
     Args:
-        latent_dim: output dimension. Required.
+        latent_dim: output dimension. Defaults to 128.
     """
 
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim=128):
         # Inherit frozen ResNet18 backbone and frozen projection layer from Res18.
         # Pass bias=False since a random bias is just a fixed offset
         super().__init__(latent_dim=latent_dim, bias=False)

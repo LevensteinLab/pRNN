@@ -53,6 +53,7 @@ class pRNN(nn.Module):
         actMask=None,
         neuralTimescale=2,
         continuousTheta=False,
+        out_activation="sigmoid",
         **cell_kwargs,
     ):
         """_summary_
@@ -115,6 +116,15 @@ class pRNN(nn.Module):
             f,
             **cell_kwargs,
         )  # init scheme for the thetaRNNLayer gets passed through here
+
+        # Andrea 2026-07-02: sigmoid output can't fit non-[0,1] latent
+        # targets -> flat loss. Add option to swap activation for encoder
+        # runs; default unchanged.
+        self.out_activation = out_activation
+        if out_activation is not None and str(out_activation).lower() != "sigmoid":
+            _out_acts = {"tanh": nn.Tanh(), "linear": nn.Identity(),
+                         "none": nn.Identity(), "relu": nn.ReLU()}
+            self.outlayer = nn.Sequential(self.outlayer[0], _out_acts[str(out_activation).lower()])
 
         self.W_in = self.rnn.cell.weight_ih
         self.W = self.rnn.cell.weight_hh

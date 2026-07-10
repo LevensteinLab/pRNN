@@ -11,7 +11,7 @@ Usage:
     python -m prnn.utils.encoder_pretraining \
         --train_dir /gpfs/radev/project/levenstein/shared/places365/data_256_standard \
         --val_dir /gpfs/radev/project/levenstein/shared/places365/val_256 \
-        --output_dir /gpfs/radev/project/levenstein/ac3787/prnn_training/nets/encoders/res_ae \
+        --output_dir /gpfs/radev/project/levenstein/ac3787/prnn_training/nets/encoder_pretraining/res_ae \
         --img_size 96 --latent_dim 128 \
         --batch_size 64 --epochs 20 --lr 1e-3 \
         --wandb_project samevr_encoder

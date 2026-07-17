@@ -235,6 +235,14 @@ class PredictiveNet:
         self.phase = 0
         self.phase_k = len(self.pRNN.inMask)
 
+    @property
+    def pRNNtype(self) -> str:
+        """Architecture key used to build self.pRNN (stable checkpoint contract).
+
+        learningRate / weight_decay are plain attributes set by resetOptimizer.
+        """
+        return self.trainArgs.pRNNtype
+
     def predict(
         self,
         obs,

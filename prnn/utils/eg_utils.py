@@ -393,3 +393,30 @@ def max_singular_value(W, num_iters=50):
     # Step 3: Estimate the singular value as the norm after power iteration
     sigma_max = torch.norm(torch.mv(W, v))
     return sigma_max
+
+def get_env_var(name: str) -> Optional[str]:
+    """Retrieves a configuration value from an environment variable or a local file."""
+    import os
+
+    env_var = os.environ.get(name)
+    if not env_var:
+        try:
+            name = name.lower()
+            with open(os.path.expanduser(f"~/.{name}"), "r") as f:
+                env_var = f.read().strip()
+        except FileNotFoundError:
+            print(f"Warning: No {name} found")
+            return None
+
+    return env_var
+
+
+def set_seed(seed: int) -> None:
+    """Sets seed for random number generators and forces deterministic cuDNN (RL contract)."""
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

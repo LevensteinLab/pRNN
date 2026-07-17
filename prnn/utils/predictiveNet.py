@@ -259,11 +259,18 @@ class PredictiveNet:
         Note: state input is used for CANN control in internal functions
         """
         if batched:
-            if type(obs) == list:
-                obs = [o.permute(*[i for i in range(1, len(o.size()))], 0) for o in obs]
+            # (B, L, X) -> (1, L, X, B): the batched forward slices dim 1 as
+            # time and carries the batch on the trailing dim; the leading
+            # singleton matches the non-batched layout's dim 0. (The permute
+            # alone produces 3-D (L, X, B), which crashes restructure_inputs.)
+            if isinstance(obs, list):
+                obs = [
+                    o.permute(*[i for i in range(1, len(o.size()))], 0).unsqueeze(0)
+                    for o in obs
+                ]
             else:
-                obs = obs.permute(*[i for i in range(1, len(obs.size()))], 0)
-            act = act.permute(*[i for i in range(1, len(act.size()))], 0)
+                obs = obs.permute(*[i for i in range(1, len(obs.size()))], 0).unsqueeze(0)
+            act = act.permute(*[i for i in range(1, len(act.size()))], 0).unsqueeze(0)
             shape = (act.size(-1), 1, self.hidden_size)
 
         else:
@@ -790,6 +797,88 @@ class PredictiveNet:
         return predAgent
 
     """ Basic Analysis """
+
+    def calculateSpatialMetrics(
+        self,
+        h,
+        agent_pos,
+        env,
+        *,
+        sleepstd: float = 0.03,
+        sleep_timesteps: int = 500,
+        active_time_threshold: int = 200,
+        wandb_nameext: str = "",
+    ) -> dict:
+        """Spatial metrics (SI, sRSA, SWdist) from PRECOMPUTED wake activity.
+
+        Unlike calculateSpatialRepresentation, this does no rollout of its
+        own: the caller supplies pooled hidden states and the positions they
+        were recorded at (e.g. concatenated over several trajectories). The
+        pRNN is only used for the spontaneous ("sleep") rollout behind SWdist,
+        and for wandb logging (same keys as calculateSpatialRepresentation:
+        'mean SI'/'sRSA'/'SWdist' + wandb_nameext) when self.wandb_log.
+
+        h:          (N, hidden_size) wake activity rows (tensor or ndarray),
+                    already reduced over theta windows if applicable.
+        agent_pos:  (N, 2) position of each activity row.
+        env:        shell env providing get_map_bins/continuous/max_dist.
+
+        Returns {"SI": DataFrame, "sRSA": float, "SWdist": float}.
+        Expects the net on CPU (numpy interop throughout).
+        """
+        if isinstance(h, torch.Tensor):
+            h = h.detach().cpu().numpy()
+        h = np.asarray(h)
+        agent_pos = np.asarray(agent_pos, dtype=np.float64)
+        assert h.ndim == 2 and agent_pos.shape == (h.shape[0], 2), (
+            f"h {h.shape} and agent_pos {agent_pos.shape} must be (N, H) and (N, 2)"
+        )
+
+        # SI via pynapple tuning curves. The time axis is fabricated (row
+        # index): pynapple only uses it to align rates to positions, and
+        # tuning curves are occupancy-binned averages.
+        t = np.arange(len(h))
+        position = nap.TsdFrame(t=t, d=agent_pos, columns=("x", "y"), time_units="s")
+        rates = nap.TsdFrame(t=t, d=h, time_units="s")
+        nb_bins_x, nb_bins_y, minmax = env.get_map_bins()
+        place_fields, _ = nap.compute_2d_tuning_curves_continuous(
+            rates,
+            position,
+            ep=rates.time_support,
+            nb_bins=(nb_bins_x, nb_bins_y),
+            minmax=minmax,
+        )
+        SI = nap.compute_2d_mutual_info(
+            place_fields, position, position.time_support, bitssec=False
+        )
+        num_active = (h > 0).sum(axis=0)
+        SI.iloc[num_active < active_time_threshold] = 0
+
+        # sRSA. calculateSpatialDist drops the last position row ([:-1]), so
+        # append a dummy row to keep positions 1:1 with h.
+        wake = {"state": {"agent_pos": np.vstack([agent_pos, agent_pos[-1:]])}, "h": h}
+        (sRSA, _), _, _, _ = RGA.calculateRSA_space(
+            RGA, wake, cont=env.continuous, max_dist=env.max_dist
+        )
+
+        # SWdist: sleep activity vs the provided wake activity.
+        with torch.no_grad():
+            _, sleep_h, _ = self.spontaneous(sleep_timesteps, 0, sleepstd)
+        sleep_h = torch.mean(sleep_h, dim=0, keepdims=True)[0]
+        SWdist, _, _ = RGA.calculateSleepWakeDist(
+            h, sleep_h.detach().numpy(), metric="cosine"
+        )
+
+        metrics = {"SI": SI, "sRSA": float(sRSA), "SWdist": float(SWdist)}
+        if self.wandb_log:
+            wandb.log(
+                {
+                    f"mean SI{wandb_nameext}": SI["SI"].mean(),
+                    f"sRSA{wandb_nameext}": metrics["sRSA"],
+                    f"SWdist{wandb_nameext}": metrics["SWdist"],
+                }
+            )
+        return metrics
 
     def calculateSpatialRepresentation(
         self,

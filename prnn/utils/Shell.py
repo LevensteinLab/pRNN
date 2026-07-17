@@ -196,9 +196,10 @@ class GymMinigridShell(Shell):
         self.width = self.env.unwrapped.grid.width
         self.continuous = False
         self.max_dist = False
-        self.loc_mask = [x==None or x.can_overlap() for x in env.grid.grid]
+        self.loc_mask = [x==None or x.can_overlap() for x in env.unwrapped.grid.grid]
         self.hd_trans = np.array([-1,1,0,0])
         self.start_pos = 1 # the numbering of occupiable locations starts from this
+        self.render_size = self.width * self.env.unwrapped.tile_size
     
     @property
     def action_space(self):
@@ -259,10 +260,22 @@ class GymMinigridShell(Shell):
                       4 * ((hd[-1]==0) & (self.hd_trans[a]<0)) -
                       4 * ((hd[-1]==3) & (self.hd_trans[a]>0)))
         return np.array(hd)
-    
+
+    def get_goal_loc(self):
+        if hasattr(self.env.unwrapped, "goal_pos"):
+            return self.env.unwrapped.goal_pos
+        else:
+            return None
+
+    def get_new_obj_pos(self):
+        if hasattr(self.env.unwrapped, "new_obj_pos"):
+            return self.env.unwrapped.new_obj_pos
+        else:
+            return None
+
     def get_agent_pos(self):
         return self.env.unwrapped.agent_pos
-    
+
     def get_agent_dir(self):
         return self.env.unwrapped.agent_dir
     

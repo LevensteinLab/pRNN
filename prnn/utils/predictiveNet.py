@@ -1363,16 +1363,18 @@ class PredictiveNet:
         vmin=None,
         vmax=None,
         numrows=6,
+        show_axis: bool = False,
     ):
         numtimesteps = len(timesteps)
         for tt, timestep in enumerate(timesteps):
             plt.subplot(numrows, numtimesteps, tt + 1 + (row - 1) * numtimesteps)
             plt.imshow(sequence[timestep], alpha=mask, cmap=cmap, vmin=vmin, vmax=vmax)
             if tt == 0:
-                plt.ylabel(label)
+                plt.ylabel(label, fontsize=6)
             plt.xticks([])
             plt.yticks([])
-            plt.axis("off")
+            if not show_axis:
+                plt.axis("off")
 
     def plotObservationSequence(
         self,

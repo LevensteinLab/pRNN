@@ -19,3 +19,9 @@ gym.register(
     id="MiniWorld-Mazest-v0",
     entry_point="prnn.environments.Miniworld.env:Mazest",
 )
+
+gym.register(
+    id="MiniWorld-Mazest-v1",
+    entry_point="prnn.environments.Miniworld.env:Mazest",
+    kwargs={"ceiling": False},
+)

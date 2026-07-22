@@ -321,7 +321,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
 
     def __init__(
         self, num_rows=5, num_cols=5, room_size=3, max_episode_steps=None,
-        continuous=True, **kwargs
+        continuous=True, ceiling=True, **kwargs
     ):
         self.num_rows = num_rows
         self.num_cols = num_cols
@@ -330,6 +330,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
         self.size = np.array([num_cols * (room_size + self.gap_size) - self.gap_size,
                               num_rows * (room_size + self.gap_size) - self.gap_size])
         self.continuous = continuous
+        self.ceiling = ceiling
 
         self.env_seed = 3042
         self.regenerate=True
@@ -460,15 +461,26 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
                 # Get textures from stored layout
                 wall_tex, floor_tex, ceil_tex = self.room_layouts[j][i]
                 
-                room = self.add_rect_room(
-                    min_x=min_x,
-                    max_x=max_x,
-                    min_z=min_z,
-                    max_z=max_z,
-                    wall_tex=wall_tex,
-                    floor_tex=floor_tex,
-                    ceil_tex=ceil_tex,
-                )
+                if self.ceiling:
+                    room = self.add_rect_room(
+                        min_x=min_x,
+                        max_x=max_x,
+                        min_z=min_z,
+                        max_z=max_z,
+                        wall_tex=wall_tex,
+                        floor_tex=floor_tex,
+                        ceil_tex=ceil_tex,
+                    )
+                else:
+                    room = self.add_rect_room(
+                        min_x=min_x,
+                        max_x=max_x,
+                        min_z=min_z,
+                        max_z=max_z,
+                        wall_tex=wall_tex,
+                        floor_tex=floor_tex,
+                        no_ceiling=True,
+                    )
                 row.append(room)
             rows.append(row)
         
@@ -535,7 +547,48 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
                 self.boxes.append(self.place_entity(Box(color="red", size=0),
                                                     pos=(room.mid_x, 0, room.mid_z),
                                                     dir=0))
+        if not self.ceiling:
+            self.place_entity(
+                MeshEnt(mesh_name="sheep", height=25),
+                pos=np.array([40, 0, 35]),
+                dir=-math.pi,
+            )
 
+            self.place_entity(
+                MeshEnt(mesh_name="barrel", height=25),
+                pos=np.array([-40, 0, 20]),
+                dir=-math.pi,
+            )
+
+            self.place_entity(
+                MeshEnt(mesh_name="cone", height=25),
+                pos=np.array([-30, 0, -20]),
+                dir=-math.pi,
+            )
+
+            self.place_entity(
+                MeshEnt(mesh_name="duckie", height=25),
+                pos=np.array([0, 0, 35]),
+                dir=-math.pi,
+            )
+
+            self.place_entity(
+                MeshEnt(mesh_name="tree", height=25),
+                pos=np.array([0, 0, -35]),
+                dir=-math.pi,
+            )
+
+            self.place_entity(
+                MeshEnt(mesh_name="potion", height=25),
+                pos=np.array([40, 0, -35]),
+                dir=-math.pi,
+            )
+
+            self.place_entity(
+                MeshEnt(mesh_name="office_chair", height=25),
+                pos=np.array([40, 0, 12]),
+                dir=-math.pi,
+            )
         self.place_agent()
 
     def step(self, action):

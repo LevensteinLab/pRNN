@@ -92,6 +92,20 @@ class pRNN(nn.Module):
             actMask = [True for i in inMask]
         self.outMask = outMask
         self.actMask = actMask
+        # Float-tensor copies of the phase masks, registered as buffers so they
+        # follow the module's device. clip_mask / predict multiply by these
+        # instead of scattering with numpy-bool indices - equivalent (the old
+        # scatter filled a zeros tensor at True positions), but capture-safe
+        # (numpy indexing of a CUDA tensor cannot run inside a CUDA graph).
+        self.register_buffer(
+            "inMask_f", torch.tensor([float(bool(m)) for m in inMask]), persistent=False
+        )
+        self.register_buffer(
+            "outMask_f", torch.tensor([float(bool(m)) for m in outMask]), persistent=False
+        )
+        self.register_buffer(
+            "actMask_f", torch.tensor([float(bool(m)) for m in actMask]), persistent=False
+        )
         self.hidden_size = hidden_size
 
         self.dropout = cell_kwargs["dropout"] if "dropout" in cell_kwargs else dropp
@@ -191,6 +205,18 @@ class pRNN(nn.Module):
         x_t, obs_target_out, outmask = self.clip_mask(obs_in, act, obs_target)
         return x_t, obs_target_out, outmask
 
+    def _tile_mask(self, mask_f, length, ndim):
+        """Tile a phase mask (P,) to a rank-`ndim` tensor that is `length` along
+        dim 1 (the time/phase axis) and 1 elsewhere, matching np.resize's
+        repeat-and-truncate and broadcasting over batch/theta dims (the old
+        `t[:, boolmask, :]` scatter indexed dim 1 for any rank). Capture-safe:
+        torch ops on a registered buffer, no numpy indexing of a CUDA tensor."""
+        reps = (length + mask_f.numel() - 1) // mask_f.numel()
+        m = mask_f.repeat(reps)[:length]
+        shape = [1] * ndim
+        shape[1] = length
+        return m.view(shape)
+
     def clip_mask(self, obs_in, act, obs_target):
         """Takes observation tensor, action tensor, and observation targets and clips them.
         Also applies relevant masks if they exist and no rollout is done.
@@ -201,29 +227,25 @@ class pRNN(nn.Module):
         obs_in, act = obs_in[:, :minsize, :], act[:, :minsize, :]
         obs_target = obs_target[:, :minsize, :]
 
-        # new tensors for return
-        obs_out = torch.zeros_like(obs_in, requires_grad=False)
-        act_out = torch.zeros_like(act, requires_grad=False)
-        obs_target_out = torch.zeros_like(obs_target, requires_grad=False)
-
         if self.actMask is not None and self.outMask is not None and self.inMask is not None:
-            # Apply the masks if exist
-            actmask = np.resize(np.array(self.actMask), minsize)
+            # Multiply by the {0,1} float masks - equivalent to the historical
+            # scatter of obs_in into a zeros tensor at True positions, but
+            # capture-safe. outmask (bool) is still returned as metadata.
             outmask = np.resize(np.array(self.outMask), minsize)
-            obsmask = np.resize(np.array(self.inMask), minsize)
-
-            obs_out[:, obsmask, :] = obs_in[:, obsmask, :]
-            act_out[:, actmask, :] = act[:, actmask, :]
-            obs_target_out[:, outmask, :] = obs_target[:, outmask, :]
+            obs_out = obs_in * self._tile_mask(self.inMask_f, minsize, obs_in.dim())
+            act_out = act * self._tile_mask(self.actMask_f, minsize, act.dim())
+            obs_target_out = obs_target * self._tile_mask(
+                self.outMask_f, minsize, obs_target.dim()
+            )
 
             obs_out = self.droplayer(obs_out)
 
         else:  # if no masks, or doing roll out
             outmask = True
 
-            obs_out[:] = obs_in[:]
-            act_out[:] = act[:]
-            obs_target_out[:] = obs_target[:]
+            obs_out = obs_in.clone()
+            act_out = act.clone()
+            obs_target_out = obs_target.clone()
 
             obs_in = self.droplayer(obs_in)
 
@@ -323,9 +345,11 @@ class pRNN(nn.Module):
                         y_t.append(pred[..., self.obs_out_slices[self.outIDs.index(i)]])
                 y_t = (pred, y_t)
             else:
-                # Apply the mask to the output
-                y_t = torch.zeros_like(allout)
-                y_t[:, outmask, :] = allout[:, outmask, :]  # The predicted outputs.
+                # Apply the mask to the output: multiply by the {0,1} float
+                # mask (capture-safe equivalent of the scatter into zeros).
+                y_t = allout * self._tile_mask(
+                    self.outMask_f, allout.size(1), allout.dim()
+                )
 
         return y_t, h_t, obs_target
 

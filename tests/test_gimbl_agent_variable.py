@@ -5,7 +5,7 @@ failure would be SILENT in a generated dataset -- wrong dtype, negative speed,
 a name that collides in the cache path, and above all a speed trace that is
 identical across trajectories. Whether the numbers match the fitted mouse is
 the job of
-`prnn_training/scripts/encoder/20260803_validate_variable_agent.py`, which
+`prnn_training/analysis/encoder/20260803_validate_variable_agent.py`, which
 produces a table and a figure rather than an assertion.
 
 No Unity, no cluster, no data files -- the simulated conditions are data-free

@@ -13,8 +13,8 @@ from numpy.random import choice
 import random
 from ratinabox.utils import get_angle, get_distances_between
 from ratinabox.Agent import Agent
-from prnn.utils.mouseSpeed import (BOUT_KW, CM_PER_UU, MOUSE_FIT, STEP_SECONDS,
-                                  simulate_bout_gated, simulate_riab_1d)
+from prnn.utils.mouseSpeed import (BOUT_KW, CM_PER_UU, MOUSE_FIT, MOUSE_FIT_WHEEL,
+                                  STEP_SECONDS, simulate_bout_gated, simulate_riab_1d)
 
 def randActionSequence(tsteps,action_space,action_probability):
     
@@ -728,9 +728,11 @@ class GimblAgentVariable:
 # places -- a preset key is one string all three derive identically, whereas
 # free kwargs would have to be re-passed at generation, z-scoring AND training
 # time to reproduce the same folder.
+# Wheel calibration since 2026-08-05 (was MOUSE_FIT, the treadmill fit; pass
+# fit=MOUSE_FIT to get that back). The fit is recorded in each dataset's meta.json.
 GIMBL_VARIABLE_PRESETS = {
-    'GimblAgentVariableSimFitted': dict(condition='riab_fitted'),
-    'GimblAgentVariableSimPauses': dict(condition='riab_with_pauses'),
+    'GimblAgentVariableSimFitted': dict(condition='riab_fitted', fit=MOUSE_FIT_WHEEL),
+    'GimblAgentVariableSimPauses': dict(condition='riab_with_pauses', fit=MOUSE_FIT_WHEEL),
 }
 
 

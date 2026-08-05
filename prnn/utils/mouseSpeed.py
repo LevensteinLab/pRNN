@@ -81,6 +81,47 @@ MOUSE_FIT = dict(
     frac_running=0.543,
 )
 
+# --- VR running wheel, fitted 2026-08-05 --------------------------------------
+# Fitted to mc31 2026-07-24 (4m_ctxA, track_length 4000 mm), the session the
+# SameVR comparison is against. Same detector and BOUT_KW as MOUSE_FIT above, on
+# the behaviorMate position stream resampled to exactly 10 Hz (it streams at
+# ~80 Hz, so the pRNN's 100 ms step needs no rescaling).
+#
+# WHY A SECOND FIT: running GimblAgentVariableSimPauses (the MOUSE_FIT/belt
+# calibration) against this session gave 6.27 cm/s where the mouse ran 10.04 --
+# a 1.6x shortfall that understates optic flow at every step. The fit below
+# removes it, and GimblAgentVariableWheelPauses reproduces this session's mean,
+# running speed, immobile fraction and laps-per-500-steps.
+#
+# ⚠️ BE CAREFUL ABOUT *WHY*, because the obvious explanation is not established.
+# It is tempting to call this a rig effect ("mice run faster on a VR wheel than a
+# tactile belt" -- Meghan's impression, 2026-08-05). Measured through ONE pipeline
+# the rigs overlap heavily: belt (tg127, n=3) mean 10.48, range 6.2-14.4 cm/s;
+# wheel (mc31/mc34, n=5) mean 13.37, range 10.0-18.6. Plausible, not demonstrated.
+# Most of the apparent gap is instead a MEASUREMENT-PATH difference: MOUSE_FIT was
+# built from lab's exported velocity for expt 1707 (6.11 cm/s), whereas this fit
+# reads behaviorMate .tdml position resampled to 10 Hz -- and that same tg127
+# session reads 10.86 cm/s through the .tdml path. (Unresolved: lab's 1707 export
+# covers 600 s, the same-date tdml only 356 s.) The tdml path is internally
+# validated -- rectified distance matches laps x track_length within 3% on all
+# eight sessions -- but it is NOT interchangeable with lab's.
+#
+# ⚠️ SO: SESSION-SPECIFIC, DO NOT POOL, AND MATCH THE MEASUREMENT PATH. Session
+# means span 6.2-18.6 cm/s across the eight sessions, and within mc31 they rise
+# monotonically with training day (7/24 10.04, 7/29 14.63, 7/30 18.61). A pooled
+# wheel fit gives 15.83 cm/s while running -- matching no session, and 1.17x this
+# one. A fitted agent must be tied to the session it is compared against and
+# measured the way that session's position will be analysed. Refit, don't reuse.
+MOUSE_FIT_WHEEL = dict(
+    run_speed_mean=0.1357,                 # m/s (13.57 cm/s) vs 0.1118 on the belt
+    run_speed_std=0.0452,                  # m/s (4.52 cm/s)
+    run_coherence_time=0.20,               # s -- twitchier than the belt's 0.48
+    run_dur=('gamma', 4.21, 2.183),        # median 7.8 s, n=48 bouts
+    stop_dur=('lognorm', 0.471, 2.938),    # median 2.7 s, n=47
+    rest_speed_sd=0.0,                     # same reasoning as MOUSE_FIT
+    frac_running=0.736,                    # vs 0.543 on the belt
+)
+
 
 # =============================================================================
 # bout detection (port of lab.analyses.behavior.running_intervals)

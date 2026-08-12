@@ -20,16 +20,36 @@ from prnn.utils.ActionEncodings import OneHot
 
 defaultMetric = 'cosine'
 maxNtimesteps = 4000
+DEFAULT_SUBSAMPLE_SEED = 0
 
 
-def randSubSample(h, maxN, axis=0):
-    #pick random N of timesteps if bigger than maxN timesteps
-    nT = np.size(h,axis)
-    randIDX = np.arange(nT)
-    if nT > maxN:
-        randIDX = np.random.randint(0, high=nT, size=maxN)
-        h = h[randIDX,:]
-    return h, randIDX
+def subsample_rng(rng: np.random.Generator | None = None) -> np.random.Generator:
+    """Resolve a subsampling generator, defaulting to a fixed seed.
+
+    The default is seeded rather than fresh so that SI/sRSA/SWdist are
+    reproducible: the same activity scored twice returns the same number.
+    Pass an explicit generator to vary the subsample (e.g. to estimate how
+    much of a metric's spread is subsampling noise).
+    """
+    return np.random.default_rng(DEFAULT_SUBSAMPLE_SEED) if rng is None else rng
+
+
+def randSubSample(
+    h, maxN: int, *, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray]:
+    """Up to `maxN` rows of `h`, drawn WITHOUT replacement, plus the kept row indices.
+
+    Bounds the O(N^2) pairwise-distance cost of the RSA metrics. Indices are
+    returned sorted so the subsample stays a subsequence in time, and so a
+    caller can index a parallel array (e.g. positions) onto the same rows.
+
+    h: (n_samples, n_units) activity rows.
+    """
+    nT = h.shape[0]
+    if nT <= maxN:
+        return h, np.arange(nT)
+    keep = np.sort(rng.choice(nT, size=maxN, replace=False))
+    return h[keep], keep
 
 class representationalGeometryAnalysis:
     def __init__(self, predictiveNet, timesteps_wake = 15000,
@@ -101,8 +121,11 @@ class representationalGeometryAnalysis:
                                          n_neighbors = n_neighbors)
 
             
-    def calculateRSA_action(self,WAKEactivity, metric=defaultMetric):
-        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], metric)
+    def calculateRSA_action(self,WAKEactivity, metric=defaultMetric, *,
+                            max_samples=maxNtimesteps, rng=None):
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], metric,
+                                                     max_samples=max_samples,
+                                                     rng=rng)
         actID, actdist = self.getActionIDs(keepIDX)
         actsort = np.argsort(actID).flatten()
         numacts,_ = np.histogram(actID,
@@ -213,13 +236,15 @@ class representationalGeometryAnalysis:
         a['h'] = np.squeeze(h_t.detach().numpy())
         return a
         
-    def fitIsomap(self,WAKEactivity, SLEEPactivity, usecells=None, n_neighbors=150):
+    def fitIsomap(self,WAKEactivity, SLEEPactivity, usecells=None, n_neighbors=150,
+                  *, max_samples=maxNtimesteps, rng=None):
         print('Fitting Isomap')
         #X = self.WAKEactivity['h']
         h_wake = WAKEactivity['h']
         h_sleep = SLEEPactivity['h']
-        
-        h_wake, keepIDX = randSubSample(h_wake, maxNtimesteps, axis=0)
+
+        h_wake, keepIDX = randSubSample(h_wake, max_samples,
+                                        rng=subsample_rng(rng))
         
         if usecells is not None: 
             h_wake = h_wake[:,usecells]
@@ -233,11 +258,13 @@ class representationalGeometryAnalysis:
     
     @staticmethod
     def calculateNeuralDistWAKE(WAKEactivity_h, metric=defaultMetric,
-                                usecells=None):
-        
-        h_np, keepIDX = randSubSample(WAKEactivity_h, maxNtimesteps, axis=0)
-        
-        
+                                usecells=None, *, max_samples=maxNtimesteps,
+                                rng=None):
+
+        h_np, keepIDX = randSubSample(WAKEactivity_h, max_samples,
+                                      rng=subsample_rng(rng))
+
+
         if usecells is not None: 
             h_np = h_np[:,usecells]
         
@@ -260,9 +287,12 @@ class representationalGeometryAnalysis:
     
     def calculateRSA_space(self, WAKEactivity, metric=defaultMetric,
                           usecells = None, spacemetric='euclidean',
-                          cont=False, max_dist=False):
-        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], 
-                                                     metric, usecells)
+                          cont=False, max_dist=False, *,
+                          max_samples=maxNtimesteps, rng=None):
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'],
+                                                     metric, usecells,
+                                                     max_samples=max_samples,
+                                                     rng=rng)
         sp_dists = self.calculateSpatialDist(WAKEactivity['state'],keepIDX,
                                             metric=spacemetric)
         
@@ -286,10 +316,13 @@ class representationalGeometryAnalysis:
         return RSA, hist2, sbins, rbins
 
     def calculateHillFit(self, WAKEactivity, metric='cosine',
-                          usecells = None, spacemetric='euclidean'):
+                          usecells = None, spacemetric='euclidean', *,
+                          max_samples=maxNtimesteps, rng=None):
 
-        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], 
-                                                     metric, usecells)
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'],
+                                                     metric, usecells,
+                                                     max_samples=max_samples,
+                                                     rng=rng)
         sp_dists = self.calculateSpatialDist(WAKEactivity['state'],keepIDX,
                                             metric=spacemetric)
 
@@ -361,9 +394,11 @@ class representationalGeometryAnalysis:
         return locGroups
     
     def calculateRSA_obs(self, WAKEactivity, metric=defaultMetric,
-                        usecells = None):
-        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], 
-                                                     metric, usecells)
+                        usecells = None, *, max_samples=maxNtimesteps, rng=None):
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'],
+                                                     metric, usecells,
+                                                     max_samples=max_samples,
+                                                     rng=rng)
         obs_dists = self.calculateObsDist(WAKEactivity['obs'],keepIDX)
         
         locationGroups = self.getLocationGroups(WAKEactivity['state'],keepIDX)
@@ -387,9 +422,11 @@ class representationalGeometryAnalysis:
     
     
     def calculateRSA_HD(self, WAKEactivity, metric=defaultMetric,
-                        usecells = None):
-        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'], 
-                                                     metric, usecells)
+                        usecells = None, *, max_samples=maxNtimesteps, rng=None):
+        dists,keepIDX = self.calculateNeuralDistWAKE(WAKEactivity['h'],
+                                                     metric, usecells,
+                                                     max_samples=max_samples,
+                                                     rng=rng)
         HD_dists = self.calculateHDDist(WAKEactivity['state'],keepIDX)
         
         
@@ -654,8 +691,8 @@ class representationalGeometryAnalysis:
         else:
             color= colorvar
             
-        maxplotpoints = 10000    
-        X, keepIDX = randSubSample(X, maxplotpoints, axis=0)
+        maxplotpoints = 10000
+        X, keepIDX = randSubSample(X, maxplotpoints, rng=subsample_rng())
         color = color[keepIDX]
             
         
@@ -709,9 +746,11 @@ class representationalGeometryAnalysis:
         plt.show()
     
     @staticmethod
-    def calculateSleepWakeDist(h_wake, h_sleep, metric=defaultMetric):
-        h_wake, keepIDX = randSubSample(h_wake, maxNtimesteps, axis=0)
-        
+    def calculateSleepWakeDist(h_wake, h_sleep, metric=defaultMetric, *,
+                               max_samples=maxNtimesteps, rng=None):
+        h_wake, keepIDX = randSubSample(h_wake, max_samples,
+                                        rng=subsample_rng(rng))
+
         X = np.concatenate((h_wake,h_sleep))
         if metric == 'cityblock':
             N = X.shape[1]

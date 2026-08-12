@@ -465,7 +465,7 @@ class thetaRNNLayer(nn.Module):
 
         n = 0
         for i in range(len(inputs)):  # loop over all inputs in the sequence
-            if np.mod(n, self.trunc) == 0 and n > 0:
+            if n % self.trunc == 0 and n > 0:  # numpy scalar dispatch, per timestep, for a python int op
                 # state = (state[0].detach(),) #Truncated BPTT
                 state = [i.detach() for i in state]
 

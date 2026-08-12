@@ -41,7 +41,10 @@ from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
 from prnn.utils.eg_utils import RMSpropEG
 
 
-from prnn.analysis.representationalGeometryAnalysis import representationalGeometryAnalysis as RGA
+from prnn.analysis.representationalGeometryAnalysis import (
+    representationalGeometryAnalysis as RGA,
+    maxNtimesteps as RGA_maxNtimesteps,
+)
 from prnn.analysis.SpatialTuningAnalysis import SpatialTuningAnalysis as STA
 from prnn.utils.Architectures import *
 
@@ -321,11 +324,18 @@ class PredictiveNet:
         )
 
     def trainStep(
-        self, obs, act, with_homeostat=False, learningRate=None, mask=None, batched=False
+        self, obs, act, with_homeostat=False, learningRate=None, mask=None, batched=False,
+        return_stats=True,
     ):
         """
         One training step from an observation and action sequence
         (collected via obs, act = agent.getObservations(env,tsteps))
+
+        return_stats=False skips the sparsity/meanrate diagnostics, which cost a
+        full reduction over h plus two GPU->CPU synchronizations per gradient
+        step. They do not enter the loss unless with_homeostat is set, so a
+        caller that discards them (as the RL training loop does) should pass
+        False and receive NaN in their place.
         """
         if self.train_encoder:
             enc_loss = self.env_shell.loss["loss"]
@@ -341,13 +351,13 @@ class PredictiveNet:
         predloss = self.loss_fn(obs_pred, obs_next, h)
 
         if with_homeostat:
-            target_sparsity = self.target_sparsity
-            target_rate = self.target_rate
-            decor = self.decorrelate
+            homeoloss, sparsity, meanrate = self.homeostaticLoss(
+                h, self.target_sparsity, self.target_rate, self.decorrelate
+            )
+        elif return_stats:
+            homeoloss, sparsity, meanrate = self.homeostaticLoss(h, None, None, False)
         else:
-            target_sparsity, target_rate, decor = None, None, False
-
-        homeoloss, sparsity, meanrate = self.homeostaticLoss(h, target_sparsity, target_rate, decor)
+            homeoloss, sparsity, meanrate = 0, float("nan"), float("nan")
 
         loss = (
             with_homeostat * homeoloss
@@ -807,6 +817,8 @@ class PredictiveNet:
         sleepstd: float = 0.03,
         sleep_timesteps: int = 500,
         active_time_threshold: int = 200,
+        max_samples: int = RGA_maxNtimesteps,
+        rng: np.random.Generator | None = None,
         wandb_nameext: str = "",
     ) -> dict:
         """Spatial metrics (SI, sRSA, SWdist) from PRECOMPUTED wake activity.
@@ -858,7 +870,8 @@ class PredictiveNet:
         # append a dummy row to keep positions 1:1 with h.
         wake = {"state": {"agent_pos": np.vstack([agent_pos, agent_pos[-1:]])}, "h": h}
         (sRSA, _), _, _, _ = RGA.calculateRSA_space(
-            RGA, wake, cont=env.continuous, max_dist=env.max_dist
+            RGA, wake, cont=env.continuous, max_dist=env.max_dist,
+            max_samples=max_samples, rng=rng,
         )
 
         # SWdist: sleep activity vs the provided wake activity.
@@ -866,7 +879,8 @@ class PredictiveNet:
             _, sleep_h, _ = self.spontaneous(sleep_timesteps, 0, sleepstd)
         sleep_h = torch.mean(sleep_h, dim=0, keepdims=True)[0]
         SWdist, _, _ = RGA.calculateSleepWakeDist(
-            h, sleep_h.detach().numpy(), metric="cosine"
+            h, sleep_h.detach().numpy(), metric="cosine",
+            max_samples=max_samples, rng=rng,
         )
 
         metrics = {"SI": SI, "sRSA": float(sRSA), "SWdist": float(SWdist)}

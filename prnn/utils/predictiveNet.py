@@ -1024,7 +1024,7 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData("place_fields", place_fields)
             self.addTrainingData("SI", SI["SI"])
-        if self.wandb_log:  # TODO: work out the rest of the logging
+        if self.wandb_log:
             keys_unmodified = ["mean SI", "sRSA", "SWdist"]
             log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
@@ -1149,6 +1149,9 @@ class PredictiveNet:
         derror, dshuffle = self.decode_error(decoded, state)
         if saveTrainingData:
             self.addTrainingData("derror", derror)
+        
+        if self.wandb_log:
+            wandb.log({"derror": derror.mean()}, step=self.numTrainingTrials)
         return
 
     def calculateActivationStats(self, h, onset=100):

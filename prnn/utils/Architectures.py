@@ -630,6 +630,7 @@ class NextStepRNN(pRNN):
         hidden_size=500,
         cell=LayerNormRNNCell,
         bptttrunc=100,
+        k=0,
         neuralTimescale=2,
         dropp=0.15,
         f=0.5,
@@ -656,6 +657,7 @@ class NextStepRNN(pRNN):
             hidden_size=hidden_size,
             cell=cell,
             bptttrunc=bptttrunc,
+            k=0, # k should be 0 for next step prediction
             neuralTimescale=neuralTimescale,
             dropp=dropp,
             f=f,

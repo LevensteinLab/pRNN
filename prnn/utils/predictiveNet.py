@@ -277,19 +277,29 @@ class PredictiveNet:
 
         return obs_pred, obs_next, h
 
-    def predict_single(self, obs, act):
+    def predict_single(self, obs, act, full_rollout=False):
         """
-        Generate pRNN activation from single observation and action.
-        There is no dropout step here, so the output will be different from predict().
+        Generate pRNN activation from one observation-action pair.
+
+        For a rollout pRNN, ``full_rollout=True`` returns activity from every
+        theta step while preserving only the recurrent carry state for the
+        next call. There is no dropout step here, so the output differs from
+        :meth:`predict`.
         """
         # Mask observations and actions according to current phase
         obs = obs * self.pRNN.inMask[self.phase]
         act = act * self.pRNN.actMask[self.phase]
         self.phase = (self.phase + 1) % self.phase_k
 
-        _, self.state, _ = self.pRNN(
+        h_t, state = self.pRNN(
             obs, act, noise_params=self.trainNoiseMeanStd, state=self.state, single=True
         )
+        if isinstance(self.pRNN, pRNN_th):
+            self.state = state
+            if full_rollout:
+                return h_t
+        else:
+            self.state = h_t
         return self.state
 
     def reset_state(self, randInit=True, device="cpu"):

@@ -80,11 +80,47 @@ def load_pN(model_ckpt_filepath: str,
     assert predictive_net.pRNNtype == checkpoint[CkptKeys.PRNN_TYPE], \
         f"Loading {checkpoint[CkptKeys.PRNN_TYPE]} into {predictive_net.pRNNtype} is not allowed."
     
-    # Load main network and optimizer
-    predictive_net.pRNN.load_state_dict(checkpoint[CkptKeys.PRNN_STATE_DICT])
+    # Load main network and optimizer.
+    #
+    # PRE-BIAS CHECKPOINTS. `outlayer` gained a bias on 2026-08-30; a checkpoint
+    # saved before that has no `outlayer.0.bias` key and `load_state_dict` is
+    # strict, so it would raise `Missing key(s)`. The constructor zero-initialises
+    # that bias, and a zero bias is mathematically the SAME FUNCTION as no bias -
+    # so filling it is not a compatibility fudge, it is exact. Anything else
+    # missing or unexpected still raises.
+    state = checkpoint[CkptKeys.PRNN_STATE_DICT]
+    missing, unexpected = predictive_net.pRNN.load_state_dict(state, strict=False)
+    # BOTH names: the readout bias is registered twice, as `b_out` and as
+    # `outlayer.0.bias`, exactly as `W_out` and `outlayer.0.weight` already are.
+    # A pre-bias checkpoint is missing both.
+    READOUT_BIAS = ("b_out", "outlayer.0.bias")
+    pre_bias = [k for k in missing if k.endswith(READOUT_BIAS)]
+    leftover = [k for k in missing if k not in pre_bias]
+    if leftover or unexpected:
+        raise RuntimeError(
+            f"checkpoint does not match this architecture; missing {leftover}, "
+            f"unexpected {list(unexpected)}"
+        )
+    if pre_bias:
+        print(f"[load_pN] pre-bias checkpoint: {pre_bias} zero-filled "
+              f"(identical to the bias-free network it was trained as)")
     predictive_net.pRNN.to(device)
 
-    predictive_net.optimizer.load_state_dict(checkpoint[CkptKeys.OPTIMIZER_STATE_DICT])
+    # PRE-BIAS OPTIMIZER STATE. `OutputBias` is APPENDED last, so a checkpoint
+    # saved before it has one fewer param group and load_state_dict refuses on
+    # the count. Appending a matching empty group restores the old groups at
+    # their original indices and leaves the bias with fresh (zero) RMSprop
+    # state - which is correct: a parameter that never trained has none.
+    opt_state = checkpoint[CkptKeys.OPTIMIZER_STATE_DICT]
+    live = predictive_net.optimizer.state_dict()
+    if len(opt_state["param_groups"]) == len(live["param_groups"]) - 1:
+        tail = live["param_groups"][-1]
+        if tail.get("name") == "OutputBias":
+            opt_state = dict(opt_state)
+            opt_state["param_groups"] = list(opt_state["param_groups"]) + [tail]
+            print("[load_pN] pre-bias optimizer state: appended an empty "
+                  "OutputBias group")
+    predictive_net.optimizer.load_state_dict(opt_state)
     
     # Move optimizer state tensors to match model device
     for state in predictive_net.optimizer.state.values():

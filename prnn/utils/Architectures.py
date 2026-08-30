@@ -177,7 +177,38 @@ class pRNN(nn.Module):
             **cell_kwargs,
         )
 
+        # BIAS, added 2026-08-30. The observation target's mean is ~0.40 (its
+        # four levels span [0.298, 0.647], a tile_size=1 rendering artifact), so
+        # every output carries a large constant component. Without a bias that
+        # constant has to be synthesized as `W_out . h`, and `h` is a poor
+        # basis for it: measured on a trained 500-unit net, 55% of the vector is
+        # exactly zero and its mean moves every timestep. The offset is
+        # therefore state-COUPLED, and the readout hedges toward the target mean
+        # - measured, a trained net recovers only 69-85% of each object colour's
+        # spread, while the agent's own triangle, which is at the centre of
+        # every view and needs no inference, is recovered at 101%.
+        #
+        # Initialised to ZERO, not torch's default uniform: a checkpoint saved
+        # before this change has no `outlayer.0.bias` key, and `load_pN` fills
+        # it with zeros - which makes the loaded network mathematically
+        # IDENTICAL to the bias-free one it was trained as. That is what keeps
+        # existing checkpoints and their pinned metrics valid.
+        # Constructed bias=False and given the bias AFTERWARDS, which is not a
+        # style choice: `nn.Linear(..., bias=True)` draws `init.uniform_` for the
+        # bias during `reset_parameters`, shifting every subsequent RNG draw in
+        # the process. Verified - the next `torch.rand` after construction moves
+        # from 0.0373173952 to 0.8484520912. That would break every bitwise
+        # golden fixture for a parameter whose value is zero. Attaching zeros
+        # consumes no randomness, so the stream is untouched and a fresh network
+        # is bit-identical to a pre-bias one until the bias LEARNS something.
         self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False), nn.Sigmoid())
+        self.outlayer[0].bias = nn.Parameter(torch.zeros(output_size))
+        # Exposed like `W_out` above, and NOT called `bias`: `self.bias` is
+        # already the recurrent cell's bias, a different parameter with its own
+        # `trainBias` switch. `predictiveNet` gives this its own optimizer group -
+        # without one it is a registered Parameter that no optimizer ever sees,
+        # so it stays at its zero init forever and the readout is unchanged.
+        self.b_out = self.outlayer[0].bias
 
     def restructure_inputs(
         self, obs_in, act, obs_target=None, batched=False

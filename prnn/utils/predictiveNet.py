@@ -714,6 +714,24 @@ class PredictiveNet:
             }
             self.optimizer.add_param_group(insparseparmgroup)
 
+        # APPENDED LAST, and that ordering is load-bearing: an optimizer state
+        # dict addresses parameters by INDEX, so inserting a group in the middle
+        # would silently renumber `biases` and the sparse groups and mis-restore
+        # every checkpoint. Appending leaves every pre-existing index alone.
+        #
+        # The READOUT bias (Architectures.b_out), distinct from the recurrent
+        # cell's `bias`. UNSCALED lr, following this file's own note that a bias
+        # wants no rootk scaling - it has no fan-in to normalise against. And
+        # weight_decay ZERO: this parameter exists to hold a non-zero DC offset
+        # (the observation target's mean is ~0.40) and decay pulls exactly that
+        # toward zero, undoing the thing it was added for.
+        self.optimizer.add_param_group({
+            "params": self.pRNN.b_out,
+            "name": "OutputBias",
+            "lr": learningRate,
+            "weight_decay": 0.0,
+        })
+
         if eg_lr is not None:
             self.optimizer = RMSpropEG(self.optimizer.param_groups)
             for group in self.optimizer.param_groups:

@@ -56,13 +56,23 @@ def test_out_of_vocabulary_pixel_fails_loudly():
 
 
 def test_batched_trailing_batch_axis_layout():
-    """The masked-net batched layout puts features on dim 2 with B trailing."""
+    """The masked-net batched layout puts features on dim 2 with B trailing.
+
+    One-hot logits, NOT uniform: CE of uniform logits is ln C for ANY targets,
+    so the uniform version could not catch a transposed target derivation in
+    this - the trickiest - reshape (audit 2026-08-31). Perfect logits reach
+    ~zero loss only if the target lookup used the very same layout.
+    """
     B, L = 3, 4
     targets = torch.randint(0, C, (B * L, 49), generator=torch.Generator().manual_seed(2))
     pixels = _pixels(targets).reshape(1, L, B, 49 * 3).movedim(2, 3)  # (1, L, 147, B)
-    logits = torch.zeros(1, L, 49 * C, B)
+    onehot = torch.full((B * L, 49, C), -20.0)
+    onehot.scatter_(2, targets.unsqueeze(-1), 20.0)
+    logits = onehot.reshape(1, L, B, 49 * C).movedim(2, 3)  # (1, L, 343, B)
     loss = predCE(VOCAB)(logits, pixels, None)
-    assert abs(float(loss) - torch.log(torch.tensor(float(C)))) < 1e-5
+    assert float(loss) < 1e-6
+    uniform = predCE(VOCAB)(torch.zeros(1, L, 49 * C, B), pixels, None)
+    assert abs(float(uniform) - torch.log(torch.tensor(float(C)))) < 1e-5
 
 
 def test_focal_gamma_downweights_easy_tiles():

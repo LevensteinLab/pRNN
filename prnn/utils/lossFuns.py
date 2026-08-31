@@ -104,13 +104,7 @@ class predCE(nn.Module):
         )
         logits = obs_pred.movedim(pix_ax, -1).reshape(-1, n_tiles, C)
         pixels = obs_next.movedim(pix_ax, -1).reshape(-1, n_tiles, self.n_channels)
-        dist = (pixels.unsqueeze(-2) - self.vocab).abs().sum(-1)
-        mindist, targets = dist.min(-1)
-        if not (torch.cuda.is_available() and torch.cuda.is_current_stream_capturing()):
-            assert float(mindist.max()) < 1e-3, (
-                "tile value outside the committed vocabulary - "
-                "rebuild envs/palette.py::TILE_VOCABULARY"
-            )
+        targets = self.targets_for(pixels)
         ce = nn.functional.cross_entropy(
             logits.reshape(-1, C), targets.reshape(-1), reduction="none"
         )
@@ -118,6 +112,27 @@ class predCE(nn.Module):
             pt = torch.exp(-ce)
             ce = ((1 - pt) ** self.focal_gamma) * ce
         return ce.mean()
+
+    def targets_for(self, pixels, *, check: bool = True):
+        """Pixel rows -> class indices: the ONE home for the closed-set lookup.
+
+        `pixels` is (..., n_channels) after tile-splitting. The closed-set
+        assert is skipped while a CUDA graph is CAPTURING (a host sync cannot
+        run there) - and graph REPLAYS execute no Python at all, so under
+        `predNet.cuda_graph` only the capture/warmup batches are checked here;
+        the RL adapter's periodic eager check covers the replay stream.
+        """
+        if self.vocab.device != pixels.device:
+            self.vocab = self.vocab.to(pixels.device)
+        dist = (pixels.unsqueeze(-2) - self.vocab).abs().sum(-1)
+        mindist, targets = dist.min(-1)
+        capturing = torch.cuda.is_available() and torch.cuda.is_current_stream_capturing()
+        if check and not capturing:
+            assert float(mindist.max()) < 1e-3, (
+                "tile value outside the committed vocabulary - "
+                "rebuild envs/palette.py::TILE_VOCABULARY"
+            )
+        return targets
 
     def render(self, obs_pred):
         """Logits rows -> displayable pixel rows in [0,1] (argmax colour).

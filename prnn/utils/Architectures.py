@@ -215,7 +215,11 @@ class pRNN(nn.Module):
         # categorical head (predCE) - pass output_size = n_tiles * n_classes
         # with it. Same Linear, same zero bias, same RNG-neutral construction
         # either way, so the switch moves no random draw.
-        readout = cell_kwargs.get("readout", "sigmoid")
+        # POP, not get: `cell_kwargs` flows on into thetaRNNLayer and the cell
+        # constructors, whose **kwargs would swallow a `readout` collision
+        # silently (audit 2026-08-31). The callee dict is always fresh, so the
+        # pop cannot mutate a caller's mapping.
+        readout = cell_kwargs.pop("readout", "sigmoid")
         if readout == "sigmoid":
             self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False), nn.Sigmoid())
         elif readout == "logits":

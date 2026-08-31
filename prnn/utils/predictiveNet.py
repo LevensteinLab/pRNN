@@ -37,7 +37,7 @@ from prnn.utils.general import delaydist
 
 from prnn.utils.LinearDecoder import linearDecoder
 
-from prnn.utils.lossFuns import LPLLoss, predMSE, predRMSE
+from prnn.utils.lossFuns import LPLLoss, predCE, predMSE, predRMSE
 from prnn.utils.eg_utils import RMSpropEG
 
 
@@ -119,7 +119,7 @@ netOptions = {
     "multRNN_5win_i0_o1": multRNN_5win_i0_o1,
 }
 
-lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss}
+lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss, "predCE": predCE}
 
 CELL_TYPES = {
     "RNNCell": RNNCell,
@@ -151,6 +151,7 @@ class PredictiveNet:
         weight_decay=3e-3,
         eg_weight_decay=1e-6,
         losstype="predMSE",
+        loss_kwargs=None,
         trainNoiseMeanStd=(0, 0.03),
         target_rate=None,
         target_sparsity=None,
@@ -205,7 +206,7 @@ class PredictiveNet:
         if identityInit:
             self.pRNN.W = nn.Parameter(torch.eye(hidden_size))
 
-        self.loss_fn = lossOptions[losstype]()
+        self.loss_fn = lossOptions[losstype](**(loss_kwargs or {}))
         self.resetOptimizer(
             learningRate,
             weight_decay,

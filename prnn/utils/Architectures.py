@@ -118,6 +118,15 @@ class pRNN(nn.Module):
         )
         self.output_size = cell_kwargs["output_size"] if "output_size" in cell_kwargs else obs_size
 
+        # Forward everything EXCEPT the keys this constructor already
+        # consumed positionally - passing output_size both ways was a
+        # TypeError the first time anyone actually used the documented
+        # override. Filtered, not popped: `trainArgs` captured this dict by
+        # reference, and a pop would silently rewrite the checkpoint record.
+        forwarded = {
+            k: v for k, v in cell_kwargs.items()
+            if k not in ("input_size", "output_size")
+        }
         self.create_layers(
             self.input_size,
             self.output_size,
@@ -127,7 +136,7 @@ class pRNN(nn.Module):
             continuousTheta,
             k,
             f,
-            **cell_kwargs,
+            **forwarded,
         )  # init scheme for the thetaRNNLayer gets passed through here
 
         self.W_in = self.rnn.cell.weight_ih
@@ -201,7 +210,18 @@ class pRNN(nn.Module):
         # golden fixture for a parameter whose value is zero. Attaching zeros
         # consumes no randomness, so the stream is untouched and a fresh network
         # is bit-identical to a pre-bias one until the bias LEARNS something.
-        self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False), nn.Sigmoid())
+        # `readout` (cell_kwargs, like output_size): "sigmoid" is the
+        # historical pixel-regression head; "logits" drops the squash for a
+        # categorical head (predCE) - pass output_size = n_tiles * n_classes
+        # with it. Same Linear, same zero bias, same RNG-neutral construction
+        # either way, so the switch moves no random draw.
+        readout = cell_kwargs.get("readout", "sigmoid")
+        if readout == "sigmoid":
+            self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False), nn.Sigmoid())
+        elif readout == "logits":
+            self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False))
+        else:
+            raise ValueError(f"readout must be 'sigmoid' or 'logits', got {readout!r}")
         self.outlayer[0].bias = nn.Parameter(torch.zeros(output_size))
         # Exposed like `W_out` above, and NOT called `bias`: `self.bias` is
         # already the recurrent cell's bias, a different parameter with its own

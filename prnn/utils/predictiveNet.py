@@ -1281,6 +1281,12 @@ class PredictiveNet:
         obs_pred, obs_next, h = self.predict(obs, act)
         if type(obs_pred) == tuple:
             obs_pred = obs_pred[1]
+        if hasattr(self.loss_fn, "render"):
+            # A categorical head predicts logits, not pixels; the loss owns
+            # how those become an image (argmax colour). Without this the
+            # figure reshape fails on the widened rows and kills the run at
+            # its first plot event.
+            obs_pred = self.loss_fn.render(obs_pred)
 
         decoded = None
         if decoder:

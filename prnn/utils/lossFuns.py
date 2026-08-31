@@ -119,6 +119,23 @@ class predCE(nn.Module):
             ce = ((1 - pt) ** self.focal_gamma) * ce
         return ce.mean()
 
+    def render(self, obs_pred):
+        """Logits rows -> displayable pixel rows in [0,1] (argmax colour).
+
+        Trailing-feature layouts (…, n_tiles*C), which is what the serial
+        predict path and every figure consumer hold. The ONE home for
+        "what does a categorical prediction look like": plotSampleTrajectory
+        and the RL adapter's render_prediction_rows both call this.
+        """
+        C = self.n_classes
+        assert obs_pred.shape[-1] % C == 0, (
+            f"trailing dim {obs_pred.shape[-1]} is not a multiple of {C} classes"
+        )
+        vocab = self.vocab.to(obs_pred.device)
+        n_tiles = obs_pred.shape[-1] // C
+        classes = obs_pred.reshape(*obs_pred.shape[:-1], n_tiles, C).argmax(-1)
+        return vocab[classes].reshape(*obs_pred.shape[:-1], n_tiles * self.n_channels)
+
 
 class predMSE(nn.Module):
     def __init__(self, **kwargs):

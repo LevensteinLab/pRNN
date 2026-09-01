@@ -117,3 +117,41 @@ def test_ce_network_trains_end_to_end(env):
     before = pN.pRNN.outlayer[0].weight.detach().clone()
     pN.trainStep(obs, act, return_stats=False)
     assert not torch.equal(before, pN.pRNN.outlayer[0].weight), "no gradient reached the readout"
+
+
+def test_mlp_readout_replicates_the_grid_predict_decode(env):
+    """readout="mlp" -> ResidualMLP, LayerNorm, Linear - the grid-predict
+    decode stack - with W_out/b_out anchored on the PROJECTION and every
+    trunk parameter actually updated by trainStep (a mis-wired optimizer
+    group would leave the trunk frozen and the readout silently linear)."""
+    from prnn.utils.Architectures import ResidualMLP
+
+    torch.manual_seed(0)
+    n_tiles = env.getObsSize() // 3
+    pN = PredictiveNet(
+        env, pRNNtype="thRNN_5win", losstype="predCE",
+        loss_kwargs={"vocab": VOCAB}, output_size=n_tiles * C, readout="mlp",
+    )
+    trunk, norm_, proj = pN.pRNN.outlayer
+    assert isinstance(trunk, ResidualMLP)
+    assert isinstance(norm_, torch.nn.LayerNorm)
+    assert isinstance(proj, torch.nn.Linear)
+    assert pN.pRNN.W_out is proj.weight and pN.pRNN.b_out is proj.bias
+    assert proj.out_features == n_tiles * C
+    assert any(g.get("name") == "ReadoutTrunk" for g in pN.optimizer.param_groups)
+
+    T = 12
+    targets = torch.randint(0, C, (T + 1, n_tiles), generator=torch.Generator().manual_seed(5))
+    obs = VOCAB[targets].reshape(1, T + 1, -1)
+    act = torch.zeros(1, T, pN.act_size)
+    before = {n: p.detach().clone() for n, p in pN.pRNN.outlayer.named_parameters()}
+    pN.trainStep(obs, act, return_stats=False)
+    stuck = [n for n, p in pN.pRNN.outlayer.named_parameters()
+             if torch.equal(before[n], p)]
+    assert not stuck, f"readout parameters not updated by trainStep: {stuck}"
+
+
+def test_linear_readouts_have_no_trunk_group(env):
+    torch.manual_seed(0)
+    pN = PredictiveNet(env, pRNNtype="thRNN_5win")
+    assert not any(g.get("name") == "ReadoutTrunk" for g in pN.optimizer.param_groups)

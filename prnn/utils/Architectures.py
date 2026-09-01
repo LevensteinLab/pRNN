@@ -15,6 +15,26 @@ from abc import ABC, abstractmethod
 from functools import partial
 
 
+class ResidualMLP(nn.Module):
+    """Pre-norm residual block: x + MLP(LN(x)).
+
+    Replicated from grid-predict (src/model/__init__.py), where it is the
+    decoder trunk that reads a GRU state into per-tile logits. The identity
+    path means the block starts as a perturbation of the LINEAR readout and
+    learns nonlinear corrections on top; the pre-norm keeps the correction's
+    input well-conditioned whatever the hidden state's scale drift.
+    """
+
+    def __init__(self, dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.LayerNorm(dim), nn.Linear(dim, dim), nn.SiLU(), nn.Linear(dim, dim)
+        )
+
+    def forward(self, x):
+        return x + self.net(x)
+
+
 class pRNN(nn.Module):
     """
     A general predictive RNN framework that takes observations and actions, and
@@ -141,7 +161,7 @@ class pRNN(nn.Module):
 
         self.W_in = self.rnn.cell.weight_ih
         self.W = self.rnn.cell.weight_hh
-        self.W_out = self.outlayer[0].weight
+        self.W_out = self.out_proj.weight
         self.bias = self.rnn.cell.bias
 
         if hasattr(self.rnn.cell, "weight_is"):
@@ -221,18 +241,42 @@ class pRNN(nn.Module):
         # pop cannot mutate a caller's mapping.
         readout = cell_kwargs.pop("readout", "sigmoid")
         if readout == "sigmoid":
-            self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False), nn.Sigmoid())
+            proj = nn.Linear(hidden_size, output_size, bias=False)
+            self.outlayer = nn.Sequential(proj, nn.Sigmoid())
         elif readout == "logits":
-            self.outlayer = nn.Sequential(nn.Linear(hidden_size, output_size, bias=False))
+            proj = nn.Linear(hidden_size, output_size, bias=False)
+            self.outlayer = nn.Sequential(proj)
+        elif readout == "mlp":
+            # grid-predict's DECODE stack, replicated: ResidualMLP -> LayerNorm
+            # -> Linear (src/model/__init__.py decode_mlp/decode_norm/
+            # decode_proj), with their init_orthogonal (orthogonal gain
+            # sqrt(2) on Linear weights, zero biases) applied to the readout
+            # modules only. Everything here draws RNG inside THIS branch, so
+            # the sigmoid/logits paths - and the goldens that pin them -
+            # consume exactly the draws they always did.
+            trunk = ResidualMLP(hidden_size)
+            decode_norm = nn.LayerNorm(hidden_size)
+            proj = nn.Linear(hidden_size, output_size, bias=False)
+            for m in (trunk, decode_norm, proj):
+                for mm in m.modules():
+                    if isinstance(mm, nn.Linear):
+                        nn.init.orthogonal_(mm.weight, gain=np.sqrt(2.0))
+                        if mm.bias is not None:
+                            nn.init.zeros_(mm.bias)
+            self.outlayer = nn.Sequential(trunk, decode_norm, proj)
         else:
-            raise ValueError(f"readout must be 'sigmoid' or 'logits', got {readout!r}")
-        self.outlayer[0].bias = nn.Parameter(torch.zeros(output_size))
+            raise ValueError(f"readout must be 'sigmoid', 'logits' or 'mlp', got {readout!r}")
+        #: The projection Linear, whatever depth sits before it - the one
+        #: anchor for `W_out`/`b_out` and their optimizer groups. Indexing
+        #: `outlayer[0]` stopped being right the moment a trunk existed.
+        self.out_proj = proj
+        proj.bias = nn.Parameter(torch.zeros(output_size))
         # Exposed like `W_out` above, and NOT called `bias`: `self.bias` is
         # already the recurrent cell's bias, a different parameter with its own
         # `trainBias` switch. `predictiveNet` gives this its own optimizer group -
         # without one it is a registered Parameter that no optimizer ever sees,
         # so it stays at its zero init forever and the readout is unchanged.
-        self.b_out = self.outlayer[0].bias
+        self.b_out = self.out_proj.bias
 
     def restructure_inputs(
         self, obs_in, act, obs_target=None, batched=False

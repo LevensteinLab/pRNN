@@ -733,6 +733,23 @@ class PredictiveNet:
             "weight_decay": 0.0,
         })
 
+        # The readout TRUNK (readout="mlp": ResidualMLP + LayerNorm), empty
+        # for the linear readouts. Appended after OutputBias for the same
+        # index-preservation reason as above. OutputWeights' scaling: the
+        # trunk Linears share the projection's fan-in (hidden_size), and the
+        # LayerNorm gains ride along rather than earning a fourth policy.
+        trunk_params = [
+            p for p in self.pRNN.outlayer.parameters()
+            if p is not self.pRNN.W_out and p is not self.pRNN.b_out
+        ]
+        if trunk_params:
+            self.optimizer.add_param_group({
+                "params": trunk_params,
+                "name": "ReadoutTrunk",
+                "lr": learningRate * rootk_h,
+                "weight_decay": weight_decay * learningRate * rootk_h,
+            })
+
         if eg_lr is not None:
             self.optimizer = RMSpropEG(self.optimizer.param_groups)
             for group in self.optimizer.param_groups:

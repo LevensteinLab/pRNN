@@ -269,7 +269,13 @@ class pRNN(nn.Module):
         #: The projection Linear, whatever depth sits before it - the one
         #: anchor for `W_out`/`b_out` and their optimizer groups. Indexing
         #: `outlayer[0]` stopped being right the moment a trunk existed.
-        self.out_proj = proj
+        #: Stored through __dict__, NOT attribute assignment: nn.Module's
+        #: __setattr__ would register the Linear as a SECOND submodule and
+        #: grow `out_proj.*` state-dict keys - changing every pinned
+        #: fingerprint and breaking strict loads of old checkpoints (the
+        #: consumer goldens caught exactly this). The parameters stay
+        #: registered once, under `outlayer.*`; this is a plain alias.
+        self.__dict__["out_proj"] = proj
         proj.bias = nn.Parameter(torch.zeros(output_size))
         # Exposed like `W_out` above, and NOT called `bias`: `self.bias` is
         # already the recurrent cell's bias, a different parameter with its own

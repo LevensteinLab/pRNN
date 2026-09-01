@@ -282,13 +282,14 @@ class pRNN(nn.Module):
             else:
                 x_t = torch.cat((obs, act), 2)
 
-            h_t, _ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
+            h_t, state = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
             if not fullRNNstate:
                 h_t = h_t[
                     :, :, : self.hidden_size
                 ]  # For RNNcells that output more than the hidden RNN units
             y_t = None
             obs_target = None
+            return h_t, state
         else:
             x_t, obs_target, outmask = self.restructure_inputs(
                 obs_in=obs, act=act, obs_target=None, batched=batched
@@ -327,7 +328,7 @@ class pRNN(nn.Module):
                 y_t = torch.zeros_like(allout)
                 y_t[:, outmask, :] = allout[:, outmask, :]  # The predicted outputs.
 
-        return y_t, h_t, obs_target
+            return y_t, h_t, obs_target
 
     def generate_noise(self, noise_params, shape):
         """Generate noise for internal noise driving
@@ -630,6 +631,7 @@ class NextStepRNN(pRNN):
         hidden_size=500,
         cell=LayerNormRNNCell,
         bptttrunc=100,
+        k=0,
         neuralTimescale=2,
         dropp=0.15,
         f=0.5,
@@ -656,6 +658,7 @@ class NextStepRNN(pRNN):
             hidden_size=hidden_size,
             cell=cell,
             bptttrunc=bptttrunc,
+            k=0, # k should be 0 for next step prediction
             neuralTimescale=neuralTimescale,
             dropp=dropp,
             f=f,

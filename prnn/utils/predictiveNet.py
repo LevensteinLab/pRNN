@@ -277,19 +277,29 @@ class PredictiveNet:
 
         return obs_pred, obs_next, h
 
-    def predict_single(self, obs, act):
+    def predict_single(self, obs, act, full_rollout=False):
         """
-        Generate pRNN activation from single observation and action.
-        There is no dropout step here, so the output will be different from predict().
+        Generate pRNN activation from one observation-action pair.
+
+        For a rollout pRNN, ``full_rollout=True`` returns activity from every
+        theta step while preserving only the recurrent carry state for the
+        next call. There is no dropout step here, so the output differs from
+        :meth:`predict`.
         """
         # Mask observations and actions according to current phase
         obs = obs * self.pRNN.inMask[self.phase]
         act = act * self.pRNN.actMask[self.phase]
         self.phase = (self.phase + 1) % self.phase_k
 
-        _, self.state, _ = self.pRNN(
+        h_t, state = self.pRNN(
             obs, act, noise_params=self.trainNoiseMeanStd, state=self.state, single=True
         )
+        if isinstance(self.pRNN, pRNN_th):
+            self.state = state
+            if full_rollout:
+                return h_t
+        else:
+            self.state = h_t
         return self.state
 
     def reset_state(self, randInit=True, device="cpu"):
@@ -800,27 +810,30 @@ class PredictiveNet:
         activeTimeThreshold=200,
         fullRNNstate=False,
         HDinfo=False,
+        rolloutdim="mean",
+        traj=None,
         wandb_nameext="",
     ):
         """
         Use an agent to calculate spatial representation of an environment
         """
-        obs, act, state, render = self.collectObservationSequence(
-            env, agent, timesteps, discretize=True
-        )
+        if traj is not None: # base the analysis on a pre-collected trajectory
+            obs, act, state, render = traj
+        else: # collect a new trajectory
+            obs, act, state, render = self.collectObservationSequence(
+                env, agent, timesteps, discretize=True
+            )
 
         with torch.no_grad():
             if hasattr(self, "current_state"):  # easy way to check if it's CANN
                 obs_pred, obs_next, h = self.predict(obs, act, state, fullRNNstate=fullRNNstate)
             else:
                 obs_pred, obs_next, h = self.predict(obs, act, fullRNNstate=fullRNNstate)
-
-        # for now: take only the 0th theta window...
-        # Try: mean
-        # THETA UPDATE NEEDED
-        # h = h[0:1,:,:]
-        h = torch.mean(h, dim=0, keepdims=True)
-        ##FIX ABOVE HERE FOR k
+                
+        if rolloutdim == "mean": # by default, take the average of a rollout
+            h = torch.mean(h, dim=0, keepdims=True)
+        elif rolloutdim == "first": # take only the 0th theta window
+            h = h[0:1, :, :]
 
         position = nap.TsdFrame(
             t=np.arange(onsetTransient, timesteps),
@@ -981,7 +994,7 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData("place_fields", place_fields)
             self.addTrainingData("SI", SI["SI"])
-        if self.wandb_log:  # TODO: work out the rest of the logging
+        if self.wandb_log:
             keys_unmodified = ["mean SI", "sRSA", "SWdist"]
             log_keys = [key + wandb_nameext for key in keys_unmodified]
             if calculatesRSA:
@@ -1061,10 +1074,14 @@ class PredictiveNet:
         saveTrainingData=False,
         showFig=True,
         seed=None,
+        traj=None,
     ):
-        obs, act, state, render = self.collectObservationSequence(
-            env, agent, timesteps, includeRender=True, discretize=True, seed=seed
-        )
+        if traj is not None:  # base the analysis on a pre-collected trajectory
+            obs, act, state, render = traj
+        else:  # collect a new trajectory
+            obs, act, state, render = self.collectObservationSequence(
+                env, agent, timesteps, includeRender=True, discretize=True, seed=seed
+            )
         obs_pred, obs_next, h = self.predict(obs, act)
         if type(obs_pred) == tuple:
             obs_pred = obs_pred[1]
@@ -1105,6 +1122,9 @@ class PredictiveNet:
         derror, dshuffle = self.decode_error(decoded, state)
         if saveTrainingData:
             self.addTrainingData("derror", derror)
+        
+        if self.wandb_log:
+            wandb.log({"derror": derror.mean()}, step=self.numTrainingTrials)
         return
 
     def calculateActivationStats(self, h, onset=100):

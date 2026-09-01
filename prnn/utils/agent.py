@@ -736,6 +736,94 @@ GIMBL_VARIABLE_PRESETS = {
 }
 
 
+class GimblAgentPreloaded:
+    """Replays a real mouse's recorded speed trace verbatim.
+
+    Sibling of `GimblAgentVariable`, but the opposite design choice: that agent
+    is data-free by construction (aggregate statistics only, see its
+    docstring); this one is deliberately NOT data-free -- it loads one real
+    trace (built by 20260901_export_preloaded_trace.py via
+    mouseSpeed.load_tdml_speed) and replays it exactly, so the generated
+    trajectory has the SAME duration and the SAME moment-to-moment speed as
+    the real session, not just matching statistics. This is Dan's "test with
+    real mouse speed" ask (2026-08-27 1-1).
+
+    One real session = one deterministic trace. `tsteps <= len(speed_cms)`
+    replays the first `tsteps` samples verbatim (a genuine prefix of the real
+    trace -- fine for a shorter sanity-preview rollout); `tsteps` beyond the
+    trace length raises, since there's nothing recorded to extrapolate from.
+    For the actual SAVED dataset you want the full session, not a prefix --
+    that exactness is enforced separately, in generate_gimbl_trajectories.py,
+    which refuses unless --seqdur equals the trace length exactly. (There is
+    still no random-offset windowing, unlike the multi-session `preloaded`
+    design in the `unity` skill -- one session has only one possible window.)
+    Generate with `--dataNtraj 1 --seqdur <trace length>`; more than 1
+    replicate replays the identical speed trace with a different random start
+    POSITION only (randomizeStart on CorridorAgent), so it buys little.
+
+    `name` encodes the trace identity -- same constraint as GimblAgentVariable:
+    two different traces must not share a cache path. Prefer constructing via
+    `create_agent` with a GIMBL_PRELOADED_PRESETS key.
+    """
+
+    def __init__(self, trace_path, cm_per_uu=CM_PER_UU, dt=STEP_SECONDS, name=None):
+        d = np.load(trace_path)
+        self.speed_cms = np.asarray(d['speed_cms'], dtype=float)
+        self.trace_path = trace_path
+        self.cm_per_uu = cm_per_uu
+        self.dt = dt
+        self.name = name if name else 'GimblAgentPreloaded'
+
+    def generateActionSequence(self, tsteps):
+        if tsteps > len(self.speed_cms):
+            raise ValueError(
+                '%s: tsteps=%d but the loaded trace (%s) has only %d steps -- '
+                'nothing recorded beyond that to replay.'
+                % (self.name, tsteps, self.trace_path, len(self.speed_cms)))
+        act = self.speed_cms[:tsteps] * self.dt / self.cm_per_uu   # cm/s -> uu/step
+        return [np.array([a], dtype=np.float32) for a in act]
+
+    def getObservations(self, env, tsteps, reset=True, includeRender=False, **kwargs):
+        act = self.generateActionSequence(tsteps)
+        obs = [None] * (tsteps + 1)
+        render = False
+
+        obs[0] = env.reset() if reset else env.render()
+
+        state = {'agent_pos': np.resize(env.get_agent_pos(), (1, 3)),
+                 'agent_dir': env.get_agent_dir()}
+
+        if includeRender:
+            render = [None] * (tsteps + 1)
+            render[0] = env.render()
+
+        for t in range(tsteps):
+            step_result = env.step(act[t])
+            obs[t + 1] = step_result[0]
+            terminated, truncated = step_result[2], step_result[3]
+            if terminated or truncated:
+                obs[t + 1] = env.reset()
+            state['agent_pos'] = np.append(
+                state['agent_pos'],
+                np.resize(env.get_agent_pos(), (1, 3)), axis=0)
+            state['agent_dir'] = np.append(state['agent_dir'], env.get_agent_dir())
+            if includeRender:
+                render[t + 1] = env.render()
+
+        return obs, act, state, render
+
+
+# One preset so far: mc31 7/24, the SameVR session (see
+# 20260901_export_preloaded_trace.py). Add an entry here per exported trace --
+# same "preset key = cache-path identity" reasoning as GIMBL_VARIABLE_PRESETS.
+GIMBL_PRELOADED_PRESETS = {
+    'GimblAgentPreloadedMc31_260724': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc31_260724_trace.npz',
+    ),
+}
+
+
 def create_agent(envname, env, agentkey, agentname = "", **agent_kwargs):
     if agentkey == 'RandomActionAgent':
         n = env.action_space.n
@@ -769,11 +857,20 @@ def create_agent(envname, env, agentkey, agentname = "", **agent_kwargs):
         preset.update(agent_kwargs)
         agent = GimblAgentVariable(name=agentkey, **preset)
 
+    elif agentkey in GIMBL_PRELOADED_PRESETS:
+        preset = dict(GIMBL_PRELOADED_PRESETS[agentkey])
+        # cm_per_uu is the only agent_kwarg this agent honours; seed/max_speed/
+        # min_running_fraction don't apply to a deterministic replay.
+        if 'cm_per_uu' in agent_kwargs and agent_kwargs['cm_per_uu'] is not None:
+            preset['cm_per_uu'] = agent_kwargs['cm_per_uu']
+        agent = GimblAgentPreloaded(name=agentkey, **preset)
+
     else:
         raise ValueError(
             'unknown agentkey %r. Valid keys: RandomActionAgent, '
             'RatInABoxAgent, MiniworldRandomAgent, LoopAgent, UnityRandomAgent, '
-            'GimblAgentConstant, %s'
-            % (agentkey, ', '.join(sorted(GIMBL_VARIABLE_PRESETS))))
+            'GimblAgentConstant, %s, %s'
+            % (agentkey, ', '.join(sorted(GIMBL_VARIABLE_PRESETS)),
+               ', '.join(sorted(GIMBL_PRELOADED_PRESETS))))
 
     return agent

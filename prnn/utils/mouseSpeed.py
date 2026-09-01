@@ -124,6 +124,63 @@ MOUSE_FIT_WHEEL = dict(
 
 
 # =============================================================================
+# real trace loading (for the `preloaded` replay path -- GimblAgentPreloaded)
+# =============================================================================
+def load_tdml_speed(path, step=STEP_SECONDS, ceiling=60.0):
+    """behaviorMate .tdml -> (speed cm/s at `step`, track_length_mm, duration_s).
+
+    Ported from ca3_prnn/analysis/Mouse_speed_distribution.ipynb (the cell that
+    derived MOUSE_FIT_WHEEL) so a real trace can be exported for literal replay,
+    not just refit into aggregate statistics. Reads behaviorMate's own position
+    stream at the SAME 100 ms step the pRNN trains on, so unlike lab's imaging-
+    synced exports (10.31 Hz) there is no timebase rescaling to account for.
+
+    behaviorMate streams absolute track position (mm) at ~80 Hz and enforces
+    the lap by sending position 0, so laps are undone (unwrapped) before
+    differentiating. `ceiling` drops interpolation spikes across a lap reset.
+
+    Returns
+    -------
+    speed_cms : (N,) array, resampled to `step`, clipped at 0 (never abs()'d --
+        see the module docstring for why).
+    track_mm : float, this session's behaviorMate track_length.
+    duration_s : float.
+    """
+    import json
+    import re
+
+    head = open(path, errors='replace').read(4000)
+    track_mm = float(re.search(r'"track_length"\s*:\s*([0-9.]+)', head).group(1))
+    ys, ts = [], []
+    for line in open(path, errors='replace'):
+        line = line.strip().rstrip(',')
+        if '"y":' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except Exception:
+            continue
+        if 'y' in d and 'time' in d:
+            ys.append(d['y'])
+            ts.append(d['time'])
+    ys, ts = np.array(ys), np.array(ts)
+    # Drop the log's first line: on mc31 7/24 it is a stale value (y jumps ~2.3 m in
+    # 6 ms, then position resumes normally) -- not real motion, and not a legitimate
+    # lap reset either (too small relative to track_mm to be one, but negative enough
+    # to trip the unwrap below and get miscorrected into a large SPURIOUS jump). One
+    # sample out of tens of thousands costs nothing to drop; keeping it corrupts the
+    # cumulative sum from the very first step.
+    ys, ts = ys[1:], ts[1:]
+    dy = np.diff(ys)
+    dy[dy < -track_mm / 2] += track_mm          # undo the lap reset
+    cum = np.concatenate([[0], np.cumsum(np.clip(dy, 0, None))])
+    grid = np.arange(ts[0], ts[-1], step)
+    v = np.diff(np.interp(grid, ts, cum)) / step / 10.   # mm/s -> cm/s
+    v = np.clip(v, 0, ceiling)                            # clip, never abs()
+    return v, track_mm, ts[-1] - ts[0]
+
+
+# =============================================================================
 # bout detection (port of lab.analyses.behavior.running_intervals)
 # =============================================================================
 def running_intervals_from_velocity(

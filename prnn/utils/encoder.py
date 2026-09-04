@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 
@@ -18,9 +19,15 @@ class Res18(nn.Module):
                     and no projection layer.
         bias: Boolean to indicate whether self.proj has a learnable bias term
                     if present.
+        seed: self.proj's random init is drawn from a forked RNG seeded with
+                    this value, so the same seed always produces the same
+                    projection matrix. Independent of the agent/trajectory seed by
+                    design -- the trajectory used to score the network needs a
+                    different agent seed but the SAME projection as its training 
+                    run.
     """
 
-    def __init__(self, latent_dim=None, bias=True):
+    def __init__(self, latent_dim=None, bias=True, seed=None):
         super().__init__()
         backbone = resnet18(weights=ResNet18_Weights.DEFAULT)
         # remove the FC head and flatten to (N, 512)
@@ -31,7 +38,15 @@ class Res18(nn.Module):
             p.requires_grad = False
 
         if latent_dim is not None:
-            self.proj = nn.Linear(512, latent_dim, bias=bias)
+            if seed is not None:
+                # fork_rng saves/restores the global RNG state on exit, so seeding
+                # here to make proj reproducible has no side effect on any other
+                # random draw elsewhere in the process (agent behavior, dropout, ...).
+                with torch.random.fork_rng():
+                    torch.manual_seed(seed)
+                    self.proj = nn.Linear(512, latent_dim, bias=bias)
+            else:
+                self.proj = nn.Linear(512, latent_dim, bias=bias)
             self.latent_dim = latent_dim
             # projection also frozen by default, but can be overridden by subclasses
             for p in self.proj.parameters():
@@ -41,6 +56,7 @@ class Res18(nn.Module):
             self.latent_dim = 512
 
         self.name = 'res'
+        self.encoder_seed = seed
 
     def encode_latent(self, x):
         """x: (N, 3, H, W) in [0, 1]. Returns (N, latent_dim)."""
@@ -61,12 +77,28 @@ class Res18Random(Res18):
 
     Args:
         latent_dim: output dimension. Defaults to 128.
+        seed: REQUIRED (keyword-only, no default). The random projection is
+                    deterministic and reproducible across processes/runs. See
+                    Res18's docstring for why this is a separate knob from any
+                    agent/trajectory seed. Required rather than optional because an
+                    omitted/None seed is exactly the 2026-09-01 bug: a silently
+                    unreproducible projection that invalidates any cross-dataset
+                    comparison without erroring. Pass any integer -- there is no
+                    "right" value, just a chosen one.
     """
 
-    def __init__(self, latent_dim=128):
+    def __init__(self, latent_dim=128, *, seed):
+        if seed is None:
+            raise ValueError(
+                "Res18Random requires an explicit integer seed (got None). This is "
+                "deliberate: an unseeded/None projection is exactly the 2026-09-01 "
+                "bug (see encoder_pin.py) -- every generation process would draw a "
+                "different, uncorrelated projection, silently invalidating any "
+                "cross-dataset score. Pass any integer."
+            )
         # Inherit frozen ResNet18 backbone and frozen projection layer from Res18.
         # Pass bias=False since a random bias is just a fixed offset
-        super().__init__(latent_dim=latent_dim, bias=False)
+        super().__init__(latent_dim=latent_dim, bias=False, seed=seed)
         self.name = 'res_random'
 
 class Res18AE(Res18):

@@ -638,6 +638,7 @@ class NextStepRNN(pRNN):
         dropp=0.15,
         f=0.5,
         predOffset=1,
+        actOffset=0,
         use_FF=False,
         **cell_kwargs,
     ):

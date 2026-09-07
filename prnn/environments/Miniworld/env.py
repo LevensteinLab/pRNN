@@ -19,6 +19,34 @@ from miniworld.entity import Agent, MeshEnt, Entity, Box
 from miniworld.miniworld import MiniWorldEnv
 from miniworld.params import DEFAULT_PARAMS
 
+
+def _move_agent_continuously(env, speed):
+    """Move a continuous-action agent without tunnelling through walls.
+
+    MiniWorld's ``intersect`` checks a proposed position, not the line segment
+    travelled to reach it.  A continuous action can therefore jump across a
+    wall when its destination happens to be clear.  Probe the path at intervals
+    shorter than the agent radius before committing the full move.  This keeps
+    collision behaviour consistent with the small discrete forward steps.
+    """
+    speed = float(speed)
+    if not np.isfinite(speed):
+        return False
+
+    max_substep = max(float(env.agent.radius) / 2, np.finfo(float).eps)
+    substeps = max(1, math.ceil(abs(speed) / max_substep))
+    start_pos = env.agent.pos.copy()
+    displacement = env.agent.dir_vec * speed
+
+    for step in range(1, substeps + 1):
+        candidate = start_pos + displacement * (step / substeps)
+        if env.intersect(env.agent, candidate, env.agent.radius):
+            return False
+
+    env.agent.pos = start_pos + displacement
+    return True
+
+
 class Goal(Entity):
     def __init__(self, radius=1):
         super().__init__()
@@ -180,18 +208,8 @@ class LRoom(MiniWorldEnv):
         return True
 
     def move_agent_cont(self, speed):
-        """
-        Move the agent forward
-        """
-
-        next_pos = self.agent.pos + self.agent.dir_vec * speed
-
-        if self.intersect(self.agent, next_pos, self.agent.radius):
-            return False
-
-        self.agent.pos = next_pos
-
-        return True
+        """Move continuously while checking the complete movement path."""
+        return _move_agent_continuously(self, speed)
 
     def reset(self, *, seed=None, options=None):
         """
@@ -295,13 +313,18 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
 
     Maze environment in which the agent has to reach a center of target lava room and avoid other lava room.
 
-    ## Action Space
+    ## Discreet action Space
 
     | Num | Action                      |
     |-----|-----------------------------|
     | 0   | turn left                   |
     | 1   | turn right                  |
     | 2   | move forward                |
+
+    With ``continuous=True`` (the default), actions instead use the Box
+    ``[forward speed, angular displacement]`` with ranges ``[0, 1]`` and
+    ``[-1, 1]`` respectively.  Set ``continuous=False`` to use the discrete
+    movement actions above.
 
     ## Observation Space
 
@@ -320,7 +343,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
     """
 
     def __init__(
-        self, num_rows=5, num_cols=5, room_size=3, max_episode_steps=None,
+        self, num_rows=5, num_cols=5, room_size=3, max_episode_steps=512,
         continuous=True, ceiling=True, **kwargs
     ):
         self.num_rows = num_rows
@@ -342,7 +365,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
 
         MiniWorldEnv.__init__(
             self,
-            max_episode_steps=max_episode_steps or num_rows * num_cols * 24,
+            max_episode_steps=max_episode_steps,
             **kwargs,
         )
         utils.EzPickle.__init__(
@@ -354,8 +377,15 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
             **kwargs,
         )
 
-        # Allow only the movement actions
-        self.action_space = spaces.Discrete(self.actions.move_forward + 1)
+        if continuous:
+            # [forward speed, angular displacement], matching LRoom.  The
+            # environment's ``step`` method consumes this exact two-vector.
+            self.action_space = spaces.Box(
+                low=np.array([0, -1]), high=np.array([1, 1]), shape=(2,)
+            )
+        else:
+            # Allow only the movement actions
+            self.action_space = spaces.Discrete(self.actions.move_forward + 1)
 
     def _generate_layout(self):
         """
@@ -618,7 +648,9 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
 
         reward = 0
         termination = False
-        truncation = False
+        # This environment implements its own ``step`` instead of delegating
+        # to MiniWorldEnv, so enforce the episode horizon here explicitly.
+        truncation = self.step_count >= self.max_episode_steps
 
         # Generate the current camera image
         obs = self.render_obs()
@@ -642,18 +674,8 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
         return True
 
     def move_agent_cont(self, speed):
-        """
-        Move the agent forward
-        """
-
-        next_pos = self.agent.pos + self.agent.dir_vec * speed
-
-        if self.intersect(self.agent, next_pos, self.agent.radius):
-            return False
-
-        self.agent.pos = next_pos
-
-        return True
+        """Move continuously while checking the complete movement path."""
+        return _move_agent_continuously(self, speed)
 
     def reset(self, *, seed=None, options=None):
         """

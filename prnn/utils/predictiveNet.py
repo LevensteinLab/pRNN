@@ -306,9 +306,18 @@ class PredictiveNet:
         act = act * self.pRNN.actMask[self.phase]
         self.phase = (self.phase + 1) % self.phase_k
 
-        h_t, state = self.pRNN(
+        single_output = self.pRNN(
             obs, act, noise_params=self.trainNoiseMeanStd, state=self.state, single=True
         )
+        # Standard pRNNs return ``(h_t, recurrent_state)`` for one-step
+        # inference.  The CNN autoencoder architecture retains its
+        # train-time ``(prediction, h_t, target)`` return shape even when
+        # ``single=True``; its hidden response is the recurrent carry state.
+        if isinstance(single_output, tuple) and len(single_output) == 3:
+            _, h_t, _ = single_output
+            state = h_t
+        else:
+            h_t, state = single_output
         if isinstance(self.pRNN, pRNN_th):
             self.state = state
             if full_rollout:

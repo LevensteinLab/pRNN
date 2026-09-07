@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib
 import random
+from gymnasium import spaces
 
 from matplotlib.collections import EllipseCollection
 
@@ -25,7 +26,8 @@ actionOptions = {'OneHotHD' : OneHotHD ,
                  'ContSpeedRotationRiaB': ContSpeedRotation,
                  'ContSpeedHDRiaB': ContSpeedHD,
                  'ContSpeedOnehotHDRiaB': ContSpeedOnehotHD,
-                 'ContSpeedOnehotHDMiniworld': ContSpeedOnehotHDMiniworld
+                 'ContSpeedOnehotHDMiniworld': ContSpeedOnehotHDMiniworld,
+                 'ContSpeedNextOnehotHDMiniworld': ContSpeedNextOnehotHDMiniworld,
                  }
 
 HDmap = {0: 270,
@@ -382,9 +384,30 @@ class MiniworldShell(Shell):
         self.true_width = env.unwrapped.max_x - env.unwrapped.min_x
         self.max_dist = (self.true_height**2 + self.true_width**2)**0.5
 
-        self.continuous = True
+        self.continuous = isinstance(env.action_space, spaces.Box)
         self.start_pos = 0
         self.raw_default = True # by default, the observations are raw images for Miniworld
+
+    @property
+    def action_space(self):
+        return self.env.action_space
+
+    @property
+    def observation_space(self):
+        return self.env.observation_space
+
+    @staticmethod
+    def _format_action_trajectory(act):
+        """Return Miniworld actions in the shared ``(timesteps, 2)`` layout."""
+        act = np.asarray(act)
+        if act.ndim == 1:
+            act = act[None, :]
+        if act.ndim != 2 or act.shape[1] != 2:
+            raise ValueError(
+                "Miniworld actions must have shape (timesteps, 2): "
+                "[forward speed, angular displacement]."
+            )
+        return act
 
     def dir2deg(self, dir):
         return np.rad2deg(dir) # TODO: check this!
@@ -392,8 +415,11 @@ class MiniworldShell(Shell):
     def env2pred(self, obs, act=None, state=None, hd_from='state',
                  actoffset=0, device='cpu', **kwargs):    
         if act is not None:
+            act = self._format_action_trajectory(act)
             if hd_from=='state':
-                hd = state['agent_dir']
+                if state is None:
+                    raise ValueError("Miniworld action encoding requires agent_dir state.")
+                hd = self._hds_for_actions(state['agent_dir'], len(act))
             elif hd_from=='act':
                 hd = self.act2hd(obs[actoffset], act, actoffset)
             else:
@@ -410,8 +436,9 @@ class MiniworldShell(Shell):
             return obs, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
-        hd = state['agent_dir']
         if act is not None:
+            act = self._format_action_trajectory(act)
+            hd = self._hds_for_actions(state['agent_dir'], len(act))
             act = np.array(self.encodeAction(act=act,
                                              obs=hd,
                                              nbins=self.numHDs))
@@ -490,9 +517,33 @@ class MiniworldShell(Shell):
         raise NotImplementedError('get_viewpoint is not implemented for MiniworldShell')
     
     def get_visual(self, obs):
+        if isinstance(obs, dict):
+            obs = obs['image']
         obs = ToTensor()(obs)
         obs = torch.unsqueeze(obs, dim=0)
         return obs
+
+    @staticmethod
+    def _hds_for_actions(hds, action_count):
+        """Return ``action_count + 1`` HD values for an action encoder.
+
+        Dataset trajectories provide a full HD sequence. Single-step RL
+        inference instead provides the one HD that belongs to the selected
+        observation; repeat it so both ordinary and next-HD encodings consume
+        that same, explicitly selected HD.
+        """
+        hds = np.asarray(hds, dtype=np.float32)
+        if hds.ndim == 0:
+            return np.full(action_count + 1, hds.item(), dtype=np.float32)
+        hds = hds.reshape(-1)
+        if len(hds) == 1:
+            return np.full(action_count + 1, hds[0], dtype=np.float32)
+        if len(hds) == action_count + 1:
+            return hds
+        raise ValueError(
+            "Miniworld HD state must be one selected HD value or a full "
+            f"trajectory of {action_count + 1} HD values; got {len(hds)}."
+        )
     
     def load_state(self, state):
         self.set_agent_pos(state[:2])
@@ -558,8 +609,9 @@ class MiniworldVAEShell(MiniworldShell):
                  actoffset=0, device='cpu', compute_loss=False,
                  from_raw=False):    
         if act is not None and not from_raw:
+            act = self._format_action_trajectory(act)
             if hd_from=='state':
-                hd = state['agent_dir']
+                hd = self._hds_for_actions(state['agent_dir'], len(act))
             elif hd_from=='act':
                 hd = self.act2hd(obs[actoffset], act, actoffset)
             else:
@@ -599,8 +651,9 @@ class MiniworldVAEShell(MiniworldShell):
             return z, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
-        hd = state['agent_dir']
         if act is not None:
+            act = self._format_action_trajectory(act)
+            hd = self._hds_for_actions(state['agent_dir'], len(act))
             act = np.array(self.encodeAction(act=act,
                                              obs=hd,
                                              nbins=self.numHDs))
@@ -643,8 +696,9 @@ class MiniworldContrastiveShell(MiniworldShell):
                  actoffset=0, device='cpu', compute_loss=False,
                  from_raw=False):    
         if act is not None and not from_raw:
+            act = self._format_action_trajectory(act)
             if hd_from=='state':
-                hd = state['agent_dir']
+                hd = self._hds_for_actions(state['agent_dir'], len(act))
             elif hd_from=='act':
                 hd = self.act2hd(obs[actoffset], act, actoffset)
             else:
@@ -675,8 +729,9 @@ class MiniworldContrastiveShell(MiniworldShell):
             return z, act, torch.tensor(hd, dtype=torch.int, requires_grad=False)
     
     def env2np(self, obs, act=None, state=None, save_env=False, device='cpu'):
-        hd = state['agent_dir']
         if act is not None:
+            act = self._format_action_trajectory(act)
+            hd = self._hds_for_actions(state['agent_dir'], len(act))
             act = np.array(self.encodeAction(act=act,
                                              obs=hd,
                                              nbins=self.numHDs))
@@ -697,7 +752,7 @@ class MiniworldContrastiveShell(MiniworldShell):
         if timesteps:
             obs = obs[:,timesteps,...]
         return np.ones([obs.shape[1],1,1,3])
-        
+
 
 class RatInABoxShell(Shell):
     def __init__(self, env, act_enc, env_key, speed, thigmotaxis, HDbins):

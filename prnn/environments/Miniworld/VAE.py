@@ -328,7 +328,7 @@ def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent
         traj = agent.generateActionSequence(np.array([pos[0] - 0.5, env.size - pos[2] + 0.5]) / 10,
                                             direction, time)
 
-        for t in tqdm(range(traj.shape[1]), desc=f"Render Images for trajectory #{i}"):
+        for t in tqdm(range(traj.shape[0]), desc=f"Render Images for trajectory #{i}"):
             if view == 'ego':
                 render = env.render()
             elif view == 'top':
@@ -337,7 +337,7 @@ def run_random_walk(time: int, dataset_folder_path: str, n_traj: int, env, agent
                 raise ValueError("view must be either 'ego' or 'top'")
             Image.fromarray(render).save(os.path.join(imgdir, f"{t}.png"))
 
-            action = traj[:, t]
+            action = traj[t]
             obs, reward, termination, truncation, info = env.step(action)
 
             if termination or truncation:

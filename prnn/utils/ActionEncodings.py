@@ -117,14 +117,51 @@ def ContSpeedOnehotHD(act, meanspeed, nbins=12):
     act = torch.cat((act[...,:-1], HD), dim=-1)
     return act
 
-def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
-    # Assuming mean_speed of RiaB random agent is V=0.2, correct the resulting speed for 10*V=2
-    speed = torch.tensor(act[0], requires_grad=False, dtype=torch.float32) / 2
+def _miniworld_speed_onehot_hd(act, hds, nbins, hd_offset):
+    """Encode Miniworld speed and HD aligned to each action.
 
-    HD = torch.tensor(obs[:-1], requires_grad=False, dtype=torch.float32)
-    HD = (HD*nbins).long()
-    HD = torch.clamp(HD, min=0, max=nbins-1)
-    HD = nn.functional.one_hot(HD, num_classes=nbins)
-    act = torch.cat((speed[:,None], HD), dim=-1)
-    act = torch.unsqueeze(act, dim=0)
-    return act
+    ``hds`` is a trajectory of length ``len(act) + 1`` in radians.
+    ``hd_offset=0`` associates ``a_t`` with ``HD_t``; offset one
+    associates it with ``HD_(t+1)``.  The latter is paired with
+    ``actOffset=1`` during pRNN training, so the recurrent input at time
+    ``t`` becomes ``[speed_(t-1), HD_t]``.
+    """
+    act = np.asarray(act)
+    hds = np.asarray(hds)
+    if act.ndim != 2 or act.shape[1] != 2:
+        raise ValueError("Miniworld actions must have shape (timesteps, 2).")
+    required_hds = len(act) + 1
+    if len(hds) < required_hds:
+        raise ValueError(
+            "Miniworld action encoding needs enough HD values to align every action: "
+            f"got {len(hds)} HD values for {len(act)} actions with offset "
+            f"{hd_offset}."
+        )
+
+    # The normalising factor matches the trajectory generator's 10 * V = 2
+    # forward-speed scale.
+    speed = torch.tensor(act[:, 0], requires_grad=False, dtype=torch.float32) / 2
+    hd = torch.tensor(
+        hds[hd_offset:hd_offset + len(act)],
+        requires_grad=False,
+        dtype=torch.float32,
+    ) / (2 * np.pi)
+    hd = torch.remainder(hd, 1.0)
+    hd = torch.clamp((hd * nbins).long(), min=0, max=nbins - 1)
+    onehot_hd = nn.functional.one_hot(hd, num_classes=nbins)
+    return torch.unsqueeze(torch.cat((speed[:, None], onehot_hd), dim=-1), dim=0)
+
+
+def ContSpeedOnehotHDMiniworld(act, obs, nbins=12):
+    """Encode ``[speed_t, onehot(HD_t)]`` for Miniworld."""
+    return _miniworld_speed_onehot_hd(act, obs, nbins, hd_offset=0)
+
+
+def ContSpeedNextOnehotHDMiniworld(act, obs, nbins=12):
+    """Encode ``[speed_t, onehot(HD_(t+1))]`` for offset-action pRNNs.
+
+    When the pRNN is also created with ``actOffset=1``, its input aligned to
+    observation ``o_t`` contains the previous speed and the current HD:
+    ``[speed_(t-1), HD_t]``.
+    """
+    return _miniworld_speed_onehot_hd(act, obs, nbins, hd_offset=1)

@@ -200,9 +200,14 @@ class MiniworldRandomAgent(Agent):
         for i in range(T):
             self.update()
 
-        traj = np.vstack((np.array(self.history["speed"]) * 10, np.array(self.history["rotation"])))
+        # Gymnasium and the pRNN Shell both use one row per environmental
+        # timestep: [forward speed, angular displacement].  Keep that
+        # convention here instead of the older (2, T) layout.
+        traj = np.column_stack(
+            (np.array(self.history["speed"]) * 10, np.array(self.history["rotation"]))
+        )
 
-        return traj[:, -T:]
+        return traj[-T:]
     
     def getObservations(self, env, tsteps=0, reset=True, includeRender=False,
                         act=None, discretize=False, **kwargs):   
@@ -220,9 +225,9 @@ class MiniworldRandomAgent(Agent):
             direction = env.env.unwrapped.agent.dir
             act = self.generateActionSequence(pos, direction, tsteps)
         else:
-            tsteps = act.shape[1]
-            if act.shape[0] != 2:
-                raise ValueError("act must be a 2D array with shape (2, tsteps)")
+            tsteps = act.shape[0]
+            if act.ndim != 2 or act.shape[1] != 2:
+                raise ValueError("act must be a 2D array with shape (tsteps, 2)")
             
         if tsteps <= 0:
             raise ValueError("tsteps must be a positive integer")
@@ -237,7 +242,7 @@ class MiniworldRandomAgent(Agent):
             render[0] = env.env.render_top_view()
             
         for aa in range(tsteps):
-            obs[aa+1], _, _, _, info = env.step(act[:,aa])
+            obs[aa+1], _, _, _, info = env.step(act[aa])
             # check for the discrepancies in the position
             if info['moved']:
                 pos = env.get_agent_pos()

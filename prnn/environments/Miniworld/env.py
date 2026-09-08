@@ -695,7 +695,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
         self.step_count = 0
 
         # Create the agent
-        self.agent = Rat(radius=0.1)
+        self.agent = Rat(radius=0.3)
 
         # List of entities contained
         self.entities = []

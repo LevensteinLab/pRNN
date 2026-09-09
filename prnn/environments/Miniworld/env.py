@@ -761,7 +761,7 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
             ent1 = self.agent
 
         dist = np.linalg.norm(ent0.pos - ent1.pos)
-        return dist < ent0.radius + ent1.radius + 0.5
+        return dist < ent0.radius + ent1.radius + 1.2
 
     def colormap(self, x, y):
         """

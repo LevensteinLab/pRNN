@@ -490,7 +490,14 @@ class pRNN_th(pRNN):
                 self.obspad = (0, 0, 0, 0, 0, self.k)
             obspad = self.obspad
 
-        obs_target = obs_in[:, self.predOffset :, :]
+        external_target = obs_target is not None
+        if obs_target is None:
+            obs_target = obs_in[:, self.predOffset :, :]
+        else:
+            # Image autoencoder architectures provide raw image targets while
+            # the recurrent input is their encoded latent. Keep those targets
+            # intact, apart from the same prediction offset used by rollouts.
+            obs_target = obs_target[:, self.predOffset :, ...]
 
         # Apply the theta prediction for target observation
         theta_idx = np.flip(toeplitz(np.arange(self.k + 1), np.arange(obs_target.size(1))), 0)
@@ -499,7 +506,13 @@ class pRNN_th(pRNN):
             self.k :,
         ]
         obs_target = obs_target[:, theta_idx.copy()]
-        obs_target = torch.squeeze(obs_target, 0)
+        if external_target and batched:
+            # Raw image targets arrive as (batch, theta, time, C, H, W).
+            # thetaRNN's batched convention is instead
+            # (theta, time, C, H, W, batch), matching its predictions.
+            obs_target = obs_target.permute(1, 2, 3, 4, 5, 0)
+        else:
+            obs_target = torch.squeeze(obs_target, 0)
 
         if self.actionTheta == "hold":
             size = [x for x in act.size()]  # So it works with batched and non-batched
@@ -807,10 +820,9 @@ class RolloutRNN(pRNN_th):
         )
     
         
-class pRNN_AE(MaskedRNN):
+class _AutoencoderRNN:
     """
-    A predictive RNN with CNN autoencoder for processing image observations.
-    Inherits from pRNN but replaces linear input/output layers with CNN encoder/decoder.
+    Shared CNN encoder/decoder implementation for image-input pRNNs.
 
     Inputs should be tensors of shape (L,C,W,H) or (N,L,C,W,H) if batched
         N: Batch size
@@ -819,50 +831,35 @@ class pRNN_AE(MaskedRNN):
         W: width
         H: height
     """
-    def __init__(self, obs_size, act_size, hidden_size=500,
-                 latent_dim=16,
-                 net_config=None, in_channels=3, cell=RNNCell, dropp=0, 
-                 bptttrunc=50, k=0, f=0.5, predOffset=1, inMask=[True], 
-                 outMask=None, actOffset=0, actMask=None, neuralTimescale=2,
-                 continuousTheta=False, **cell_kwargs):
-        
-        # Store AE-specific parameters
+
+    # The original masked AE returned its train-time three-tuple even for a
+    # single recurrent step.  Retain that API for the masked architecture;
+    # rollout AEs override this so that PredictiveNet can carry the theta-RNN
+    # recurrent state between RL steps.
+    _single_returns_recurrent_state = False
+
+    def _initialize_autoencoder(self, latent_dim, net_config, in_channels):
+        """Build the CNN modules after the recurrent core has been created."""
         self.latent_dim = latent_dim
         self.in_channels = in_channels
-        
-        # Default network configuration if not provided
+
         if net_config is None:
             net_config = (
                 [16, 16, 32, 32],  # n_channels
-                [5, 5, 3, 3],        # kernel_sizes
-                [2, 2, 1, 1],        # strides
-                [2, 2, 1, 1],        # paddings
-                [0, 0, 1, 1]        # output_paddings
+                [5, 5, 3, 3],      # kernel_sizes
+                [2, 2, 1, 1],      # strides
+                [2, 2, 1, 1],      # paddings
+                [0, 0, 1, 1],      # output_paddings
             )
-        
-        n_channels, kernel_sizes, strides, paddings, output_paddings = net_config
-        
-        super(pRNN_AE, self).__init__(
-            latent_dim,
-            act_size,
-            hidden_size=hidden_size,
-            cell=cell,
-            bptttrunc=bptttrunc,
-            neuralTimescale=neuralTimescale,
-            dropp=dropp,
-            f=f,
-            actOffset=actOffset,
-            k=k,
-            **cell_kwargs
+
+        # Decoder construction reverses the convolutional specification.  Use
+        # copies so a config object can safely initialise more than one model.
+        n_channels, kernel_sizes, strides, paddings, output_paddings = (
+            list(values) for values in net_config
         )
-        
-        
-        # Build encoder and decoder
         self.build_encoder(in_channels, n_channels, kernel_sizes, strides, paddings)
         self.build_decoder(n_channels, kernel_sizes, strides,
                            paddings, output_paddings)
-        
-        # Initialize weights for encoder/decoder
         self.initialize_ae_weights()
 
     def build_encoder(self, in_channels, n_channels, kernel_sizes, strides, paddings):
@@ -892,10 +889,10 @@ class pRNN_AE(MaskedRNN):
     def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
         modules = []
 
-        n_channels.reverse()
-        kernel_sizes.reverse()
-        strides.reverse()
-        paddings.reverse()
+        n_channels = list(reversed(n_channels))
+        kernel_sizes = list(reversed(kernel_sizes))
+        strides = list(reversed(strides))
+        paddings = list(reversed(paddings))
         n_channels.append(self.in_channels)
 
         # Linear layer to map latent space to feature space
@@ -938,9 +935,31 @@ class pRNN_AE(MaskedRNN):
                     if layer.bias is not None:
                         nn.init.zeros_(layer.bias)
 
-    def forward(self, obs, act, noise_params=(0,0), state=torch.tensor([]), 
-                theta=None, single=False, mask=None, batched=False, fullRNNstate=False):
-        #Determine the noise shape
+    def _decode_activity(self, h_t):
+        """Decode a hidden tensor while preserving all leading time/theta axes."""
+        if self.latent_dim:
+            decoded_input = self.outlayer(h_t[..., : self.hidden_size])
+        else:
+            decoded_input = h_t[..., : self.hidden_size]
+        decoded_input = self.decoder_input(decoded_input)
+
+        leading_shape = decoded_input.shape[:-3]
+        decoded = self.decoder(decoded_input.reshape(-1, *decoded_input.shape[-3:]))
+        return decoded.reshape(*leading_shape, *decoded.shape[1:])
+
+    def forward(
+        self,
+        obs,
+        act,
+        noise_params=(0, 0),
+        state=torch.tensor([]),
+        theta=None,
+        single=False,
+        mask=None,
+        batched=False,
+        fullRNNstate=False,
+    ):
+        # Determine the noise shape.
         k = 0
         if hasattr(self, "k"):
             k = self.k
@@ -963,11 +982,15 @@ class pRNN_AE(MaskedRNN):
 
         if single:
             x_t = torch.cat((obs,act), 2)
-            h_t,_ = self.rnn(x_t, internal=noise_t, state=state, theta=theta)
-            if not fullRNNstate: 
-                h_t = h_t[:,:,:self.hidden_size] #For RNNcells that output more than the hidden RNN units
-            y_t = None
-            obs_target = None
+            h_t, recurrent_state = self.rnn(
+                x_t, internal=noise_t, state=state, theta=theta
+            )
+            if not fullRNNstate:
+                h_t = h_t[:, :, :self.hidden_size]
+            if self._single_returns_recurrent_state:
+                return h_t, recurrent_state
+            # Preserve the masked AE's existing single-step return signature.
+            return None, h_t, None
         else:
             x_t, obs_target, outmask = self.restructure_inputs(
                     obs,
@@ -977,47 +1000,117 @@ class pRNN_AE(MaskedRNN):
                 )
             h_t,_ = self.rnn(x_t, internal=noise_t, state=state,
                              theta=theta, mask=mask, batched=batched)
-            if not fullRNNstate: 
-                h_t = h_t[...,:self.hidden_size] #For RNNcells that output more than the hidden RNN units (ugly)
+            if not fullRNNstate:
+                h_t = h_t[..., :self.hidden_size]
             if batched:
-                # obs_target = obs_target.permute(*[i for i in range(1,len(obs_target.size()))],0)
-                h_t = h_t.permute(-1,*[i for i in range(len(h_t.size())-1)])
-                if self.latent_dim:
-                    allout = self.outlayer(h_t[:,:,:,:self.hidden_size])
-                    allout = self.decoder_input(allout)
+                # Place the data-loader batch axis first while decoding.  The
+                # recurrent return convention remains unchanged below.
+                h_decode = h_t.permute(-1, *range(len(h_t.size()) - 1))
+                allout = self._decode_activity(h_decode)
+                if isinstance(self, pRNN_th):
+                    # Match thetaRNN's batched prediction convention and the
+                    # raw target reordering in pRNN_th.restructure_inputs.
+                    allout = allout.permute(1, 2, 3, 4, 5, 0)
                 else:
-                    allout = self.decoder_input(h_t[:,:,:,:self.hidden_size])
-                shape = allout.shape
-                allout = allout.view(-1, *shape[-3:])
-                allout = self.decoder(allout)
-                allout = allout.view((-1, shape[-4], *allout.shape[1:]))
-                # allout = allout.permute(*[i for i in range(1,len(allout.size()))],0)
-                h_t = h_t.permute(*[i for i in range(1,len(h_t.size()))],0)
+                    # A Masked RNN has a singleton theta dimension, matching
+                    # the historic AE batched-output convention.
+                    allout = allout.squeeze(1)
+                h_t = h_decode.permute(*range(1, len(h_decode.size())), 0)
             else:
-                if self.latent_dim:
-                    allout = self.outlayer(h_t[:,:,:self.hidden_size])
-                    allout = self.decoder_input(allout)
-                else:
-                    allout = self.decoder_input(h_t[:,:,:self.hidden_size])
-                shape = allout.shape
-                allout = allout.view(-1, *shape[2:])
-                allout = self.decoder(allout)
-                allout = allout.view((1, shape[1], *allout.shape[1:]))
+                allout = self._decode_activity(h_t)
 
-            #Apply the mask to the output
+            # Apply the mask to the output.
             y_t = torch.zeros_like(allout)
-            y_t[:,outmask,:] = allout[:,outmask,:] #The predicted outputs.
+            y_t[:, outmask, ...] = allout[:, outmask, ...]
         return y_t, h_t, obs_target
-    
+
     def internal(self, noise_t, state=torch.tensor([])):
         h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)
-        if self.latent_dim:
-            y_t = self.outlayer(h_t)
-            y_t = self.decoder_input(y_t)
-        else:
-            y_t = self.decoder_input(h_t)
-        y_t = self.decoder(y_t.squeeze(0))[None]
+        y_t = self._decode_activity(h_t)
         return y_t, h_t
+
+
+class MaskedRNN_AE(_AutoencoderRNN, MaskedRNN):
+    """Masked pRNN with an image encoder and decoder inside the architecture."""
+
+    def __init__(
+        self,
+        obs_size,
+        act_size,
+        hidden_size=500,
+        latent_dim=16,
+        net_config=None,
+        in_channels=3,
+        cell=RNNCell,
+        dropp=0,
+        bptttrunc=50,
+        k=0,
+        f=0.5,
+        predOffset=1,
+        inMask=[True],
+        outMask=None,
+        actOffset=0,
+        actMask=None,
+        neuralTimescale=2,
+        continuousTheta=False,
+        **cell_kwargs,
+    ):
+        super().__init__(
+            latent_dim,
+            act_size,
+            hidden_size=hidden_size,
+            cell=cell,
+            bptttrunc=bptttrunc,
+            neuralTimescale=neuralTimescale,
+            dropp=dropp,
+            f=f,
+            actOffset=actOffset,
+            k=k,
+            **cell_kwargs,
+        )
+        self._initialize_autoencoder(latent_dim, net_config, in_channels)
+
+
+class RolloutRNN_AE(_AutoencoderRNN, RolloutRNN):
+    """Rollout pRNN with an image encoder and decoder inside the architecture."""
+
+    _single_returns_recurrent_state = True
+
+    def __init__(
+        self,
+        obs_size,
+        act_size,
+        hidden_size=500,
+        latent_dim=16,
+        net_config=None,
+        in_channels=3,
+        cell=LayerNormRNNCell,
+        dropp=0.15,
+        bptttrunc=100,
+        k=5,
+        f=0.5,
+        rollout_action="full",
+        continuousTheta=False,
+        actOffset=0,
+        neuralTimescale=2,
+        **cell_kwargs,
+    ):
+        super().__init__(
+            latent_dim,
+            act_size,
+            hidden_size=hidden_size,
+            cell=cell,
+            bptttrunc=bptttrunc,
+            neuralTimescale=neuralTimescale,
+            dropp=dropp,
+            f=f,
+            k=k,
+            rollout_action=rollout_action,
+            continuousTheta=continuousTheta,
+            actOffset=actOffset,
+            **cell_kwargs,
+        )
+        self._initialize_autoencoder(latent_dim, net_config, in_channels)
 
 
 """ Next-step Prediction Networks"""
@@ -1192,18 +1285,3 @@ multRNN_5win_i01_o0 = partial(
 multRNN_5win_i0_o1 = partial(
     pRNN_multimodal, cell=LayerNormRNNCell, k=5, predOffset=0, inIDs=(0,), outIDs=(1,)
 )
-
-""" Autoencoder pRNNs """
-
-
-thRNN_AE_0win = partial(pRNN_AE, cell=LayerNormRNNCell, k=0)
-thRNN_AE_1win = partial(pRNN_AE, cell=LayerNormRNNCell, k=1)
-thRNN_AE_2win = partial(pRNN_AE, cell=LayerNormRNNCell, k=2)
-thRNN_AE_3win = partial(pRNN_AE, cell=LayerNormRNNCell, k=3)
-thRNN_AE_4win = partial(pRNN_AE, cell=LayerNormRNNCell, k=4)
-thRNN_AE_5win = partial(pRNN_AE, cell=LayerNormRNNCell, k=5)
-thRNN_AE_6win = partial(pRNN_AE, cell=LayerNormRNNCell, k=6)
-thRNN_AE_7win = partial(pRNN_AE, cell=LayerNormRNNCell, k=7)
-thRNN_AE_8win = partial(pRNN_AE, cell=LayerNormRNNCell, k=8)
-thRNN_AE_9win = partial(pRNN_AE, cell=LayerNormRNNCell, k=9)
-thRNN_AE_10win = partial(pRNN_AE, cell=LayerNormRNNCell, k=10)

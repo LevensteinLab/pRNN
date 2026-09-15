@@ -52,6 +52,8 @@ netOptions = {
     ),  # general architectures, all extra args can be passed into predictiveNet
     "Masked": partial(MaskedRNN),
     "Rollout": partial(RolloutRNN),
+    "MaskedRNN_AE": partial(MaskedRNN_AE),
+    "RolloutRNN_AE": partial(RolloutRNN_AE),
     "AutoencoderFF": AutoencoderFF,  # NEXT STEP PREDICTION NETWORKS
     "AutoencoderRec": AutoencoderRec,
     "AutoencoderPred": AutoencoderPred,
@@ -114,17 +116,6 @@ netOptions = {
     "multRNN_5win_i1_o0": multRNN_5win_i1_o0,
     "multRNN_5win_i01_o0": multRNN_5win_i01_o0,
     "multRNN_5win_i0_o1": multRNN_5win_i0_o1,
-    "thRNN_AE_0win": thRNN_AE_0win,
-    "thRNN_AE_1win": thRNN_AE_1win,
-    "thRNN_AE_2win": thRNN_AE_2win,
-    "thRNN_AE_3win": thRNN_AE_3win,
-    "thRNN_AE_4win": thRNN_AE_4win,
-    "thRNN_AE_5win": thRNN_AE_5win,
-    "thRNN_AE_6win": thRNN_AE_6win,
-    "thRNN_AE_7win": thRNN_AE_7win,
-    "thRNN_AE_8win": thRNN_AE_8win,
-    "thRNN_AE_9win": thRNN_AE_9win,
-    "thRNN_AE_10win": thRNN_AE_10win,
 }
 
 lossOptions = {"predMSE": predMSE, "predRMSE": predRMSE, "LPL": LPLLoss}

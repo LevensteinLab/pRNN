@@ -283,6 +283,47 @@ class PredictiveNet:
 
         return obs_pred, obs_next, h
 
+    def get_hidden_state(
+        self,
+        obs,
+        act,
+        state=torch.tensor([]),
+        mask=None,
+        randInit=True,
+        batched=False,
+        fullRNNstate=False,
+    ):
+        """Return the hidden activity from :meth:`predict` without outputs.
+
+        It preserves prediction's initial-state and input conventions, but
+        delegates to the architecture's hidden-only path so analyses do not
+        allocate decoded observations or prediction targets.
+        """
+        if batched:
+            if type(obs) == list:
+                obs = [o.permute(*[i for i in range(1, len(o.size()))], 0) for o in obs]
+            elif not "AE" in str(type(self.pRNN)):
+                obs = obs.permute(*[i for i in range(1, len(obs.size()))], 0)
+            act = act.permute(*[i for i in range(1, len(act.size()))], 0)
+            shape = (act.size(-1), 1, self.hidden_size)
+        else:
+            shape = (1, 1, self.hidden_size)
+
+        if randInit and len(state) == 0:
+            shape = (act.size(0), 1, self.hidden_size)
+            state = self.pRNN.generate_noise(self.trainNoiseMeanStd, shape)
+            state = self.pRNN.rnn.cell.actfun(state)
+
+        return self.pRNN.get_hidden_state(
+            obs,
+            act,
+            noise_params=self.trainNoiseMeanStd,
+            state=state,
+            mask=mask,
+            batched=batched,
+            fullRNNstate=fullRNNstate,
+        )
+
     def predict_single(self, obs, act, full_rollout=False):
         """
         Generate pRNN activation from one observation-action pair.
@@ -869,9 +910,9 @@ class PredictiveNet:
 
         with torch.no_grad():
             if hasattr(self, "current_state"):  # easy way to check if it's CANN
-                obs_pred, obs_next, h = self.predict(obs, act, state, fullRNNstate=fullRNNstate)
+                _, _, h = self.predict(obs, act, state)
             else:
-                obs_pred, obs_next, h = self.predict(obs, act, fullRNNstate=fullRNNstate)
+                h = self.get_hidden_state(obs, act, fullRNNstate=fullRNNstate)
                 
         if rolloutdim == "mean": # by default, take the average of a rollout
             h = torch.mean(h, dim=0, keepdims=True)

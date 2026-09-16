@@ -232,6 +232,71 @@ class pRNN(nn.Module):
         x_t = torch.cat((obs_out, act_out), 2)
         return x_t, obs_target_out, outmask
 
+    def _clip_hidden_inputs(self, obs_in, act):
+        """Prepare recurrent inputs without materialising prediction targets.
+
+        This is the input half of :meth:`clip_mask`.  Representation analyses
+        only need the recurrent state, so allocating an observation target
+        (especially a raw-image target) is unnecessary.  Keep the input
+        masking behaviour identical to the regular prediction path.
+        """
+        minsize = min(obs_in.size(1), act.size(1))
+        obs_in, act = obs_in[:, :minsize, ...], act[:, :minsize, ...]
+
+        if self.actMask is not None and self.inMask is not None:
+            actmask = np.resize(np.array(self.actMask), minsize)
+            obsmask = np.resize(np.array(self.inMask), minsize)
+            obs_out = torch.zeros_like(obs_in, requires_grad=False)
+            act_out = torch.zeros_like(act, requires_grad=False)
+            obs_out[:, obsmask, ...] = obs_in[:, obsmask, ...]
+            act_out[:, actmask, ...] = act[:, actmask, ...]
+            obs_out = self.droplayer(obs_out)
+            return torch.cat((obs_out, act_out), 2)
+
+        # In the regular path, the unmasked recurrent input is the original
+        # observation/action pair; its dropout call is applied to a temporary
+        # tensor that is not fed into x_t.  Preserve that established result.
+        return torch.cat((obs_in, act), 2)
+
+    def _prepare_hidden_inputs(self, obs_in, act, batched=False):
+        """Apply action timing and make recurrent inputs without targets."""
+        act = self.batched_actpad(act) if batched else self.actpad(act)
+        if self.actOffset:
+            act = act[:, : -self.actOffset, ...]
+        return self._clip_hidden_inputs(obs_in, act)
+
+    def get_hidden_state(
+        self,
+        obs,
+        act,
+        noise_params=(0, 0),
+        state=torch.tensor([]),
+        theta=None,
+        mask=None,
+        batched=False,
+        fullRNNstate=False,
+    ):
+        """Return the recurrent activity from the prediction path only.
+
+        Unlike :meth:`forward`, this method deliberately does not create
+        observation targets or decoded predictions.  It is intended for
+        representation analyses that consume only ``h_t``.
+        """
+        k = self.k if hasattr(self, "k") else 0
+        if batched:
+            noise_shape = (k + 1, obs.size(1), self.hidden_size, obs.size(-1))
+        else:
+            noise_shape = (k + 1, obs.size(1), self.rnn.cell.hidden_size)
+        noise_t = self.generate_noise(noise_params, noise_shape)
+
+        x_t = self._prepare_hidden_inputs(obs, act, batched=batched)
+        h_t, _ = self.rnn(
+            x_t, internal=noise_t, state=state, theta=theta, mask=mask, batched=batched
+        )
+        if not fullRNNstate:
+            h_t = h_t[..., : self.hidden_size]
+        return h_t
+
     def forward(
         self,
         obs,
@@ -532,6 +597,29 @@ class pRNN_th(pRNN):
 
         x_t, obs_target_out, outmask = self.clip_mask(obs_in, act, obs_target)
         return x_t, obs_target_out, outmask
+
+    def _prepare_hidden_inputs(self, obs_in, act, batched=False):
+        """Match rollout input timing without constructing rollout targets."""
+        if batched:
+            act = self.batched_actpad(act)
+            obspad = self.batched_obspad
+        else:
+            act = self.actpad(act)
+            obspad = self.obspad
+
+        if self.actionTheta == "hold":
+            size = [*act.size()]
+            size[0] = self.k + 1
+            act = act.expand(*size)
+            obs_in = nn.functional.pad(obs_in, pad=obspad, mode="constant", value=0)
+        elif self.actionTheta is True:
+            theta_idx = np.flip(toeplitz(np.arange(self.k + 1), np.arange(act.size(1))), 0)
+            theta_idx = theta_idx[:, self.k :]
+            act = act[:, theta_idx.copy()]
+            act = torch.squeeze(act, 0)
+            obs_in = nn.functional.pad(obs_in, pad=obspad, mode="constant", value=0)
+
+        return self._clip_hidden_inputs(obs_in, act)
 
 
 class pRNN_multimodal(pRNN):
@@ -1023,6 +1111,42 @@ class _AutoencoderRNN:
             y_t = torch.zeros_like(allout)
             y_t[:, outmask, ...] = allout[:, outmask, ...]
         return y_t, h_t, obs_target
+
+    def get_hidden_state(
+        self,
+        obs,
+        act,
+        noise_params=(0, 0),
+        state=torch.tensor([]),
+        theta=None,
+        mask=None,
+        batched=False,
+        fullRNNstate=False,
+    ):
+        """Encode raw images and return recurrent activity without decoding.
+
+        The regular autoencoder forward pass clones raw images for targets and
+        decodes every rollout.  Spatial analysis needs neither, so bypass both
+        operations while retaining the exact encoded-input and theta-RNN path.
+        """
+        if batched:
+            shape = obs.shape
+            encoded = self.encoder(obs.view(-1, *shape[2:]))
+            encoded = encoded.view((-1, 1, shape[1], *encoded.shape[1:]))
+            obs = encoded.permute(*[i for i in range(1, len(encoded.size()))], 0)
+        else:
+            obs = self.encoder(obs.squeeze(0))[None]
+
+        return super().get_hidden_state(
+            obs,
+            act,
+            noise_params=noise_params,
+            state=state,
+            theta=theta,
+            mask=mask,
+            batched=batched,
+            fullRNNstate=fullRNNstate,
+        )
 
     def internal(self, noise_t, state=torch.tensor([])):
         h_t,_ = self.rnn(internal=noise_t, state=state, theta=0)

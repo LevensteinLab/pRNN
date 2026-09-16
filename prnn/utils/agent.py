@@ -242,16 +242,20 @@ class MiniworldRandomAgent(Agent):
             render[0] = env.env.render_top_view()
             
         for aa in range(tsteps):
-            obs[aa+1], _, _, _, info = env.step(act[aa])
-            # check for the discrepancies in the position
-            if info['moved']:
-                pos = env.get_agent_pos()
-                pos = np.array([pos[0], env.env.size[1] - pos[1]]) / 10
-                pos_riab = np.array(self.history["pos"][aa+1])
-                if any(np.abs(pos - pos_riab) > 1e-4):
-                    new_pos = pos_riab * 10
-                    new_pos[1] = env.env.size[1] - new_pos[1]
-                    env.set_agent_pos(new_pos)
+            obs[aa+1], _, _, _, _ = env.step(act[aa])
+            # Keep the rendered Miniworld state aligned with the precomputed
+            # RatInABox trajectory after *every* action. In particular, a
+            # swept collision reports no move and leaves Miniworld at its
+            # previous position, while RatInABox has already advanced to its
+            # collision-free reference position. Gating this correction on
+            # ``info['moved']`` therefore stranded the agent at a wall.
+            pos = env.get_agent_pos()
+            pos = np.array([pos[0], env.env.size[1] - pos[1]]) / 10
+            pos_riab = np.array(self.history["pos"][aa+1])
+            if np.any(np.abs(pos - pos_riab) > 1e-4):
+                new_pos = pos_riab * 10
+                new_pos[1] = env.env.size[1] - new_pos[1]
+                env.set_agent_pos(new_pos)
 
             state['agent_pos'] = np.append(state['agent_pos'],
                                            np.resize(env.get_agent_pos(),(1,2)),axis=0) # probably resize not needed

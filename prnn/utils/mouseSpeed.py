@@ -51,7 +51,7 @@ import numpy as np
 # Meghan's behaviorMate+Gimbl env is 3 cm/uu -> v / 30. The two scales are
 # settled and DIFFERENT: keep every trace in cm/s and apply the divisor of the
 # env you are driving. uu/step never ports between the two.
-CM_PER_UU = 2.0          # RNN corridor: 90 uu = 180 cm
+CM_PER_UU = 3.0          # RNN corridor: 90 uu = 180 cm
 STEP_SECONDS = 0.1       # one pRNN step = 100 ms
 TRACK_CM = 180.0         # RNN corridor length, for lap counting
 

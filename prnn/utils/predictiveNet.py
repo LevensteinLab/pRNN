@@ -799,25 +799,15 @@ class PredictiveNet:
     # TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self, savename, savefolder="", cpu=False):
         if cpu:
+            # Pickle the optimizer state on the CPU too, so the net loads without
+            # CUDA; it is restored after saving, so training continues unchanged.
             self.pRNN.to("cpu")
-            if type(self.trainArgs) == dict:  # if you use Hydra
-                trainBias = self.trainArgs["prnn"]["trainBias"]
-                bias_lr = self.trainArgs["hparams"]["bias_lr"]
-                eg_lr = self.trainArgs["hparams"]["eg_lr"]
-                eg_weight_decay = self.trainArgs["hparams"]["eg_weight_decay"]
-            else:  # if you use parser
-                trainBias = self.trainArgs.trainBias
-                bias_lr = self.trainArgs.bias_lr
-                eg_lr = self.trainArgs.eg_lr
-                eg_weight_decay = self.trainArgs.eg_weight_decay
-            self.resetOptimizer(
-                self.learningRate,
-                self.weight_decay,
-                trainBias=trainBias,
-                bias_lr=bias_lr,
-                eg_lr=eg_lr,
-                eg_weight_decay=eg_weight_decay,
-            )
+            optimizers = [self.optimizer, getattr(getattr(self.env_shell, "encoder", None), "optimizer", None)]
+            saved_state = [(state, key, value) for optimizer in optimizers if optimizer is not None
+                           for state in optimizer.state.values() for key, value in state.items()
+                           if torch.is_tensor(value)]
+            for state, key, value in saved_state:
+                state[key] = value.cpu()
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
         # Collect everything else that cannot be pickled
@@ -833,6 +823,9 @@ class PredictiveNet:
             env.DL_iterator = iterators[i]
         if hasattr(self.env_shell, "post_save"):
             [env.post_save(t) for env, t in zip(self.EnvLibrary, tmp)]
+        if cpu:
+            for state, key, value in saved_state:
+                state[key] = value
         print("Net Saved to pathname")
 
     def copy(self):

@@ -342,6 +342,9 @@ class Mazest(MiniWorldEnv, utils.EzPickle):
     ```
     """
 
+    # Best attainable episode return, read by RL training.
+    optimal_return = 0.92
+
     def __init__(
         self, num_rows=5, num_cols=5, room_size=3, max_episode_steps=512,
         continuous=True, ceiling=True, **kwargs

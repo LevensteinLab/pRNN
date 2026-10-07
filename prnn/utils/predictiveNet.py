@@ -22,11 +22,6 @@ import random
 from pathlib import Path
 from types import SimpleNamespace
 
-try:
-    import wandb
-except ImportError:
-    print("wandb not installed, will not log to wandb")
-
 
 import pynapple as nap
 
@@ -163,13 +158,17 @@ class PredictiveNet:
         enc_loss_weight=1.0,
         enc_loss_power=1.0,
         ae_lr=1,
-        wandb_log=False,
+        logger=None,
         trainArgs=SimpleNamespace(),
         **architecture_kwargs,
     ):
         """
         Initalize your predictive net. Requires passing an environment gym
         object that includes env.observation_space and env.action_space
+
+        logger: optional object with a ``log(metrics, step)`` method that
+        receives training losses, analysis metrics and matplotlib figures
+        (e.g. a wrapper around an experiment tracker). Not saved with the net.
 
         suppObs: any unpredicted observation key from the environment that is input and
         not predicted. Added to the action input
@@ -183,6 +182,7 @@ class PredictiveNet:
         input_args.pop("self")
         input_args.pop("trainArgs")
         input_args.pop("learningRate")
+        input_args.pop("logger")
 
         for k, v in input_args.items():
             setattr(self.trainArgs, k, v)
@@ -228,7 +228,7 @@ class PredictiveNet:
         self.numTrainingTrials = -1
         self.numTrainingEpochs = -1
         self.fig_type = fig_type
-        self.wandb_log = wandb_log
+        self.logger = logger
 
         # The homeostatic targets
         self.target_rate = target_rate
@@ -627,6 +627,12 @@ class PredictiveNet:
         self.pRNN.to("cpu")
         print("Epoch Complete. Back to the cpu")
 
+    def log(self, metrics):
+        """Send metrics to the attached logger, if any, at the training-trial step."""
+        logger = getattr(self, "logger", None)  # absent in nets saved before loggers
+        if logger is not None:
+            logger.log(metrics, step=self.numTrainingTrials)
+
     def recordTrainingTrial(self, loss, enc_loss=None):
         self.numTrainingTrials += 1  # Increase the counter
         newTrial = pd.DataFrame({"loss": loss}, index=[0])
@@ -636,16 +642,11 @@ class PredictiveNet:
             self.TrainingSaver = pd.concat(
                 (self.TrainingSaver.to_frame(), newTrial), ignore_index=True
             )
-        if self.wandb_log:
-            # Encoder loss is logged only in W&B
-            if enc_loss is not None:
-                wandb.log(
-                    {"pRNN loss": loss, "encoder loss": enc_loss},
-                    step=self.numTrainingTrials,
-                )
-            else:
-                wandb.log({"pRNN loss": loss},
-                          step=self.numTrainingTrials)
+        # Encoder loss is only sent to the logger
+        if enc_loss is not None:
+            self.log({"pRNN loss": loss, "encoder loss": enc_loss})
+        else:
+            self.log({"pRNN loss": loss})
         return
 
     def addTrainingData(self, key, data):
@@ -810,6 +811,8 @@ class PredictiveNet:
                 state[key] = value.cpu()
         # Collect the iterators that cannot be pickled
         iterators = [env.killIterator() for env in self.EnvLibrary]
+        # The logger belongs to the running experiment, not to the net
+        logger, self.logger = getattr(self, "logger", None), None
         # Collect everything else that cannot be pickled
         if hasattr(self.env_shell, "pre_save"):
             tmp = [env.pre_save() for env in self.EnvLibrary]
@@ -821,6 +824,7 @@ class PredictiveNet:
         # Restore the iterators and other non-picklable attributes
         for i, env in enumerate(self.EnvLibrary):
             env.DL_iterator = iterators[i]
+        self.logger = logger
         if hasattr(self.env_shell, "post_save"):
             [env.post_save(t) for env, t in zip(self.EnvLibrary, tmp)]
         if cpu:
@@ -839,7 +843,7 @@ class PredictiveNet:
             env.DL_iterator = iterators[i]
         return clone
 
-    def loadNet(savename, savefolder="", suppressText=False, wandb_log=False):
+    def loadNet(savename, savefolder="", suppressText=False, logger=None):
         # TODO Load in init... from filename
         filename = savefolder + "nets/" + savename + ".pkl"
         with open(filename, "rb") as f:
@@ -860,10 +864,7 @@ class PredictiveNet:
             predAgent.pRNN.hidden_size = predAgent.hidden_size
         if hasattr(predAgent.env_shell, "post_load"):
             predAgent.env_shell.post_load()  # anything that should be done after loading
-        if wandb_log:  # Turn wandb_logging on only if wandb.init() has been called
-            predAgent.wandb_log = True
-        else:
-            predAgent.wandb_log = False
+        predAgent.logger = logger
         if not suppressText:
             print("Net Loaded from pathname")
         return predAgent
@@ -1071,14 +1072,12 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData("place_fields", place_fields)
             self.addTrainingData("SI", SI["SI"])
-        if self.wandb_log:
-            keys_unmodified = ["mean SI", "sRSA", "SWdist"]
-            log_keys = [key + wandb_nameext for key in keys_unmodified]
-            if calculatesRSA:
-                wandb.log({log_keys[0]: SI["SI"].mean(), log_keys[1]: sRSA, log_keys[2]: SWdist},
-                          step=self.numTrainingTrials)
-            else:
-                wandb.log({log_keys[0]: SI["SI"].mean()}, step=self.numTrainingTrials)
+        keys_unmodified = ["mean SI", "sRSA", "SWdist"]
+        log_keys = [key + wandb_nameext for key in keys_unmodified]
+        if calculatesRSA:
+            self.log({log_keys[0]: SI["SI"].mean(), log_keys[1]: sRSA, log_keys[2]: SWdist})
+        else:
+            self.log({log_keys[0]: SI["SI"].mean()})
         return place_fields, SI, decoder
 
     def decode(self, h, decoder, withHD=False):
@@ -1201,8 +1200,7 @@ class PredictiveNet:
         if saveTrainingData:
             self.addTrainingData("derror", derror)
         
-        if self.wandb_log:
-            wandb.log({"derror": derror.mean()}, step=self.numTrainingTrials)
+        self.log({"derror": derror.mean()})
         return
 
     def calculateActivationStats(self, h, onset=100):
@@ -1506,9 +1504,8 @@ class PredictiveNet:
             saveFig(
                 plt.gcf(), savename + "_ObservationSequence", savefolder, filetype=self.fig_type
             )
-        if self.wandb_log:
-            fig = plt.gcf()
-            wandb.log({"Observation Sequence": wandb.Image(fig)}, step=self.numTrainingTrials)
+        if getattr(self, "logger", None) is not None:
+            self.log({"Observation Sequence": plt.gcf()})
         plt.show()
 
         return
@@ -1660,9 +1657,8 @@ class PredictiveNet:
 
         if savename is not None:
             saveFig(fig, savename + "_TuningCurves", savefolder, filetype=self.fig_type)
-        if self.wandb_log:
-            fig = plt.gcf()
-            wandb.log({"Tuning Curves": wandb.Image(fig)}, step=self.numTrainingTrials)
+        if getattr(self, "logger", None) is not None:
+            self.log({"Tuning Curves": plt.gcf()})
 
         if nofig:
             plt.show()

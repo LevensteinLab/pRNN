@@ -363,6 +363,14 @@ parser.add_argument("--wandb_project", default="prnn-inorm", type=str, help="W&B
 parser.add_argument("--wandb_entity", default=None, type=str, help="W&B entity")
 
 parser.add_argument(
+    "--wandb_fig_every",
+    default=1,
+    type=int,
+    help="Log analysis figures to W&B every N epochs (plus before training and the final "
+    "epoch); 0 disables figure logging (Default: 1)",
+)
+
+parser.add_argument(
     "--data_tmpdir",
     default=os.environ.get("PRNN_DATA_TMPDIR") or None,
     type=str,
@@ -391,6 +399,14 @@ if args.wandb:
         args.namext = wandb.run.id  # unique savename for every sweep run
 
 savename = args.pRNNtype + "-" + args.namext + "-s" + str(args.seed)
+
+if args.wandb:
+    # Mirror the analysis figures (environment/observation sequences, tuning curves,
+    # learning curve, training figure) to W&B under "figures/<name>"
+    from prnn.utils.general import enable_wandb_figures, set_wandb_figure_context
+
+    if args.wandb_fig_every > 0:
+        enable_wandb_figures(prefix=savename, epoch=0)
 figfolder = "nets/" + args.savefolder + "/trainfigs/" + savename
 analysisfolder = "nets/" + args.savefolder + "/analysis/" + savename
 
@@ -585,6 +601,11 @@ else:
     while predictiveNet.numTrainingEpochs < numepochs:  # run through all epochs
         print(f"Training Epoch {predictiveNet.numTrainingEpochs}")
         epoch_start = time.time()
+        if args.wandb and args.wandb_fig_every > 0:
+            epoch = predictiveNet.numTrainingEpochs + 1  # epoch being trained (1-based)
+            set_wandb_figure_context(
+                enabled=(epoch % args.wandb_fig_every == 0 or epoch == numepochs), epoch=epoch
+            )
         predictiveNet.trainingEpoch(
             env, agent, sequence_duration=sequence_duration, num_trials=num_trials
         )
@@ -660,6 +681,8 @@ else:
                 wandb.run.summary["final_" + key] = value
 
     predictiveNet.trainingCompleted = True
+    if args.wandb and args.wandb_fig_every > 0:
+        set_wandb_figure_context(enabled=True)  # always log the summary training figure
     try:
         TrainingFigure(predictiveNet, savename=savename, savefolder=figfolder)
     except Exception as e:  # e.g. NaNs after divergence; don't fail the run over a figure

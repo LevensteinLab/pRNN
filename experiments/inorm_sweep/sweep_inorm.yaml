@@ -38,6 +38,8 @@ parameters:
     value: 20
   numtrials:
     value: 1024
+  wandb_fig_every:   # analysis figures at epochs 5, 10, 15, 20 (+ before training, final)
+    value: 5
   seed:
     value: 8
   ln_feedback:

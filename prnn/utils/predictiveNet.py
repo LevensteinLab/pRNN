@@ -1475,7 +1475,7 @@ class PredictiveNet:
             saveFig(
                 plt.gcf(), savename + "_ObservationSequence", savefolder, filetype=self.fig_type
             )
-        if self.wandb_log:
+        if self.wandb_log and savename is None:  # saved figures are mirrored by saveFig
             wandb.log({"Observation Sequence": wandb.Image(plt.gcf())})
         plt.show()
 

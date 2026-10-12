@@ -31,14 +31,52 @@ def clumpyRandom(size,choices,seedprobability,numiter=1):
 
 
 
+# Optionally mirror every figure saved with saveFig to the active W&B run
+_wandb_figures = {"enabled": False, "prefix": "", "context": {}}
+
+
+def enable_wandb_figures(prefix="", **context):
+    """Log every figure saved with saveFig to the active W&B run as
+    "figures/<name>", where <name> is the savename with `prefix` (e.g. the run's
+    savename) removed, so the same figure type shares one panel across epochs.
+    `context` (e.g. epoch=3) is logged alongside; update it with set_wandb_figure_context."""
+    _wandb_figures.update(enabled=True, prefix=prefix, context=dict(context))
+
+
+def set_wandb_figure_context(enabled=None, **context):
+    """Update the logged context (e.g. epoch=4) and optionally pause/resume logging."""
+    if enabled is not None:
+        _wandb_figures["enabled"] = enabled
+    _wandb_figures["context"].update(context)
+
+
+def _log_figure_to_wandb(fig, savename, filename, filetype):
+    try:
+        import wandb
+
+        if wandb.run is None:
+            return
+        key = savename
+        prefix = _wandb_figures["prefix"]
+        if prefix and key.startswith(prefix):
+            key = key[len(prefix):]
+        key = key.strip("_") or savename
+        image = wandb.Image(filename) if filetype == "png" else wandb.Image(fig)
+        wandb.log({f"figures/{key}": image, **_wandb_figures["context"]})
+    except Exception as e:  # never let logging break training
+        print(f"Could not log figure {savename} to W&B: {e}")
+
+
 def saveFig(fig,savename,savepath=None,filetype='png', dpi=300):
     mkdir_p(savepath)
     #if ~isinstance(filetype,list):
     #    filetype = [filetype]
     #for ff in filetype:
     #    fig.savefig(f'{savepath}/{savename}.{ff}',format=ff)
-    fig.savefig(f'{savepath}/{savename}.{filetype}',
-                format=filetype,dpi=dpi)
+    filename = f'{savepath}/{savename}.{filetype}'
+    fig.savefig(filename, format=filetype, dpi=dpi)
+    if _wandb_figures["enabled"]:
+        _log_figure_to_wandb(fig, savename, filename, filetype)
     return
 
 

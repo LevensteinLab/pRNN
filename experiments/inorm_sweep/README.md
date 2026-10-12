@@ -84,6 +84,25 @@ If the repo or venv are somewhere other than `$HOME/pRNN` and `$HOME/pRNN/.venv`
 | `epoch_train_time_s`, `epoch_total_time_s` | Per epoch: training time, and time including analysis |
 | `final_loss`, `final_sRSA`, `final_SI`, `final_derror`, `diverged` | Run summary |
 
+### Analysis figures in W&B
+
+With `--wandb`, every figure the repo saves is also uploaded to the run's **Media**
+section as `figures/<name>`. Each upload is tagged with `epoch`, so the panel's step
+slider moves through training. Right-click → save image gives you the 300 dpi PNG.
+
+| Panel | When | What it shows |
+|---|---|---|
+| `figures/exTrajectory_untrained_ObservationSequence` | Before training | Environment map with the agent's trajectory, the agent's view, and the untrained network's predictions |
+| `figures/ObservationSequence` | Each logged epoch | Environment, observations, predictions, decoded position, and a decoding-error histogram |
+| `figures/TuningCurves` | Each logged epoch | Spatial tuning curves (place fields) of the top units, with SI |
+| `figures/LearningCurve` | Each logged epoch | Loss, spatial info and decoding error over training |
+| `figures/TrainingFigure` | End of training | Summary: learning curve, SI histogram, and place fields across training |
+
+`--wandb_fig_every N` sets how often figures are logged: every N epochs, plus before
+training and the final epoch. 0 turns figure logging off. The default is 1 (every
+epoch, used by the pilot and the final runs). The sweeps use 5 to keep W&B storage small.
+The same PNGs are also written locally to `nets/<savefolder>/trainfigs/<run name>/`.
+
 Networks are pickled to `nets/<savefolder>/<pRNNtype>-<name>-s<seed>.pkl`. Sweep runs use
 the W&B run id as the name.
 

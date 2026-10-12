@@ -26,6 +26,7 @@ VENV="${VENV:-$REPO_ROOT/.venv}"
 
 cd "$REPO_ROOT"
 source "$VENV/bin/activate"
+export PYTHONPATH="$REPO_ROOT:${PYTHONPATH:-}"
 
 # trainNet.py copies the dataset to fast node-local storage before training
 export PRNN_DATA_TMPDIR="${SLURM_TMPDIR:-}"

@@ -9,7 +9,7 @@ metric:
   goal: minimize
 early_terminate:
   type: hyperband
-  min_iter: 4
+  min_iter: 6
   eta: 2
 
 command:

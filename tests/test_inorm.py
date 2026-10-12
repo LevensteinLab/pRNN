@@ -104,8 +104,27 @@ def test_train_step(inorm_net, mock_env):
     assert not torch.equal(cell.paramln.mean_net.weight, mean_before) or not torch.equal(
         cell.paramln.var_net[0].weight, var_before
     )
-    assert "aux_loss" in inorm_net.TrainingSaver
-    assert len(cell._aux_losses) == 0
+    for key in ["aux_loss", "ln_mse", "ln_cos"]:
+        assert key in inorm_net.TrainingSaver
+    assert len(cell._aux_losses) == 0 and cell._ln_n == 0
+    # right after init the inhibition still matches LayerNorm closely
+    assert inorm_net.TrainingSaver["ln_cos"].iloc[-1] > 0.99
+
+
+def test_default_norm_lrs(inorm_net):
+    lrs = [g["lr"] for g in inorm_net.optimizer_norm.param_groups]
+    assert lrs == [3e-3, 1e-1]
+
+
+def test_epoch_stops_on_divergence(inorm_net, mock_env):
+    from prnn.utils.agent import create_agent
+
+    agent = create_agent("LRoom-18x18-v0", mock_env, "RandomActionAgent")
+    with torch.no_grad():
+        inorm_net.pRNN.W_out.fill_(float("nan"))
+    inorm_net.trainingEpoch(mock_env, agent, sequence_duration=20, num_trials=5)
+    assert inorm_net.diverged
+    assert len(inorm_net.TrainingSaver) == 1  # stopped after the first non-finite trial
 
 
 def test_save_load(inorm_net):

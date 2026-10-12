@@ -164,8 +164,8 @@ class PredictiveNet:
         enc_loss_power=1.0,
         wandb_log=False,
         aux_loss_weight=1.0,
-        lr_norm_mean=1e-5,
-        lr_norm_var0=1e-6,
+        lr_norm_mean=3e-3,
+        lr_norm_var0=1e-1,
         trainArgs=SimpleNamespace(),
         **architecture_kwargs,
     ):
@@ -333,7 +333,8 @@ class PredictiveNet:
 
         cell = self.pRNN.rnn.cell
         if hasattr(cell, "pop_aux_loss"):
-            cell.pop_aux_loss()  # drop any stale per-step aux losses
+            cell.pop_aux_loss()  # drop any stale per-step aux losses / diagnostics
+            cell.pop_ln_alignment()
 
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
         if type(obs_pred) == tuple:
@@ -383,11 +384,17 @@ class PredictiveNet:
             self.optimizer.param_groups[0]["lr"] = oldlr
 
         steploss = predloss.item()
-        aux_item = aux_loss.item() if aux_loss is not None else None
+        extras = {}
+        if aux_loss is not None:
+            extras["aux_loss"] = aux_loss.item()
+        if hasattr(cell, "pop_ln_alignment"):
+            ln_alignment = cell.pop_ln_alignment()
+            if ln_alignment is not None:
+                extras["ln_mse"], extras["ln_cos"] = ln_alignment
         if self.train_encoder:
-            self.recordTrainingTrial(steploss, enc_loss, aux_loss=aux_item)
+            self.recordTrainingTrial(steploss, enc_loss, extras=extras)
         else:
-            self.recordTrainingTrial(steploss, aux_loss=aux_item)
+            self.recordTrainingTrial(steploss, extras=extras)
 
         return steploss, sparsity, meanrate
 
@@ -550,6 +557,10 @@ class PredictiveNet:
             steploss, sparsity, meanrate = self.trainStep(
                 obs, act, with_homeostat, learningRate=learningRate, batched=self.useDataLoader
             )
+            if not np.isfinite(steploss):
+                print(f"Non-finite loss at trial {bb}, stopping the epoch.")
+                self.diverged = True
+                break
             # self.addTrainingData('sequence_duration',sequence_duration)
             # self.addTrainingData('clocktime',time.time()-tic)
             # Until batch is implemented....
@@ -594,12 +605,11 @@ class PredictiveNet:
         self.pRNN.to("cpu")
         print("Epoch Complete. Back to the cpu")
 
-    def recordTrainingTrial(self, loss, enc_loss=None, aux_loss=None):
+    def recordTrainingTrial(self, loss, enc_loss=None, extras=None):
+        """extras: optional dict of additional per-trial scalars (e.g. I-Norm aux_loss)"""
         self.numTrainingTrials += 1  # Increase the counter
-        trial = {"loss": loss}
-        if aux_loss is not None:
-            trial["aux_loss"] = aux_loss
-        newTrial = pd.DataFrame(trial, index=[0])
+        extras = extras or {}
+        newTrial = pd.DataFrame({"loss": loss, **extras}, index=[0])
         try:
             self.TrainingSaver = pd.concat((self.TrainingSaver, newTrial), ignore_index=True)
         except:
@@ -611,8 +621,7 @@ class PredictiveNet:
             logdict = {"trial": self.numTrainingTrials, "pRNN loss": loss}
             if enc_loss is not None:
                 logdict["encoder loss"] = enc_loss
-            if aux_loss is not None:
-                logdict["aux loss"] = aux_loss
+            logdict.update(extras)
             wandb.log(logdict)
         return
 
@@ -747,12 +756,12 @@ class PredictiveNet:
                     {
                         "params": mean_params,
                         "name": "SubtractiveInhibition",
-                        "lr": getattr(self, "lr_norm_mean", 1e-5),
+                        "lr": getattr(self, "lr_norm_mean", 3e-3),
                     },
                     {
                         "params": var_params,
                         "name": "DivisiveInhibition",
-                        "lr": getattr(self, "lr_norm_var0", 1e-6),
+                        "lr": getattr(self, "lr_norm_var0", 1e-1),
                     },
                 ],
                 momentum=0,

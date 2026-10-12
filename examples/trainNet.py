@@ -23,6 +23,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import random
+import time
+import traceback
 
 from types import SimpleNamespace
 
@@ -313,14 +315,14 @@ parser.add_argument(
 
 parser.add_argument(
     "--lr_norm_mean",
-    default=1e-5,
+    default=3e-3,
     type=float,
     help="I-Norm: learning rate of the subtractive inhibition (mean predictor)",
 )
 
 parser.add_argument(
     "--lr_norm_var0",
-    default=1e-6,
+    default=1e-1,
     type=float,
     help="I-Norm: learning rate of the divisive inhibition (variance predictor)",
 )
@@ -582,42 +584,59 @@ else:
 
     while predictiveNet.numTrainingEpochs < numepochs:  # run through all epochs
         print(f"Training Epoch {predictiveNet.numTrainingEpochs}")
+        epoch_start = time.time()
         predictiveNet.trainingEpoch(
             env, agent, sequence_duration=sequence_duration, num_trials=num_trials
         )
-        epoch_loss = float(predictiveNet.TrainingSaver["loss"].dropna().iloc[-num_trials:].mean())
-        if not np.isfinite(epoch_loss):
+        epoch_time = time.time() - epoch_start
+        epoch_loss = float(
+            predictiveNet.TrainingSaver["loss"].iloc[-num_trials:].mean(skipna=False)
+        )
+        if getattr(predictiveNet, "diverged", False) or not np.isfinite(epoch_loss):
+            epoch_loss = np.nan
             print("Loss diverged, stopping training.")
             if args.wandb:
                 # large finite value so the sweep (and hyperband) see the failure
                 wandb.log({"epoch": predictiveNet.numTrainingEpochs, "epoch_loss": 1e3})
             break
-        print("Calculating Spatial Representation...")
-        place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(
-            env,
-            agent,
-            trainDecoder=True,
-            trainHDDecoder=False,
-            saveTrainingData=True,
-            bitsec=False,
-            calculatesRSA=True,
-            sleepstd=0.03,
-        )
-        print("Calculating Decoding Performance...")
-        predictiveNet.calculateDecodingPerformance(
-            env, agent, decoder, savename=savename, savefolder=figfolder, saveTrainingData=True
-        )
-        predictiveNet.plotLearningCurve(savename=savename, savefolder=figfolder, incDecode=True)
-        predictiveNet.plotTuningCurvePanel(savename=savename, savefolder=figfolder)
-        plt.show()
-        plt.close("all")
+        try:
+            print("Calculating Spatial Representation...")
+            place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(
+                env,
+                agent,
+                trainDecoder=True,
+                trainHDDecoder=False,
+                saveTrainingData=True,
+                bitsec=False,
+                calculatesRSA=True,
+                sleepstd=0.03,
+            )
+            print("Calculating Decoding Performance...")
+            predictiveNet.calculateDecodingPerformance(
+                env, agent, decoder, savename=savename, savefolder=figfolder, saveTrainingData=True
+            )
+            predictiveNet.plotLearningCurve(savename=savename, savefolder=figfolder, incDecode=True)
+            predictiveNet.plotTuningCurvePanel(savename=savename, savefolder=figfolder)
+            plt.show()
+            plt.close("all")
+        except Exception:
+            # A failing analysis (e.g. silent units on a degenerate network) should not
+            # kill a sweep run: report the loss and keep training.
+            traceback.print_exc()
+            plt.close("all")
         predictiveNet.saveNet(args.savefolder + savename)
 
         if args.wandb:
-            epoch_log = {"epoch": predictiveNet.numTrainingEpochs, "epoch_loss": epoch_loss}
-            if "aux_loss" in predictiveNet.TrainingSaver:
-                aux = predictiveNet.TrainingSaver["aux_loss"].dropna().iloc[-num_trials:]
-                epoch_log["epoch_aux_loss"] = float(aux.mean())
+            epoch_log = {
+                "epoch": predictiveNet.numTrainingEpochs,
+                "epoch_loss": epoch_loss,
+                "epoch_train_time_s": epoch_time,
+                "epoch_total_time_s": time.time() - epoch_start,
+            }
+            for key in ["aux_loss", "ln_mse", "ln_cos"]:  # I-Norm diagnostics
+                if key in predictiveNet.TrainingSaver:
+                    values = predictiveNet.TrainingSaver[key].iloc[-num_trials:]
+                    epoch_log["epoch_" + key] = float(values.mean())
             for key, logkey in [("sRSA", "epoch_sRSA"), ("SI", "epoch_mean_SI"),
                                 ("derror", "epoch_derror")]:
                 value = last_value(key)
@@ -641,7 +660,10 @@ else:
                 wandb.run.summary["final_" + key] = value
 
     predictiveNet.trainingCompleted = True
-    TrainingFigure(predictiveNet, savename=savename, savefolder=figfolder)
+    try:
+        TrainingFigure(predictiveNet, savename=savename, savefolder=figfolder)
+    except Exception as e:  # e.g. NaNs after divergence; don't fail the run over a figure
+        print(f"TrainingFigure failed: {e}")
 
 # If the user doesn't want to save all that training data, delete it except the last one
 if args.saveTrainData is False:

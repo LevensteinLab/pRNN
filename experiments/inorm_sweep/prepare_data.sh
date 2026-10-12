@@ -18,5 +18,6 @@ VENV="${VENV:-$REPO_ROOT/.venv}"
 
 cd "$REPO_ROOT"
 source "$VENV/bin/activate"
+export PYTHONPATH="$REPO_ROOT:${PYTHONPATH:-}"
 
 python experiments/inorm_sweep/prepare_data.py --datadir Data --dataNtraj 10240 --seqdur 500

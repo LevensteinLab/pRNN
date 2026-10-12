@@ -24,6 +24,8 @@ import torch.nn.utils.prune as prune
 
 from abc import ABC, abstractmethod
 
+import torch.nn.functional as F
+
 from prnn.utils.inorm import ParametrizedLayerNorm, excitatory_weight
 
 # INIT FUNCTIONS
@@ -389,6 +391,7 @@ class INormRNNCell(RNNCell):
         )
         self.init_norm()
         self._aux_losses = []
+        self._reset_ln_stats()
 
     def init_norm(self):
         """(Re)fit the inhibitory pathways so they reproduce LayerNorm for the
@@ -414,12 +417,33 @@ class INormRNNCell(RNNCell):
         self._aux_losses = []
         return aux
 
+    def _reset_ln_stats(self):
+        self._ln_mse_sum, self._ln_cos_sum, self._ln_n = 0.0, 0.0, 0
+
+    def pop_ln_alignment(self):
+        """Diagnostic: how close the inhibitory normalization is to a true LayerNorm,
+        averaged over the training steps since the last call. Returns
+        (MSE between normalized drives, cosine between relu(I-Norm) and relu(LayerNorm)),
+        or None if no steps."""
+        if self._ln_n == 0:
+            return None
+        stats = (float(self._ln_mse_sum) / self._ln_n, float(self._ln_cos_sum) / self._ln_n)
+        self._reset_ln_stats()
+        return stats
+
     def forward(self, input: Tensor, internal: Tensor, state: Tensor):
         hx = state[0]
         pre = super().update_preactivation(input, hx)
         x, aux = self.paramln(pre, input, hx)
-        if torch.is_grad_enabled():
+        if torch.is_grad_enabled():  # training steps only
             self._aux_losses.append(aux)
+            with torch.no_grad():
+                ln_true = F.layer_norm(pre, pre.shape[-1:], eps=self.paramln.eps)
+                self._ln_mse_sum = self._ln_mse_sum + (x - ln_true).pow(2).mean()
+                self._ln_cos_sum = self._ln_cos_sum + F.cosine_similarity(
+                    torch.relu(x), torch.relu(ln_true), dim=-1
+                ).mean()
+                self._ln_n += 1
         hy = self.actfun(x + self.bias + internal)
         return hy, (hy,)
 
@@ -427,6 +451,7 @@ class INormRNNCell(RNNCell):
         # Don't pickle the per-step aux loss graph
         state = self.__dict__.copy()
         state["_aux_losses"] = []
+        state["_ln_mse_sum"], state["_ln_cos_sum"], state["_ln_n"] = 0.0, 0.0, 0
         return state
 
 

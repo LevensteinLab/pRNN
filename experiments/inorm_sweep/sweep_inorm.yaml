@@ -13,7 +13,7 @@ metric:
   goal: minimize
 early_terminate:
   type: hyperband
-  min_iter: 4   # in epochs; brackets at 4, 8, 16
+  min_iter: 6   # in epochs; brackets at 6 and 12 (lets slow starters through)
   eta: 2
 
 command:
@@ -42,6 +42,10 @@ parameters:
     value: 8
   ln_feedback:
     value: full
+  # The aux loss only reaches the inhibitory weights, which use plain SGD, so its
+  # weight is redundant with lr_norm_mean / lr_norm_var0: fixed at 1.
+  aux_loss_weight:
+    value: 1.0
 
   # Excitatory network (same RMSprop groups as the standard pRNN)
   lr:
@@ -57,16 +61,16 @@ parameters:
     min: 1.0e-4
     max: 1.0e-2
 
-  # Inhibitory normalization (separate SGD optimizer, trained by the aux loss)
+  # Inhibitory normalization (separate SGD optimizer, trained by the aux loss).
+  # Ranges from short probes at hidden_size=500 (40 trials):
+  #   subtractive (mean): stable <= 1e-2, aux loss spikes at >= 3e-2, NaN at 1
+  #   divisive (var):     stable and tracks LayerNorm best at 1e-1 .. 1
+  #   too low (fmnist defaults 1e-5 / 1e-6): inhibition falls behind (aux ~0.2)
   lr_norm_mean:
     distribution: log_uniform_values
-    min: 1.0e-6
-    max: 1.0e-2
+    min: 1.0e-5
+    max: 3.0e-2
   lr_norm_var0:
     distribution: log_uniform_values
-    min: 1.0e-6
-    max: 1.0e-2
-  aux_loss_weight:
-    distribution: log_uniform_values
-    min: 1.0e-1
-    max: 1.0e+1
+    min: 1.0e-3
+    max: 1.0

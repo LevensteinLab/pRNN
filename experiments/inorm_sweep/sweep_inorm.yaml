@@ -1,0 +1,72 @@
+# W&B Bayesian hyperparameter sweep: I-Norm RNN (INormRNNCell) on the pRNN task
+# (masked next-step prediction, k=5, LRoom-18x18, SpeedHD actions).
+#
+#   cd $REPO_ROOT && wandb sweep --project prnn-inorm experiments/inorm_sweep/sweep_inorm.yaml
+#
+# Objective: epoch_loss = mean predictive loss over the trials of an epoch. The
+# Bayesian search uses its last logged value (the final epoch); diverged runs log
+# 1e3. The same value is also stored as the run summary "final_loss".
+program: examples/trainNet.py
+method: bayes
+metric:
+  name: epoch_loss
+  goal: minimize
+early_terminate:
+  type: hyperband
+  min_iter: 4   # in epochs; brackets at 4, 8, 16
+  eta: 2
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --pRNNtype=Masked
+  - --cell=INormRNNCell
+  - --k=5
+  - --hidden_size=500
+  - --env=LRoom-18x18-v0
+  - --envPackage=farama-minigrid
+  - --actenc=SpeedHD
+  - --savefolder=inorm_sweep/
+  - --no-saveTrainData
+  - --wandb
+  - ${args}
+
+parameters:
+  # Fixed during the sweep
+  numepochs:
+    value: 20
+  numtrials:
+    value: 1024
+  seed:
+    value: 8
+  ln_feedback:
+    value: full
+
+  # Excitatory network (same RMSprop groups as the standard pRNN)
+  lr:
+    distribution: log_uniform_values
+    min: 3.0e-4
+    max: 1.0e-2
+  bias_lr:
+    distribution: log_uniform_values
+    min: 1.0e-3
+    max: 1.0e-1
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1.0e-4
+    max: 1.0e-2
+
+  # Inhibitory normalization (separate SGD optimizer, trained by the aux loss)
+  lr_norm_mean:
+    distribution: log_uniform_values
+    min: 1.0e-6
+    max: 1.0e-2
+  lr_norm_var0:
+    distribution: log_uniform_values
+    min: 1.0e-6
+    max: 1.0e-2
+  aux_loss_weight:
+    distribution: log_uniform_values
+    min: 1.0e-1
+    max: 1.0e+1

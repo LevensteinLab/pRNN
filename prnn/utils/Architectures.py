@@ -9,6 +9,7 @@ from prnn.utils.thetaRNN import (
     thetaRNNLayer,
     AdaptingLayerNormRNNCell,
     AdaptingRNNCell,
+    INormRNNCell,
 )
 from prnn.utils.pytorchInits import CANN_
 from abc import ABC, abstractmethod
@@ -130,6 +131,9 @@ class pRNN(nn.Module):
 
         with torch.no_grad():
             self.W.add_(torch.eye(hidden_size).mul_(1 - 1 / self.neuralTimescale).to_sparse())
+        if hasattr(self.rnn.cell, "init_norm"):
+            # INorm: refit the inhibitory pathways to the final recurrent weights
+            self.rnn.cell.init_norm()
 
     def create_layers(
         self,
@@ -956,6 +960,10 @@ lognRNN_rollout = partial(
     sparsity=0.05,
 )
 lognRNN_mask = partial(MaskedRNN, cell=LayerNormRNNCell, k=5, init="log_normal", sparsity=0.05)
+
+""" Inhibitory normalization (I-Norm) """
+
+inormRNN_mask = partial(MaskedRNN, cell=INormRNNCell, k=5)
 
 """ Multimodal pRNNs """
 

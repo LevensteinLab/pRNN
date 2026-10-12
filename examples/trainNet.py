@@ -302,6 +302,72 @@ parser.add_argument(
     "--sigma", default=1, type=float, help="Parameter in divisive normalization"
 )  # TODO: add more descriptive language here
 
+# I-Norm (INormRNNCell) Params
+
+parser.add_argument(
+    "--aux_loss_weight",
+    default=1.0,
+    type=float,
+    help="I-Norm: weight of the aux moment loss that trains the inhibitory pathways",
+)
+
+parser.add_argument(
+    "--lr_norm_mean",
+    default=1e-5,
+    type=float,
+    help="I-Norm: learning rate of the subtractive inhibition (mean predictor)",
+)
+
+parser.add_argument(
+    "--lr_norm_var0",
+    default=1e-6,
+    type=float,
+    help="I-Norm: learning rate of the divisive inhibition (variance predictor)",
+)
+
+parser.add_argument(
+    "--ln_feedback",
+    default=None,
+    type=str,
+    choices=["full", "center", "fa_center", "scale", "decorrelate"],
+    help="I-Norm: LayerNorm-like backward applied to the task gradient (Default: full)",
+)
+
+parser.add_argument(
+    "--gradient_norm",
+    action=argparse.BooleanOptionalAction,
+    default=None,
+    help="I-Norm: route the task gradient through the LayerNorm-like backward (Default: True)",
+)
+
+parser.add_argument(
+    "--n_div",
+    default=None,
+    type=int,
+    help="I-Norm: number of divisive inhibitory units (Default: hidden_size)",
+)
+
+# Weights & Biases
+
+parser.add_argument(
+    "--wandb",
+    action="store_true",
+    default=False,
+    help="Log training to Weights & Biases (needed for W&B sweeps)",
+)
+
+parser.add_argument("--wandb_project", default="prnn-inorm", type=str, help="W&B project")
+
+parser.add_argument("--wandb_entity", default=None, type=str, help="W&B entity")
+
+parser.add_argument(
+    "--data_tmpdir",
+    default=os.environ.get("PRNN_DATA_TMPDIR") or None,
+    type=str,
+    help="Copy the trajectory dataset here before training, e.g. $SLURM_TMPDIR "
+    "(Default: $PRNN_DATA_TMPDIR if set, else train from --datadir)",
+)
+
 parser.add_argument(
     "--test",
     action="store_true",
@@ -311,6 +377,16 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+if args.wandb:
+    import wandb
+
+    wandb.init(project=args.wandb_project, entity=args.wandb_entity, config=vars(args))
+    # W&B sweeps override hyperparameters through wandb.config
+    for key, value in wandb.config.items():
+        if hasattr(args, key):
+            setattr(args, key, value)
+    if args.namext == "":
+        args.namext = wandb.run.id  # unique savename for every sweep run
 
 savename = args.pRNNtype + "-" + args.namext + "-s" + str(args.seed)
 figfolder = "nets/" + args.savefolder + "/trainfigs/" + savename
@@ -370,6 +446,16 @@ architecture_kwargs["train_divnorm"] = args.train_divnorm
 architecture_kwargs["k_div"] = args.k_div
 architecture_kwargs["sigma"] = args.sigma
 
+# I-Norm parameters (only used by INormRNNCell)
+if args.ln_feedback is not None:
+    architecture_kwargs["ln_feedback"] = args.ln_feedback
+
+if args.gradient_norm is not None:
+    architecture_kwargs["gradient_norm"] = args.gradient_norm
+
+if args.n_div is not None:
+    architecture_kwargs["n_div"] = args.n_div
+
 # === Cell override ===
 if args.cell is not None:
     if args.cell not in CELL_TYPES.keys():
@@ -410,6 +496,10 @@ else:  # create new PredictiveNet and begin training
         eg_weight_decay=args.eg_weight_decay,
         bias_lr=args.bias_lr,
         dataloader=args.withDataLoader,
+        wandb_log=args.wandb,
+        aux_loss_weight=args.aux_loss_weight,
+        lr_norm_mean=args.lr_norm_mean,
+        lr_norm_var0=args.lr_norm_var0,
         trainArgs=SimpleNamespace(**args.__dict__),
         **architecture_kwargs,
     )  # allows values in trainArgs to be accessible
@@ -431,7 +521,7 @@ else:  # create new PredictiveNet and begin training
             args.seqdur,
             args.datadir,
             generate=True,
-            #   tmp_folder=os.path.expandvars('${SLURM_TMPDIR}'), # This should stay commented out unless running on MILA cluster
+            tmp_folder=args.data_tmpdir,
             batch_size=args.batchsize,
             num_workers=args.numworkers,
         )
@@ -478,6 +568,16 @@ else:
     if hasattr(predictiveNet, "numTrainingEpochs") is False:
         predictiveNet.numTrainingEpochs = int(predictiveNet.numTrainingTrials / num_trials)
 
+    def last_value(key):
+        """Most recent non-NaN entry of a TrainingSaver column (scalar mean if array)."""
+        if key not in predictiveNet.TrainingSaver:
+            return None
+        col = predictiveNet.TrainingSaver[key].dropna()
+        if len(col) == 0:
+            return None
+        return float(np.nanmean(np.asarray(col.iloc[-1], dtype=float)))
+
+    epoch_loss = np.nan
     progress = tqdm(total=numepochs, desc="Training Epochs")  # tdqm status bar
 
     while predictiveNet.numTrainingEpochs < numepochs:  # run through all epochs
@@ -485,6 +585,13 @@ else:
         predictiveNet.trainingEpoch(
             env, agent, sequence_duration=sequence_duration, num_trials=num_trials
         )
+        epoch_loss = float(predictiveNet.TrainingSaver["loss"].dropna().iloc[-num_trials:].mean())
+        if not np.isfinite(epoch_loss):
+            print("Loss diverged, stopping training.")
+            if args.wandb:
+                # large finite value so the sweep (and hyperband) see the failure
+                wandb.log({"epoch": predictiveNet.numTrainingEpochs, "epoch_loss": 1e3})
+            break
         print("Calculating Spatial Representation...")
         place_fields, SI, decoder = predictiveNet.calculateSpatialRepresentation(
             env,
@@ -506,9 +613,32 @@ else:
         plt.close("all")
         predictiveNet.saveNet(args.savefolder + savename)
 
+        if args.wandb:
+            epoch_log = {"epoch": predictiveNet.numTrainingEpochs, "epoch_loss": epoch_loss}
+            if "aux_loss" in predictiveNet.TrainingSaver:
+                aux = predictiveNet.TrainingSaver["aux_loss"].dropna().iloc[-num_trials:]
+                epoch_log["epoch_aux_loss"] = float(aux.mean())
+            for key, logkey in [("sRSA", "epoch_sRSA"), ("SI", "epoch_mean_SI"),
+                                ("derror", "epoch_derror")]:
+                value = last_value(key)
+                if value is not None:
+                    epoch_log[logkey] = value
+            wandb.log(epoch_log)
+
         progress.update(1)
 
     progress.close()
+
+    if args.wandb:
+        # Objective of the hyperparameter sweep: predictive loss over the final epoch.
+        # Diverged runs get a large finite value so Bayesian search can learn from them.
+        final_loss = epoch_loss if np.isfinite(epoch_loss) else 1e3
+        wandb.run.summary["final_loss"] = final_loss
+        wandb.run.summary["diverged"] = not np.isfinite(epoch_loss)
+        for key in ["sRSA", "SI", "derror"]:
+            value = last_value(key)
+            if value is not None:
+                wandb.run.summary["final_" + key] = value
 
     predictiveNet.trainingCompleted = True
     TrainingFigure(predictiveNet, savename=savename, savefolder=figfolder)

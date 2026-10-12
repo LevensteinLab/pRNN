@@ -7,7 +7,7 @@ Tests the actual user experience - no imports from trainNet.py needed.
 import subprocess
 import pytest
 from pathlib import Path
-from prnn.utils.thetaRNN import RNNCell, LayerNormRNNCell
+from prnn.utils.thetaRNN import RNNCell, LayerNormRNNCell, INormRNNCell
 
 REPO_ROOT = Path(__file__).parent.parent
 TRAIN_SCRIPT = REPO_ROOT / "examples" / "trainNet.py"
@@ -170,6 +170,26 @@ class TestPartialPresetsViaCLI:
         assert list(net.pRNN.actMask) == expected_mask, (
             f"Expected actMask={expected_mask}, got {list(net.pRNN.actMask)}"
         )
+
+    def test_inorm_cell_override_and_args(self, run_trainnet):
+        """--cell INormRNNCell and the I-Norm CLI args reach the cell and PredictiveNet"""
+        net = run_trainnet(
+            "Masked",
+            k=5,
+            cell="INormRNNCell",
+            ln_feedback="fa_center",
+            n_div=20,
+            aux_loss_weight=0.5,
+            lr_norm_mean=1e-3,
+            lr_norm_var0=1e-4,
+        )
+        cell = net.pRNN.rnn.cell
+        assert type(cell) == INormRNNCell
+        assert cell.paramln.ln_feedback == "fa_center"
+        assert cell.paramln.var_net[0].out_features == 20
+        assert net.aux_loss_weight == 0.5
+        lrs = [g["lr"] for g in net.optimizer_norm.param_groups]
+        assert lrs == [1e-3, 1e-4]
 
     # Rollouts
     def test_rollout_k(self, run_trainnet):

@@ -110,6 +110,7 @@ netOptions = {
     "thcycRNN_5win_holdc_prevAct": thcycRNN_5win_holdc_prevAct,
     "lognRNN_rollout": lognRNN_rollout,  # LOG NORMAL INIT
     "lognRNN_mask": lognRNN_mask,
+    "inormRNN_mask": inormRNN_mask,  # INHIBITORY NORMALIZATION
     "multRNN_5win_i01_o01": multRNN_5win_i01_o01,
     "multRNN_5win_i1_o0": multRNN_5win_i1_o0,
     "multRNN_5win_i01_o0": multRNN_5win_i01_o0,
@@ -123,6 +124,7 @@ CELL_TYPES = {
     "LayerNormRNNCell": LayerNormRNNCell,
     "AdaptingLayerNormRNNCell": AdaptingLayerNormRNNCell,
     "AdaptingRNNCell": AdaptingRNNCell,
+    "INormRNNCell": INormRNNCell,
 }
 
 
@@ -161,6 +163,9 @@ class PredictiveNet:
         enc_loss_weight=1.0,
         enc_loss_power=1.0,
         wandb_log=False,
+        aux_loss_weight=1.0,
+        lr_norm_mean=1e-5,
+        lr_norm_var0=1e-6,
         trainArgs=SimpleNamespace(),
         **architecture_kwargs,
     ):
@@ -201,6 +206,12 @@ class PredictiveNet:
         )
         if identityInit:
             self.pRNN.W = nn.Parameter(torch.eye(hidden_size))
+
+        # I-Norm cells: weight of the aux moment loss and learning rates of the
+        # inhibitory (normalization) pathways, which have their own optimizer
+        self.aux_loss_weight = aux_loss_weight
+        self.lr_norm_mean = lr_norm_mean
+        self.lr_norm_var0 = lr_norm_var0
 
         self.loss_fn = lossOptions[losstype]()
         self.resetOptimizer(
@@ -320,10 +331,18 @@ class PredictiveNet:
         else:
             enc_loss = 0
 
+        cell = self.pRNN.rnn.cell
+        if hasattr(cell, "pop_aux_loss"):
+            cell.pop_aux_loss()  # drop any stale per-step aux losses
+
         obs_pred, obs_next, h = self.predict(obs, act, mask=mask, batched=batched)
         if type(obs_pred) == tuple:
             obs_pred = obs_pred[0]
         predloss = self.loss_fn(obs_pred, obs_next, h)
+
+        # I-Norm aux moment loss. Averaged (not summed, as in RNN_EI_Network) over
+        # timesteps and theta steps, since pRNN sequences are much longer.
+        aux_loss = cell.pop_aux_loss() if hasattr(cell, "pop_aux_loss") else None
 
         if with_homeostat:
             target_sparsity = self.target_sparsity
@@ -339,15 +358,24 @@ class PredictiveNet:
             + predloss
             + self.enc_loss_weight * enc_loss**self.enc_loss_power
         )
+        if aux_loss is not None:
+            loss = loss + getattr(self, "aux_loss_weight", 1.0) * aux_loss
 
         if learningRate is not None:
             oldlr = self.optimizer.param_groups[0]["lr"]
             self.optimizer.param_groups[0]["lr"] = learningRate
 
         # Backpropagation (through time)
+        optimizer_norm = getattr(self, "optimizer_norm", None)
         self.optimizer.zero_grad()  # Clear the gradients
+        if optimizer_norm is not None:
+            optimizer_norm.zero_grad()
         loss.backward()  # Backpropagate w.r.t the loss
         self.optimizer.step()  # Adjust the parameters
+        if optimizer_norm is not None:
+            optimizer_norm.step()
+        if hasattr(cell, "clamp_weights"):
+            cell.clamp_weights()  # Dale's law: keep excitatory weights >= 0
         if self.train_encoder:
             self.env_shell.encoder.optimizer.step()
 
@@ -355,10 +383,11 @@ class PredictiveNet:
             self.optimizer.param_groups[0]["lr"] = oldlr
 
         steploss = predloss.item()
+        aux_item = aux_loss.item() if aux_loss is not None else None
         if self.train_encoder:
-            self.recordTrainingTrial(steploss, enc_loss)
+            self.recordTrainingTrial(steploss, enc_loss, aux_loss=aux_item)
         else:
-            self.recordTrainingTrial(steploss)
+            self.recordTrainingTrial(steploss, aux_loss=aux_item)
 
         return steploss, sparsity, meanrate
 
@@ -387,6 +416,10 @@ class PredictiveNet:
         self.optimizer.zero_grad()  # Clear the gradients
         loss.backward()  # Backpropagate w.r.t the loss
         self.optimizer.step()  # Adjust the parameters
+        cell = self.pRNN.rnn.cell
+        if hasattr(cell, "clamp_weights"):
+            cell.pop_aux_loss()
+            cell.clamp_weights()
 
         steploss = spontloss.item()
         self.recordTrainingTrial(steploss)
@@ -561,9 +594,12 @@ class PredictiveNet:
         self.pRNN.to("cpu")
         print("Epoch Complete. Back to the cpu")
 
-    def recordTrainingTrial(self, loss, enc_loss=None):
+    def recordTrainingTrial(self, loss, enc_loss=None, aux_loss=None):
         self.numTrainingTrials += 1  # Increase the counter
-        newTrial = pd.DataFrame({"loss": loss}, index=[0])
+        trial = {"loss": loss}
+        if aux_loss is not None:
+            trial["aux_loss"] = aux_loss
+        newTrial = pd.DataFrame(trial, index=[0])
         try:
             self.TrainingSaver = pd.concat((self.TrainingSaver, newTrial), ignore_index=True)
         except:
@@ -572,12 +608,12 @@ class PredictiveNet:
             )
         if self.wandb_log:
             # Encoder loss is logged only in W&B
+            logdict = {"trial": self.numTrainingTrials, "pRNN loss": loss}
             if enc_loss is not None:
-                wandb.log(
-                    {"trial": self.numTrainingTrials, "pRNN loss": loss, "encoder loss": enc_loss}
-                )
-            else:
-                wandb.log({"trial": self.numTrainingTrials, "pRNN loss": loss})
+                logdict["encoder loss"] = enc_loss
+            if aux_loss is not None:
+                logdict["aux loss"] = aux_loss
+            wandb.log(logdict)
         return
 
     def addTrainingData(self, key, data):
@@ -701,6 +737,28 @@ class PredictiveNet:
                     group["update_alg"] = update_alg
                     group["lr"] = eg_lr
                     group["weight_decay"] = eg_weight_decay * eg_lr
+
+        # I-Norm: the inhibitory pathways are trained only by the aux moment loss,
+        # with their own SGD optimizer (as in RNN_EI_Network's param_ln_param_groups)
+        if hasattr(self.pRNN.rnn.cell, "norm_parameters"):
+            mean_params, var_params = self.pRNN.rnn.cell.norm_parameters()
+            self.optimizer_norm = torch.optim.SGD(
+                [
+                    {
+                        "params": mean_params,
+                        "name": "SubtractiveInhibition",
+                        "lr": getattr(self, "lr_norm_mean", 1e-5),
+                    },
+                    {
+                        "params": var_params,
+                        "name": "DivisiveInhibition",
+                        "lr": getattr(self, "lr_norm_var0", 1e-6),
+                    },
+                ],
+                momentum=0,
+            )
+        else:
+            self.optimizer_norm = None
 
     # TODO: convert these to general.savePkl and general.loadPkl (follow SpatialTuningAnalysis.py)
     def saveNet(self, savename, savefolder="", cpu=False):

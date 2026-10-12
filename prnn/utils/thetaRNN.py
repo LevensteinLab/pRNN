@@ -24,6 +24,8 @@ import torch.nn.utils.prune as prune
 
 from abc import ABC, abstractmethod
 
+from prnn.utils.inorm import ParametrizedLayerNorm, excitatory_weight
+
 # INIT FUNCTIONS
 
 
@@ -331,6 +333,101 @@ class AdaptingLayerNormRNNCell(LayerNormRNNCell, AdaptingRNNCell):
         ay = ax * (1 - 1 / self.tau_a) + self.b / self.tau_a * hx
         hy = self.actfun(x + internal - ax)
         return hy, (hy, ay)
+
+
+class INormRNNCell(RNNCell):
+    """
+    Excitatory RNN cell with inhibitory normalization (I-Norm), ported from
+    RNN_EI_Network's SimpleEERNN + ParametrizedLayerNorm (see prnn/utils/inorm.py).
+
+    Input and recurrent weights are non-negative (excitatory, lognormal init).
+    LayerNorm is replaced by learned inhibition: a subtractive pathway predicts the
+    mean of the drive and a divisive pathway predicts its variance. These are
+    trained only by the auxiliary moment loss (collected per step and retrieved
+    with pop_aux_loss), using a separate optimizer (see PredictiveNet.resetOptimizer).
+    As in LayerNormRNNCell, a trainable shift (self.bias, init mu) is added after
+    normalization to set the activity sparsity.
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        actfun: str = "relu",
+        init="xavier",
+        mu=0,
+        sig=1,
+        ln_feedback="full",
+        gradient_norm=True,
+        n_div=None,
+        *args,
+        **kwargs,
+    ):
+        """Constructor.
+
+        Args:
+            Inherits input_size, hidden_size, actfun from RNNCell (init is ignored:
+                weights always use the excitatory lognormal init).
+            mu (float, optional): Initial post-normalization shift. Defaults to 0.
+            sig (float, optional): Unused, accepted for compatibility with pRNN.
+            ln_feedback (str, optional): LayerNorm-like backward applied to the task
+                gradient ("full", "center", "fa_center", "scale", "decorrelate").
+            gradient_norm (bool, optional): If False, the task gradient bypasses
+                the normalization backward (plain I-Norm). Defaults to True.
+            n_div (int, optional): Number of divisive inhibitory units. Defaults to hidden_size.
+        """
+        super().__init__(input_size, hidden_size, actfun, "xavier", *args, **kwargs)
+        excitatory_weight(self.weight_ih)
+        excitatory_weight(self.weight_hh)
+        self.bias = Parameter(torch.zeros(hidden_size) + mu)
+        self.paramln = ParametrizedLayerNorm(
+            input_size,
+            hidden_size,
+            stats_hidden_size=n_div,
+            ln_feedback=ln_feedback,
+            gradient_norm=gradient_norm,
+        )
+        self.init_norm()
+        self._aux_losses = []
+
+    def init_norm(self):
+        """(Re)fit the inhibitory pathways so they reproduce LayerNorm for the
+        current excitatory weights."""
+        self.paramln.init_from_rnn_weights(self.weight_ih, self.weight_hh, bias=None)
+
+    def clamp_weights(self):
+        """Project excitatory weights (and clamped inhibitory ones) onto >= 0."""
+        with torch.no_grad():
+            self.weight_ih.clamp_(min=0)
+            self.weight_hh.clamp_(min=0)
+        self.paramln.clamp_weights()
+
+    def norm_parameters(self):
+        """Trainable inhibitory parameters: (subtractive, divisive)."""
+        return list(self.paramln.mean_net.parameters()), list(self.paramln.var_net[0].parameters())
+
+    def pop_aux_loss(self):
+        """Mean aux moment loss over the steps since the last call (None if no steps)."""
+        if len(self._aux_losses) == 0:
+            return None
+        aux = torch.stack(self._aux_losses).mean()
+        self._aux_losses = []
+        return aux
+
+    def forward(self, input: Tensor, internal: Tensor, state: Tensor):
+        hx = state[0]
+        pre = super().update_preactivation(input, hx)
+        x, aux = self.paramln(pre, input, hx)
+        if torch.is_grad_enabled():
+            self._aux_losses.append(aux)
+        hy = self.actfun(x + self.bias + internal)
+        return hy, (hy,)
+
+    def __getstate__(self):
+        # Don't pickle the per-step aux loss graph
+        state = self.__dict__.copy()
+        state["_aux_losses"] = []
+        return state
 
 
 class LayerNorm(nn.Module):

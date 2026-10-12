@@ -1,0 +1,50 @@
+# W&B Bayesian hyperparameter sweep: standard LayerNorm pRNN baseline, with the
+# same budget and search ranges as sweep_inorm.yaml (minus the I-Norm parameters).
+#
+#   cd $REPO_ROOT && wandb sweep --project prnn-inorm experiments/inorm_sweep/sweep_layernorm_baseline.yaml
+program: examples/trainNet.py
+method: bayes
+metric:
+  name: epoch_loss
+  goal: minimize
+early_terminate:
+  type: hyperband
+  min_iter: 4
+  eta: 2
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --pRNNtype=Masked
+  - --cell=LayerNormRNNCell
+  - --k=5
+  - --hidden_size=500
+  - --env=LRoom-18x18-v0
+  - --envPackage=farama-minigrid
+  - --actenc=SpeedHD
+  - --savefolder=layernorm_sweep/
+  - --no-saveTrainData
+  - --wandb
+  - ${args}
+
+parameters:
+  numepochs:
+    value: 20
+  numtrials:
+    value: 1024
+  seed:
+    value: 8
+
+  lr:
+    distribution: log_uniform_values
+    min: 3.0e-4
+    max: 1.0e-2
+  bias_lr:
+    distribution: log_uniform_values
+    min: 1.0e-3
+    max: 1.0e-1
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1.0e-4
+    max: 1.0e-2

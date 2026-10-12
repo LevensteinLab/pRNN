@@ -58,6 +58,7 @@ class TestPartialPresets:
             ("AutoencoderFF", RNNCell),
             ("AutoencoderFF_LN", LayerNormRNNCell),
             ("lognRNN_rollout", LayerNormRNNCell),
+            ("inormRNN_mask", INormRNNCell),
         ]
 
         for pRNNtype, expected_cell in test_cases:

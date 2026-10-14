@@ -821,6 +821,21 @@ GIMBL_PRELOADED_PRESETS = {
         trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
                    '20260901_preloaded_traces/mc31_260724_trace.npz',
     ),
+    # mc42 s2 (4m_ctxA, 9017 steps), IMAGE-SYNCED: step 0 = imaging frame 0, built by
+    # ca3_prnn/analysis/20261013_export_preloaded_trace_synced.py from the lab's
+    # image-synced position rather than the raw .tdml stream, so a replay can be put
+    # on the same time axis as the CA3 recording (matched-trajectory figure).
+    'GimblAgentPreloadedMc42_s2synced': dict(      # superseded same day: clipped at 0, see below
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc42_4m_ctxA_s2-010_synced_trace.npz',
+    ),
+    # Same session, SIGNED net velocity (backward wheel motion kept) and cropped to start
+    # where the seed-0 random start puts the agent (93.4 cm), so the replayed position
+    # coincides with the recorded one. The clipped version above ran 1-4% ahead of the mouse.
+    'GimblAgentPreloadedMc42_s2signed': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc42_4m_ctxA_s2-010_synced_signed_trace.npz',
+    ),
 }
 
 

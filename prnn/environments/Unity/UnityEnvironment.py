@@ -29,6 +29,9 @@ from mlagents_envs.base_env import ActionTuple
 from mlagents_envs.side_channel.engine_configuration_channel import (
     EngineConfigurationChannel,
 )
+from mlagents_envs.side_channel.environment_parameters_channel import (
+    EnvironmentParametersChannel,
+)
 
 # ---------------------------------------------------------------------------
 # Monkey-patch mlagents_envs to handle HWC <-> CHW mismatch for compressed
@@ -86,6 +89,7 @@ class UnityEnv(gymnasium.Env):
         max_steps: int = 0,
         seed: int = 0,
         render_mode: str | None = "rgb_array",
+        env_params: dict | None = None,
     ):
         super().__init__()
         self.render_mode = render_mode
@@ -97,13 +101,22 @@ class UnityEnv(gymnasium.Env):
         self._engine_channel = EngineConfigurationChannel()
         self._engine_channel.set_configuration_parameters(time_scale=time_scale)
 
+        # Environment parameters side channel: float knobs the C# side reads with
+        # Academy.Instance.EnvironmentParameters.GetWithDefault(key, default), e.g.
+        # CorridorAgent's "fixedStart". Values set before launch are delivered with
+        # the first reset, so OnEpisodeBegin already sees them.
+        self._params_channel = EnvironmentParametersChannel()
+        self.env_params = dict(env_params or {})
+        for k, v in self.env_params.items():
+            self._params_channel.set_float_parameter(k, float(v))
+
         # Launch Unity environment
         self._unity_env = UnityEnvironment(
             file_name=app_path,
             worker_id=worker_id,
             no_graphics=no_graphics,
             seed=seed,
-            side_channels=[self._engine_channel],
+            side_channels=[self._engine_channel, self._params_channel],
         )
 
         # First reset to discover behavior specs

@@ -926,15 +926,10 @@ class _AutoencoderRNN:
     # recurrent state between RL steps.
     _single_returns_recurrent_state = False
 
-    def _initialize_autoencoder(self, latent_dim, net_config, in_channels, latent_relu=True):
-        """Build the CNN modules after the recurrent core has been created.
-
-        ``latent_relu=False`` leaves the latent projection linear, so a latent
-        unit cannot get stuck at zero for every frame.
-        """
+    def _initialize_autoencoder(self, latent_dim, net_config, in_channels):
+        """Build the CNN modules after the recurrent core has been created."""
         self.latent_dim = latent_dim
         self.in_channels = in_channels
-        self.latent_relu = latent_relu
 
         if net_config is None:
             net_config = (
@@ -975,9 +970,9 @@ class _AutoencoderRNN:
         # Flatten and project to latent space
         modules.append(nn.Flatten())
         if self.latent_dim:
+            # A linear latent: a ReLU here (2025-11-18 to 2026-10-28) could stay
+            # at zero for every frame and then cut the encoder off from training.
             modules.append(nn.Linear(n_channels[-1] * 16 * 16, self.latent_dim))
-            if self.latent_relu:
-                modules.append(nn.ReLU()) # NOTE: experiments ran before 18.11.25 did not have this activation
         self.encoder = nn.Sequential(*modules)
 
     def build_decoder(self, n_channels, kernel_sizes, strides, paddings, output_paddings):
@@ -1171,8 +1166,7 @@ class MaskedRNN_AE(_AutoencoderRNN, MaskedRNN):
         latent_dim=16,
         net_config=None,
         in_channels=3,
-        latent_relu=True,
-        cell=RNNCell,
+        cell=LayerNormRNNCell,  # as MaskedRNN; the plain RNNCell default was a bug
         dropp=0,
         bptttrunc=50,
         k=0,
@@ -1199,7 +1193,7 @@ class MaskedRNN_AE(_AutoencoderRNN, MaskedRNN):
             k=k,
             **cell_kwargs,
         )
-        self._initialize_autoencoder(latent_dim, net_config, in_channels, latent_relu)
+        self._initialize_autoencoder(latent_dim, net_config, in_channels)
 
 
 class RolloutRNN_AE(_AutoencoderRNN, RolloutRNN):
@@ -1215,7 +1209,6 @@ class RolloutRNN_AE(_AutoencoderRNN, RolloutRNN):
         latent_dim=16,
         net_config=None,
         in_channels=3,
-        latent_relu=True,
         cell=LayerNormRNNCell,
         dropp=0.15,
         bptttrunc=100,
@@ -1242,7 +1235,7 @@ class RolloutRNN_AE(_AutoencoderRNN, RolloutRNN):
             actOffset=actOffset,
             **cell_kwargs,
         )
-        self._initialize_autoencoder(latent_dim, net_config, in_channels, latent_relu)
+        self._initialize_autoencoder(latent_dim, net_config, in_channels)
 
 
 """ Next-step Prediction Networks"""

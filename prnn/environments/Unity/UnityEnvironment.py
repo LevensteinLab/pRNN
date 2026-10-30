@@ -15,6 +15,8 @@ Usage:
 
 from __future__ import annotations
 
+import os
+import shlex
 import numpy as np
 
 # mlagents_envs 0.27.x uses the removed np.bool alias — patch before import
@@ -111,11 +113,32 @@ class UnityEnv(gymnasium.Env):
             self._params_channel.set_float_parameter(k, float(v))
 
         # Launch Unity environment
+        # Two knobs for diagnosing the player hang (2026-10-30), both off by default:
+        # UNITY_TIMEOUT_WAIT = seconds Python waits for the player's reply before raising
+        # UnityTimeOutException (ML-Agents default 60); UNITY_EXTRA_ARGS = extra player
+        # command-line arguments, e.g. "-logFile /path/Player.log" to keep Unity's own log
+        # with the job instead of ~/.config/unity3d/.../Player.log (overwritten per launch).
+        # Default raised 60 -> 900 s (2026-10-30, generation job 3302585): the player stops
+        # answering mid-run with nothing in its log; whether it ever resumes is unknown
+        # because 60 s is when ML-Agents gives up. A stall that ends inside 15 min now
+        # continues the same trajectory instead of costing a relaunch.
+        timeout_wait = int(os.environ.get("UNITY_TIMEOUT_WAIT", "900"))
+        # Not changing Mesa's LP_NUM_THREADS (2026-10-30): the stall is a Mesa llvmpipe
+        # rasterizer thread spinning for minutes in JIT-compiled shader code at one frame,
+        # and it ENDS on its own (generation job 3302585 launch 4 resumed after ~3 min), so
+        # the raised timeout above is the workaround; the thread count is left as it was so
+        # every dataset of a job is rendered with the same setup.
+        additional_args = shlex.split(os.environ.get("UNITY_EXTRA_ARGS", ""))
+        if timeout_wait != 900 or additional_args:
+            print(f"[UnityEnv] timeout_wait={timeout_wait}s additional_args={additional_args}",
+                  flush=True)
         self._unity_env = UnityEnvironment(
             file_name=app_path,
             worker_id=worker_id,
             no_graphics=no_graphics,
             seed=seed,
+            timeout_wait=timeout_wait,
+            additional_args=additional_args,
             side_channels=[self._engine_channel, self._params_channel],
         )
 

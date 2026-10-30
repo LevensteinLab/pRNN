@@ -6,6 +6,7 @@ Created on Fri Nov 12 20:05:03 2021
 @author: dl2820
 """
 
+import time
 import numpy as np
 import warnings
 
@@ -539,6 +540,10 @@ class GimblAgentConstant:
             render[0] = env.render()
 
         for t in range(tsteps):
+            if t % 100 == 0:   # progress line (2026-10-30): locates a player stall in the job log
+                print('    [step %d/%d] %s  z=%.2f' % (t, tsteps, time.strftime('%H:%M:%S'),
+                                                      float(np.resize(env.get_agent_pos(), 3)[2])),
+                      flush=True)
             step_result = env.step(act[t])
             obs[t + 1] = step_result[0]
             terminated, truncated = step_result[2], step_result[3]
@@ -707,6 +712,10 @@ class GimblAgentVariable:
             render[0] = env.render()
 
         for t in range(tsteps):
+            if t % 100 == 0:   # progress line (2026-10-30): locates a player stall in the job log
+                print('    [step %d/%d] %s  z=%.2f' % (t, tsteps, time.strftime('%H:%M:%S'),
+                                                      float(np.resize(env.get_agent_pos(), 3)[2])),
+                      flush=True)
             step_result = env.step(act[t])
             obs[t + 1] = step_result[0]
             terminated, truncated = step_result[2], step_result[3]
@@ -798,6 +807,10 @@ class GimblAgentPreloaded:
             render[0] = env.render()
 
         for t in range(tsteps):
+            if t % 100 == 0:   # progress line (2026-10-30): locates a player stall in the job log
+                print('    [step %d/%d] %s  z=%.2f' % (t, tsteps, time.strftime('%H:%M:%S'),
+                                                      float(np.resize(env.get_agent_pos(), 3)[2])),
+                      flush=True)
             step_result = env.step(act[t])
             obs[t + 1] = step_result[0]
             terminated, truncated = step_result[2], step_result[3]
@@ -835,6 +848,52 @@ GIMBL_PRELOADED_PRESETS = {
     'GimblAgentPreloadedMc42_s2signed': dict(
         trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
                    '20260901_preloaded_traces/mc42_4m_ctxA_s2-010_synced_signed_trace.npz',
+    ),
+    # Per-session scoring set for the averaged-KS sweep (Dan 10/28, built 10/30): the ten
+    # CA3 candidate sessions of results/20260930_ca3_reference/exclusion/, each exported
+    # by 20261013_export_preloaded_trace_synced.py --start-cm 93.387 (image-synced, signed
+    # net velocity, cropped to the agent's seed-0 start). Key = session name, so the
+    # trajectory cache path names the session it replays. mc42 s2 here is the same trace
+    # as GimblAgentPreloadedMc42_s2signed above, re-exported identically.
+    'GimblAgentPreloadedSynced_mc31_260724_10min_ctxA4m-000': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc31_260724_10min_ctxA4m-000_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc40_4m_ctxA_s1-005': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc40_4m_ctxA_s1-005_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc40_4m_ctxA_s2-008': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc40_4m_ctxA_s2-008_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc42_4m_ctxA_s1-006': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc42_4m_ctxA_s1-006_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc42_4m_ctxA_s2-010': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc42_4m_ctxA_s2-010_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc40_260836_ctxB_4m-002': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc40_260836_ctxB_4m-002_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc41_260836_ctxB_4m-003': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc41_260836_ctxB_4m-003_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc42_260836_ctxB_4m-004': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc42_260836_ctxB_4m-004_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_mc40_260903_ctxa_reward_switch-002': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/mc40_260903_ctxa_reward_switch-002_synced_signed_trace.npz',
+    ),
+    'GimblAgentPreloadedSynced_vr1_ctxA_ca1_ca3-007': dict(
+        trace_path='/gpfs/radev/project/levenstein/ac3787/ca3_prnn/results/'
+                   '20260901_preloaded_traces/vr1_ctxA_ca1_ca3-007_synced_signed_trace.npz',
     ),
 }
 
